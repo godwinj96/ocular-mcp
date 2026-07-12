@@ -36,3 +36,7 @@ coverage/
 # instructs "do not edit" — gitignoring avoids repeated lint friction over a
 # file nobody hand-writes (packages/dashboard).
 next-env.d.ts
+
+# TypeScript incremental build cache — regenerated locally, never meant to
+# be committed (accidentally swept into the dashboard commit's git add).
+*.tsbuildinfo
