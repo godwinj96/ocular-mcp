@@ -1,0 +1,19 @@
+# Ocular
+
+> Ocular gives AI agents real eyes on the web — enterprise-grade stealth browsing, for $1 a month. No infrastructure to run, no blocks to fight. Connect once; your agent sees everything a human would.
+
+Ocular is a Model Context Protocol (MCP) server that gives AI agents web vision: real browser rendering that avoids automation detection, exposed as four tools over a single MCP connection.
+
+- [Homepage](https://ocular.io) — positioning, pricing, and FAQ.
+- [Pricing](https://ocular.io/#pricing) — $1/month, 300 renders included.
+
+## Tools
+
+- `view_page` — full-page or viewport screenshot of any URL, at low/balanced/high detail.
+- `inspect_ui` — derived design tokens (palette, typography, spacing, breakpoints) for a page, without raw CSS.
+- `extract_assets` — inline SVGs and image URLs, rewritten to absolute, safe-to-fetch links.
+- `get_quota` — remaining renders and reset date for the connected account.
+
+## Pricing
+
+$1/month, 300 renders included. Full charge only on a successful render; half charge if the stealth ladder exhausts every escalation and still fails; nothing charged on a render error.

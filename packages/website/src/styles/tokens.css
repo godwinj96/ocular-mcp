@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens per research & planning/06-brand-identity.md §6 (Round 2 —
+ * neutral grayscale, no navy hue cast). Mirrors tailwind.config.ts so
+ * non-Tailwind contexts (inline SVG grain, canvas) reference the same values.
+ */
+:root {
+  --surface-base: #0a0a0b;
+  --surface-elevated: #131315;
+  --surface-raised: #1c1c1f;
+
+  --text-primary: #f2f2f0;
+  --text-secondary: #8f8f94;
+
+  --border-default: #2a2a2e;
+
+  --accent: #8c7dff;
+  --accent-glow: #5eead4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
