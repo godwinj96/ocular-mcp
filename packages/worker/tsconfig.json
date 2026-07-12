@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    // DOM lib is needed for page.evaluate() closures (assets.ts,
+    // design-tokens.ts, stealth-ladder.ts) — those run in the browser
+    // context, not Node, but tsc typechecks the closure source as if it
+    // shared this file's ambient scope. Everything else in this package
+    // still runs in Node; this only adds ambient *types*, not runtime APIs.
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "dist"]
+}

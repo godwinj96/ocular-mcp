@@ -1,0 +1,22 @@
+{
+  "name": "@ocular/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/main.js",
+    "dev": "tsx watch src/main.ts"
+  },
+  "dependencies": {
+    "@ocular/shared": "*",
+    "bullmq": "^5.34.0",
+    "ioredis": "^5.4.1",
+    "patchright": "^1.49.0",
+    "pino": "^9.5.0",
+    "sharp": "^0.33.5",
+    "undici": "^7.1.1"
+  }
+}
