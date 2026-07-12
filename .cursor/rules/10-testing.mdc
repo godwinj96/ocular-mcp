@@ -1,0 +1,10 @@
+---
+description: Test types, mock vs real policy, mandatory SSRF and charge-policy test cases, fixture-based extractor testing. Canonical source: docs/rules/10-testing.md
+globs:
+  - "packages/**/*"
+alwaysApply: true
+---
+
+See `docs/rules/10-testing.md` for the full rule text. Do not duplicate content here.
+
+Key points: Vitest, 80% min coverage. Never mock SSRF logic or the envelope shape. Mandatory SSRF test list (RFC1918, metadata IP, redirect rebinding, etc.) and charge-policy race-condition test are non-negotiable for any PR touching those paths.

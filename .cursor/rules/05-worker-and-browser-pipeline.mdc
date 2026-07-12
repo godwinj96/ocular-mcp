@@ -1,0 +1,10 @@
+---
+description: Worker lifecycle, BrowserProvider implementation, StealthLadder, extractors, image pipeline. Canonical source: docs/rules/05-worker-and-browser-pipeline.md
+globs:
+  - "packages/worker/**/*"
+alwaysApply: true
+---
+
+See `docs/rules/05-worker-and-browser-pipeline.md` for the full rule text. Do not duplicate content here.
+
+Key points: one deadline threaded through every stage; `finally` always closes page/context; one warm browser per worker, fresh context per request; ladder escalates only on classifier evidence; extractors are capped and never return raw stylesheets/files.

@@ -1,0 +1,10 @@
+---
+description: MCP transport, AuthKit OAuth verification, static-key fallback, per-request pipeline order. Canonical source: docs/rules/04-mcp-server-and-auth.md
+globs:
+  - "packages/mcp-server/**/*"
+alwaysApply: true
+---
+
+See `docs/rules/04-mcp-server-and-auth.md` for the full rule text. Do not duplicate content here.
+
+Key points: every request verified before tool logic runs, fail closed. Pipeline order: auth -> Zod validate -> SSRF pre-check -> quota check -> enqueue -> await -> map to MCP blocks. Fastify + `@modelcontextprotocol/sdk` Streamable HTTP only.

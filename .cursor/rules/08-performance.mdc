@@ -1,0 +1,10 @@
+---
+description: Concurrency/memory/latency/cost budgets and starting config constants. Canonical source: docs/rules/08-performance.md
+globs:
+  - "packages/**/*"
+alwaysApply: true
+---
+
+See `docs/rules/08-performance.md` for the full rule text. Do not duplicate content here.
+
+Key points: RENDER_CONCURRENCY=4 (not the brief's 15 — would OOM an 8GB node). JOB_DEADLINE_MS=10000. Scheduled browser recycle is the primary defense against Chromium RSS growth. Image pipeline tuned to the agent's vision-token budget, not Ocular's bandwidth cost.

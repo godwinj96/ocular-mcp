@@ -1,24 +1,38 @@
-# Nestjs specific
-/dist
-/node_modules
-/build
-/tmp
+# Build output (applies at every level — packages/*/dist, packages/*/.next, etc.)
+dist/
+build/
+.next/
+tmp/
+
+# Dependencies (applies at every level — packages/*/node_modules)
+node_modules/
 
 # Logs
 logs
 *.log
 npm-debug.log*
-pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# dotenv environment variable files
+# dotenv environment variable files (applies at every level)
 .env
 .env.development
 .env.test
 .env.production
+.env.local
+
+# local-scope MCP config that can contain plaintext API keys/tokens — never commit
+.mcp.json
+
+# coverage output
+coverage/
 
 # temp directory
 .temp
 .tmp
+
+# Next.js auto-regenerates this on every dev/build run and explicitly
+# instructs "do not edit" — gitignoring avoids repeated lint friction over a
+# file nobody hand-writes (packages/dashboard).
+next-env.d.ts

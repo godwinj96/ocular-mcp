@@ -1,0 +1,10 @@
+---
+description: SSRF (two-layer), token verification, egress isolation, rate limiting, secrets, output hygiene — MVP-blocking. Canonical source: docs/rules/07-security.md
+globs:
+  - "packages/**/*"
+alwaysApply: true
+---
+
+See `docs/rules/07-security.md` for the full rule text. Do not duplicate content here.
+
+Key points: never trust input, fail closed, least privilege. SSRF checked at both mcp-server (fast pre-check) and worker (authoritative, resolve-time + per-hop). Rate limiting is independent of quota and backstops the half-charge policy.

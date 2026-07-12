@@ -1,0 +1,11 @@
+---
+description: Ocular monorepo layout, naming conventions, file placement decision tree. Canonical source: docs/rules/02-repo-structure.md
+globs:
+  - "packages/**/*"
+  - "infra/**/*"
+alwaysApply: true
+---
+
+See `docs/rules/02-repo-structure.md` for the full rule text. Do not duplicate content here.
+
+Key points: `packages/{shared,mcp-server,worker,dashboard}` + `infra/`. npm workspaces. kebab-case files, PascalCase types, SCREAMING_SNAKE_CASE constants/env vars. Only `shared/src/index.ts` is a barrel file.

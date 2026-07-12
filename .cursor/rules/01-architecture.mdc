@@ -1,0 +1,10 @@
+---
+description: Ocular system architecture, package boundaries, request lifecycle, BrowserProvider abstraction, tool surface. Canonical source: docs/rules/01-architecture.md
+globs:
+  - "packages/**/*"
+alwaysApply: true
+---
+
+See `docs/rules/01-architecture.md` for the full rule text — this file exists only so Cursor auto-loads it. Do not duplicate content here; edit the canonical `.md` file and this pointer stays valid.
+
+Key points: `mcp-server` is the only internet-facing deployable (no separate API gateway). Package boundaries are non-negotiable — `shared` has zero I/O, `mcp-server` never touches a browser, `worker` never speaks MCP/OAuth. `BrowserProvider` is the only sanctioned Patchright touchpoint. Four MCP tools stay separate, never collapsed into a `mode` flag.

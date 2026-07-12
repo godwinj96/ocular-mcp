@@ -1,0 +1,10 @@
+---
+description: Closed ErrorCode table, safe vs unsafe error message content, structured logging schema, retry policy. Canonical source: docs/rules/09-error-handling-and-logging.md
+globs:
+  - "packages/**/*"
+alwaysApply: true
+---
+
+See `docs/rules/09-error-handling-and-logging.md` for the full rule text. Do not duplicate content here.
+
+Key points: every failure maps to exactly one closed ErrorCode. Never leak stack traces/SQL errors/internal paths/raw upstream bodies into user-facing messages. attempts:1 on BullMQ — the stealth ladder is the retry mechanism.

@@ -1,0 +1,10 @@
+---
+description: Result envelope, ErrorCode enum, tool Zod schemas, job payload — the mcp-server/worker contract. Canonical source: docs/rules/03-shared-contracts.md
+globs:
+  - "packages/shared/**/*"
+alwaysApply: true
+---
+
+See `docs/rules/03-shared-contracts.md` for the full rule text. Do not duplicate content here.
+
+Key points: nothing crosses the mcp-server/worker boundary without a Zod schema in `shared`. `ErrorCode` is a closed enum. `shared` has zero runtime deps beyond zod — no patchright, ioredis, bullmq, fastify, or env reads.

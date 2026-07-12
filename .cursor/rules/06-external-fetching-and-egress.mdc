@@ -1,0 +1,10 @@
+---
+description: Safe outbound fetch patterns — stealth ladder as the only navigation path, timeouts, proxy rungs, redirect handling. Canonical source: docs/rules/06-external-fetching-and-egress.md
+globs:
+  - "packages/worker/**/*"
+alwaysApply: true
+---
+
+See `docs/rules/06-external-fetching-and-egress.md` for the full rule text. Do not duplicate content here.
+
+Key points: no raw fetch/page.goto to a user URL outside StealthLadder.run(). Every stage has a budget check before starting. Redirects re-checked for SSRF on every hop. worker-side SSRF check never skipped because mcp-server already pre-checked.
