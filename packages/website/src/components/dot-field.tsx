@@ -6,20 +6,27 @@ import { Mesh, Program, Renderer, Triangle } from 'ogl';
 // and scale up + drift toward the cursor within a falloff radius, per the
 // brand-identity texture pass. Mounted once at App root (single shared
 // WebGL context) rather than per-section.
-const CELL_PX = 28; // spacing between dot centers
-const HOVER_RADIUS_PX = 220; // cursor falloff radius
+const CELL_PX = 18; // spacing between dot centers — denser grid, was too sparse at 28
+const HOVER_RADIUS_PX = 200; // cursor falloff radius
 const DRIFT_PX = 10; // max distance a dot's center shifts toward the cursor
 // Base values are the "visible at rest, everywhere" floor — cursor
 // reactivity and flow-field drift are additive on top of this, never a
 // replacement for it (all three properties must coexist, not trade off).
-const BASE_RADIUS_PX = 2.2;
-const MAX_RADIUS_PX = 4.0; // ~1.8x base, not ~3.75x — hover reads as "brighter", not "switched on"
-const BASE_OPACITY = 0.22;
-const MAX_OPACITY = 0.55;
-const FLOW_SPEED = 0.06; // how fast the wave field evolves over time
+const BASE_RADIUS_PX = 3.0;
+const MAX_RADIUS_PX = 3.7; // small delta over base — hover reads as "subtly brighter", not "switched on"
+const BASE_OPACITY = 0.38;
+const MAX_OPACITY = 0.5;
+const FLOW_SPEED = 0.08; // how fast the wave field evolves over time
 const FLOW_SCALE = 0.045; // spatial frequency of the wave field
-const FLOW_DRIFT_PX = 6; // max positional offset from the flow field alone
+const FLOW_DRIFT_PX = 12; // max positional offset from the flow field alone — was too small to notice at 6
 const MAX_DPR = 2; // cap device-pixel-ratio cost on very high-DPI screens
+
+// Cursor reactivity now depends on activity, not just position — a
+// stationary cursor releases the dots beneath it back to their idle wave
+// state after IDLE_TIMEOUT_MS, and re-engages quickly once it moves again.
+const IDLE_TIMEOUT_MS = 1000;
+const RELEASE_DURATION_MS = 450; // ease-out once idle
+const REENGAGE_DURATION_MS = 120; // snap back quickly on movement
 
 const VERTEX_SHADER = `
   attribute vec2 position;
@@ -37,6 +44,7 @@ const FRAGMENT_SHADER = `
   uniform vec2 uMouse;
   uniform float uTime;
   uniform float uReactivity;
+  uniform float uMouseActive;
   varying vec2 vUv;
 
   // Cheap analytic flow field — a scalar potential (angle) built from two
@@ -64,8 +72,10 @@ const FRAGMENT_SHADER = `
     vec2 restCenter = cellCenter + flow;
 
     // Cursor pull — added on top of the wave drift, not a replacement.
+    // Gated by uMouseActive: a stationary cursor eases this term back to 0
+    // after IDLE_TIMEOUT_MS even though uMouse's position hasn't changed.
     float distToMouse = length(cellCenter - uMouse);
-    float falloff = smoothstep(${HOVER_RADIUS_PX.toFixed(1)}, 0.0, distToMouse) * uReactivity;
+    float falloff = smoothstep(${HOVER_RADIUS_PX.toFixed(1)}, 0.0, distToMouse) * uReactivity * uMouseActive;
     vec2 dir = normalize(uMouse - cellCenter + 0.0001);
     vec2 driftedCenter = restCenter + dir * falloff * ${DRIFT_PX.toFixed(1)};
 
@@ -88,7 +98,11 @@ export function DotField() {
 
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    const renderer = new Renderer({ canvas, alpha: true, dpr: Math.min(window.devicePixelRatio, MAX_DPR) });
+    const renderer = new Renderer({
+      canvas,
+      alpha: true,
+      dpr: Math.min(window.devicePixelRatio, MAX_DPR),
+    });
     const gl = renderer.gl;
     gl.clearColor(0, 0, 0, 0);
 
@@ -102,6 +116,7 @@ export function DotField() {
         uMouse: { value: [-9999, -9999] },
         uTime: { value: 0 },
         uReactivity: { value: prefersReducedMotion ? 0 : 1 },
+        uMouseActive: { value: 0 },
       },
     });
     const mesh = new Mesh(gl, { geometry, program });
@@ -113,8 +128,10 @@ export function DotField() {
     resize();
     window.addEventListener('resize', resize);
 
+    let lastMoveTime = -Infinity;
     function handlePointerMove(event: PointerEvent) {
       program.uniforms.uMouse.value = [event.clientX, window.innerHeight - event.clientY];
+      lastMoveTime = performance.now();
     }
     if (!prefersReducedMotion) {
       window.addEventListener('pointermove', handlePointerMove);
@@ -122,11 +139,22 @@ export function DotField() {
 
     let rafId = 0;
     let running = true;
+    let mouseActive = 0;
     const startedAt = performance.now();
 
     function loop(now: number) {
       if (!running) return;
       program.uniforms.uTime.value = (now - startedAt) / 1000;
+
+      // Ease mouseActive toward 1 while recently moved, toward 0 once idle
+      // past IDLE_TIMEOUT_MS — re-engage fast, release slow (see plan §2/3).
+      const idleMs = now - lastMoveTime;
+      const target = idleMs < IDLE_TIMEOUT_MS ? 1 : 0;
+      const duration = target === 1 ? REENGAGE_DURATION_MS : RELEASE_DURATION_MS;
+      const step = 1 / (duration / 16.7); // approx per-frame step at 60fps
+      mouseActive += (target - mouseActive) * Math.min(step, 1);
+      program.uniforms.uMouseActive.value = mouseActive;
+
       renderer.render({ scene: mesh });
       rafId = requestAnimationFrame(loop);
     }
@@ -153,5 +181,11 @@ export function DotField() {
     };
   }, []);
 
-  return <canvas ref={canvasRef} aria-hidden="true" className="pointer-events-none fixed inset-0 -z-20" />;
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0 -z-20"
+    />
+  );
 }

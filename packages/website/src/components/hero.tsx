@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { Dithering } from '@paper-design/shaders-react';
 import { useReducedMotion } from 'framer-motion';
 import { BentoCell, BentoGrid } from './bento-grid.js';
 import { MotionCta } from './motion-cta.js';
@@ -15,25 +16,64 @@ function GrainOverlay() {
       className="pointer-events-none fixed inset-0 -z-10 h-full w-full opacity-[0.035] mix-blend-overlay"
     >
       <filter id="grain">
-        <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch" />
+        <feTurbulence
+          type="fractalNoise"
+          baseFrequency="0.85"
+          numOctaves="2"
+          stitchTiles="stitch"
+        />
       </filter>
       <rect width="100%" height="100%" filter="url(#grain)" />
     </svg>
   );
 }
 
-// Oversized, faint real logo mark bleeding off one corner — the actual
-// Ocular icon (Ocular Assets/446821.png, confirmed transparent PNG via
-// header inspection), not a hand-drawn approximation.
+// Oversized logo mark bleeding off one corner — the actual Ocular icon
+// silhouette (Ocular Assets/446821.png, confirmed transparent PNG via header
+// inspection) filled with a live paper-design Dithering shader (warp preset,
+// brand violet/cyan) instead of a flat static image, per brand-identity's
+// "wonder, not a teardown" direction. Falls back to the static image under
+// prefers-reduced-motion.
 function Watermark() {
+  const reduceMotion = useReducedMotion();
+
+  const maskStyle: React.CSSProperties = {
+    WebkitMaskImage: `url(${logoMarkWatermark})`,
+    maskImage: `url(${logoMarkWatermark})`,
+    WebkitMaskSize: 'contain',
+    maskSize: 'contain',
+    WebkitMaskRepeat: 'no-repeat',
+    maskRepeat: 'no-repeat',
+    WebkitMaskPosition: 'center',
+    maskPosition: 'center',
+  };
+
   return (
     <Parallax range={40} className="pointer-events-none absolute -right-24 -top-24 -z-10">
-      <img
-        src={logoMarkWatermark}
-        alt=""
-        aria-hidden="true"
-        className="h-[32rem] w-[32rem] select-none opacity-[0.05] md:h-[40rem] md:w-[40rem]"
-      />
+      {reduceMotion ? (
+        <img
+          src={logoMarkWatermark}
+          alt=""
+          aria-hidden="true"
+          className="h-[32rem] w-[32rem] select-none opacity-[0.08] md:h-[40rem] md:w-[40rem]"
+        />
+      ) : (
+        <div
+          aria-hidden="true"
+          className="h-[32rem] w-[32rem] select-none opacity-[0.16] md:h-[40rem] md:w-[40rem]"
+          style={maskStyle}
+        >
+          <Dithering
+            shape="warp"
+            type="4x4"
+            colorBack="#0A0A0B00"
+            colorFront="#8C7DFF"
+            size={2.4}
+            speed={0.3}
+            className="h-full w-full"
+          />
+        </div>
+      )}
     </Parallax>
   );
 }
@@ -69,7 +109,10 @@ function Spotlight() {
 
 export function Hero() {
   return (
-    <section id="top" className="relative mx-auto max-w-[1400px] overflow-hidden px-6 pb-16 pt-24 md:pt-32">
+    <section
+      id="top"
+      className="relative mx-auto max-w-[1400px] overflow-hidden px-6 pb-16 pt-24 md:pt-32"
+    >
       <GrainOverlay />
       <Watermark />
       <Spotlight />
@@ -82,8 +125,8 @@ export function Hero() {
             Real eyes for AI agents.
           </h1>
           <p className="mt-6 max-w-measure text-lg leading-relaxed text-text-secondary md:text-xl">
-            Enterprise-grade stealth browsing for AI agents. No infrastructure to run, no blocks
-            to fight.
+            Enterprise-grade stealth browsing for AI agents. No infrastructure to run, no blocks to
+            fight.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <MotionCta
