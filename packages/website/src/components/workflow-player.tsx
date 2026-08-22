@@ -3,6 +3,11 @@ import { Player } from '@remotion/player';
 import { useReducedMotion } from 'framer-motion';
 import { FPS, HEIGHT, TOTAL_FRAMES, WIDTH, WorkflowDemo } from '../remotion/workflow-demo.js';
 
+// TOTAL_FRAMES-1 as the reduced-motion still frame is the last frame of B5
+// (Clarity + Scale + Conviction) — the resting SigilReveal wordmark, which
+// is also frame 0 (Loop Closure, Motion Design Bible §II.11 rules 7-11) —
+// so the static fallback and the loop's own rest state are the same image.
+
 // Replaces the earlier static ScanReveal panel — this is the "signature
 // moment" the workflow motion graphic was asked to be, not a code block
 // dropped in decoratively. Live @remotion/player (not a pre-rendered video)

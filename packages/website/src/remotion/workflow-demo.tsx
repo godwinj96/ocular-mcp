@@ -1,417 +1,391 @@
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { TransitionSeries, linearTiming } from '@remotion/transitions';
-import { fade } from '@remotion/transitions/fade';
-import { slide } from '@remotion/transitions/slide';
+import { useCurrentFrame } from 'remotion';
+import {
+  Claim,
+  Emergence,
+  Resolution,
+  GazeRing,
+  SigilReveal,
+  Surface,
+  SequenceRenderer,
+  sequencePlanTotalFrames,
+  useAwareness,
+  loadPoppins,
+  tokenInterpolate,
+  TYPE_ROLES,
+  N,
+  type SequencePlan,
+} from '@ocular/motion';
 
-// The five-beat "why Ocular" story: prompt without Ocular -> blocked ->
-// connect Ocular in one command -> retry the same prompt -> real result.
-// Lives here (not a separate packages/remotion project) because it's played
-// live via @remotion/player in the browser, not pre-rendered to a video file
-// — see DEVLOG's Phase 6 note on why that tradeoff was chosen.
+// The Ocular hero panel's SequencePlan — Motion Design Bible §IV.16 rule 3
+// (Data-Authoring Rule). See DEVLOG/session notes for the full rule-by-rule
+// mapping of the original hand-rolled version this replaced.
+//
+// This is the second pass at this file. The first pass was canon-compliant
+// but visually inert: plain text on a flat field, no cards, no icons, no
+// camera motion, no depth — the bible bans glow/gradient/accent-hue, but it
+// does not ban (and in fact requires, §I.6 rule 14 / §IV.15 rules 5-7)
+// actual rebuilt UI surfaces, shadow-based depth, and Observer Camera
+// motion. This pass uses all three: <Surface> cards (radius/shadow/neutral
+// fill, no glow), simple ring/line glyphs in the Logomark's own visual
+// family (never colored brand logos — that would violate the two-color
+// canon), and real camera push-ins via each Beat's `attentionTarget`.
+//
+// Beat map (bible §III.14 short-form 5-Beat compression, bookended by a
+// Loop Closure pair per §II.11 rules 7-11 — this panel autoplays on a loop):
+//   B0  Conviction (rest)               — the Loop Closure frame, L3
+//   B1  Hook (Recognition+Curiosity)    — Product Atom glimpse, L0
+//   B2  Tension + Possibility           — the blocked state, L0->L1
+//   B3  Discovery (L1->L2, once)        — connecting Ocular
+//   B4  Empowerment + Confidence        — retry + result, L2
+//   B5  Clarity + Scale + Conviction    — settle back to rest, L3 (== B0)
+
+loadPoppins();
+
 export const FPS = 30;
 export const WIDTH = 1280;
-export const HEIGHT = 400; // halved from the original 800 — panel was too tall
+export const HEIGHT = 400;
 
-const BEATS = {
-  promptNoOcular: 90,
-  blocked: 55,
-  connect: 100,
-  retryPrompt: 45,
-  success: 100,
-} as const;
+// -- Icon glyphs -------------------------------------------------------
+// Simple ring/line-weight shapes in the Logomark's own construction
+// language (a stroked circle is the family resemblance) — never a
+// colored third-party brand mark (Idealized UI Rule + two-color canon).
 
-// TransitionSeries overlaps adjacent scenes — the composition's real total
-// is shorter than the naive sum of beat durations by one TRANSITION_FRAMES
-// per transition (4 transitions between 5 beats). See
-// node_modules/@remotion/transitions' own docs for the exact formula.
-const TRANSITION_FRAMES = 15;
-const TRANSITION_COUNT = 4;
-export const TOTAL_FRAMES = Object.values(BEATS).reduce((a, b) => a + b, 0) - TRANSITION_FRAMES * TRANSITION_COUNT;
+function iconColor(state: string): string {
+  return state === 'L0' || state === 'L1' ? N['700'] : N['400'];
+}
 
-// Named spring presets (not scattered inline damping/stiffness numbers) —
-// same values the remotion-video-creation skill documents as the standard
-// starting point for each feel.
-const SPRINGS = {
-  smooth: { damping: 200 }, // subtle reveals, no bounce
-  snappy: { damping: 20, stiffness: 200 }, // UI elements
-  bouncy: { damping: 8 }, // playful entrances
-} as const;
-
-const COLOR = {
-  bg: '#1C1C1F',
-  border: 'rgba(255,255,255,0.08)',
-  textPrimary: '#F2F2F0',
-  textSecondary: '#8F8F94',
-  accent: '#8C7DFF',
-  accentGlow: '#5EEAD4',
-  danger: '#F2555A',
-};
-
-const monoStyle: React.CSSProperties = {
-  fontFamily: '"Geist Mono", "JetBrains Mono", ui-monospace, monospace',
-  fontSize: 22,
-  lineHeight: 1.55,
-};
-
-// Reuses hero.tsx's own GrainOverlay technique (inline SVG feTurbulence) —
-// same proven, on-brand texture, scoped to this panel instead of the page.
-function PanelGrain() {
+function PromptGlyph({ color }: { color: string }) {
   return (
-    <svg
-      aria-hidden="true"
-      style={{ position: 'absolute', inset: 0, opacity: 0.05, mixBlendMode: 'overlay' }}
-      width="100%"
-      height="100%"
-    >
-      <filter id="workflow-grain">
-        <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch" />
-      </filter>
-      <rect width="100%" height="100%" filter="url(#workflow-grain)" />
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" fill="none" stroke={color} strokeWidth="2" />
+      <path
+        d="M9 8.5 13 12 9 15.5"
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
-// Standard CSS vignette + scanline + dot-grid layers — deliberately echoing
-// the site's own DotField background so the hero graphic and the page read
-// as one coherent system, not two unrelated effects.
-function PanelTexture() {
+function BlindGlyph({ color }: { color: string }) {
   return (
-    <>
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px)',
-          backgroundSize: '24px 24px',
-        }}
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" fill="none" stroke={color} strokeWidth="2" />
+      <line
+        x1="6.5"
+        y1="17.5"
+        x2="17.5"
+        y2="6.5"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
       />
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage:
-            'repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px)',
-        }}
-      />
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.4) 100%)',
-        }}
-      />
-      <PanelGrain />
-    </>
+    </svg>
   );
 }
 
-function Panel({ children }: { children: React.ReactNode }) {
+function LinkGlyph({ color }: { color: string }) {
   return (
-    <AbsoluteFill
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="8" cy="16" r="4" fill="none" stroke={color} strokeWidth="2" />
+      <circle cx="16" cy="8" r="4" fill="none" stroke={color} strokeWidth="2" />
+      <line
+        x1="10.8"
+        y1="13.2"
+        x2="13.2"
+        y2="10.8"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function EyeGlyph({ color }: { color: string }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" fill="none" stroke={color} strokeWidth="2" />
+      <circle cx="14.6" cy="9.4" r="3.2" fill={color} />
+    </svg>
+  );
+}
+
+// -- Shared scene shell --------------------------------------------------
+
+function IdealizedPanel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
       style={{
-        backgroundColor: COLOR.bg,
-        border: `1px solid ${COLOR.border}`,
-        borderRadius: 16,
-        padding: 28,
+        position: 'absolute',
+        inset: 28,
+        display: 'flex',
+        flexDirection: 'column',
         justifyContent: 'center',
-        overflow: 'hidden',
       }}
     >
-      <PanelTexture />
-      <div style={{ position: 'relative' }}>{children}</div>
-    </AbsoluteFill>
+      {children}
+    </div>
   );
 }
 
-// Blinks on a fixed frame cadence — never per-character opacity, per the
-// skill's text-animations rule; this is a separate glyph, not part of the
-// typed string.
-function BlinkingCursor() {
+function TextLine({
+  text,
+  entryFrame,
+  mono = true,
+}: {
+  text: string;
+  entryFrame: number;
+  mono?: boolean;
+}) {
   const frame = useCurrentFrame();
-  const visible = Math.floor(frame / 15) % 2 === 0;
+  const awareness = useAwareness();
+  const color = awareness.state === 'L0' || awareness.state === 'L1' ? '#F2F2F0' : '#0B0F17';
+  const chars = Math.round(tokenInterpolate(frame, entryFrame, 'base', 0, text.length, 'reveal'));
+
   return (
-    <span style={{ opacity: visible ? 1 : 0, color: COLOR.accentGlow }} aria-hidden="true">
-      ▍
+    <span
+      style={{
+        fontFamily: mono ? '"Geist Mono", ui-monospace, monospace' : TYPE_ROLES.ui.fontFamily,
+        fontSize: 19,
+        color,
+      }}
+    >
+      {text.slice(0, chars)}
     </span>
   );
 }
 
-// Types out `text` character-by-character over `durationFrames`, starting at
-// `startFrame`. Pure function of frame, no timers — frame-accurate by
-// construction (Remotion's whole point over hand-tuned CSS transitions).
-// Always use string slicing for typewriter effects, never per-character opacity.
-function useTypewriter(text: string, startFrame: number, durationFrames: number): { text: string; done: boolean } {
-  const frame = useCurrentFrame();
-  const chars = Math.round(
-    interpolate(frame, [startFrame, startFrame + durationFrames], [0, text.length], {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    }),
-  );
-  return { text: text.slice(0, chars), done: chars >= text.length };
-}
-
-function PromptNoOcular() {
-  const frame = useCurrentFrame();
-  const prompt = useTypewriter('take a screenshot of stripe.com', 0, 30);
-  const replyOpacity = interpolate(frame, [40, 55], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-
+// B0/B5 — the resting/arriving Sigil Reveal. Shared so both frames are
+// pixel-identical once settled (Loop Closure motion parity, §II.11 rule 8).
+function RestOrArrival({ animate }: { animate: boolean }) {
   return (
-    <Panel>
-      <div style={monoStyle}>
-        <span style={{ color: COLOR.accentGlow }}>{'> '}</span>
-        <span style={{ color: COLOR.textPrimary }}>{prompt.text}</span>
-        {!prompt.done && <BlinkingCursor />}
-      </div>
-      <div style={{ ...monoStyle, marginTop: 20, color: COLOR.textSecondary, opacity: replyOpacity }}>
-        Agent: I can't browse the web — I don't have that capability yet.
-      </div>
-    </Panel>
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <SigilReveal atFrame={animate ? 0 : -1000} polarity="light" sizePx={72} />
+    </div>
   );
 }
 
-// Fixed, deterministic offsets — a per-frame glitch stutter via interpolate,
-// not random jitter (random per-render would make the animation non-
-// reproducible, which defeats Remotion's frame-accuracy premise).
-const GLITCH_WINDOW: [number, number][] = [
-  [4, 7],
-  [10, 12],
-  [18, 20],
-];
-
-function glitchOffset(frame: number): number {
-  for (const [start, end] of GLITCH_WINDOW) {
-    if (frame >= start && frame < end) return 3;
-  }
-  return 0;
+// B1 — Hook: the Product Atom glimpse (§III.14 rule 4, Inversion Rule).
+function Hook() {
+  const awareness = useAwareness();
+  const glyph = iconColor(awareness.state);
+  return (
+    <IdealizedPanel>
+      <Surface elevation="card" padding={22} style={{ maxWidth: 620 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <PromptGlyph color={glyph} />
+          <TextLine text="take a screenshot of stripe.com" entryFrame={0} />
+        </div>
+      </Surface>
+      <Emergence entryFrame={42} duration="base" travelPx={8}>
+        <div
+          style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, paddingLeft: 4 }}
+        >
+          <BlindGlyph color={glyph} />
+          <TextLine text="Agent: I can't browse the web yet." entryFrame={-1000} mono={false} />
+        </div>
+      </Emergence>
+    </IdealizedPanel>
+  );
 }
 
+// B2 — Tension + Possibility: the blocked state. No GazeRing here — its
+// absence *is* the depiction of blindness (§I.6 rule 13). A single Claim
+// carries the headline instead of a hand-rolled div.
 function Blocked() {
-  const frame = useCurrentFrame();
-  const pop = spring({ frame, fps: FPS, config: SPRINGS.bouncy });
-  const fadeOut = interpolate(frame, [35, 55], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  const glitch = glitchOffset(frame);
-
+  const awareness = useAwareness();
   return (
-    <Panel>
-      <div
-        style={{
-          position: 'relative',
-          transform: `scale(${pop})`,
-          opacity: fadeOut,
-          textAlign: 'center',
-        }}
-      >
-        {/* Glitch-text trick: red/cyan duplicate layers offset a few px during short windows */}
-        <div
-          aria-hidden="true"
-          style={{
-            ...monoStyle,
-            position: 'absolute',
-            inset: 0,
-            fontSize: 32,
-            fontWeight: 700,
-            color: COLOR.danger,
-            opacity: glitch > 0 ? 0.6 : 0,
-            transform: `translateX(${glitch}px)`,
-          }}
-        >
-          ✕ BLOCKED
-        </div>
-        <div
-          aria-hidden="true"
-          style={{
-            ...monoStyle,
-            position: 'absolute',
-            inset: 0,
-            fontSize: 32,
-            fontWeight: 700,
-            color: COLOR.accentGlow,
-            opacity: glitch > 0 ? 0.5 : 0,
-            transform: `translateX(${-glitch}px)`,
-          }}
-        >
-          ✕ BLOCKED
-        </div>
-        <div style={{ ...monoStyle, fontSize: 32, fontWeight: 700, color: COLOR.danger }}>✕ BLOCKED</div>
-        <div style={{ fontSize: 16, fontWeight: 400, color: COLOR.textSecondary, marginTop: 10 }}>
-          No way to see the page.
-        </div>
-      </div>
-    </Panel>
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 18,
+      }}
+    >
+      <BlindGlyph color={iconColor(awareness.state)} />
+      <Claim text="No way to see the page." entryFrame={0} reveal="Emergence" />
+    </div>
   );
 }
 
-// Fixed particle angles/distances — deterministic, not Math.random(), same
-// reasoning as the glitch offsets above.
-const PARTICLES = Array.from({ length: 10 }, (_, i) => ({
-  angle: (i / 10) * Math.PI * 2,
-  distance: 28 + (i % 3) * 10,
-}));
-
-function ConnectedBurst({ startFrame }: { startFrame: number }) {
-  const frame = useCurrentFrame();
-  const progress = interpolate(frame, [startFrame, startFrame + 20], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  if (progress <= 0) return null;
-
-  return (
-    <>
-      {PARTICLES.map((p, i) => {
-        const x = Math.cos(p.angle) * p.distance * progress;
-        const y = Math.sin(p.angle) * p.distance * progress;
-        const opacity = 1 - progress;
-        return (
-          <div
-            key={i}
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              left: -3,
-              top: -3,
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              backgroundColor: COLOR.accentGlow,
-              opacity,
-              transform: `translate(${x}px, ${y}px)`,
-            }}
-          />
-        );
-      })}
-    </>
-  );
-}
-
+// B3 — Discovery: connecting Ocular. The Gaze Ring appears here for the
+// first time (§I.6 rule 13 — never before L1+), fills the connect action.
 function Connect() {
   const frame = useCurrentFrame();
-  const command = useTypewriter('claude mcp add ocular https://mcp.ocular.io', 0, 45);
-  const checkPop = spring({ frame: frame - 50, fps: FPS, config: SPRINGS.snappy });
-  const checkOpacity = interpolate(frame, [48, 58], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-
+  const awareness = useAwareness();
+  const glyph = iconColor(awareness.state);
   return (
-    <Panel>
-      <div style={monoStyle}>
-        <span style={{ color: COLOR.textSecondary }}>{'$ '}</span>
-        <span style={{ color: COLOR.textPrimary }}>{command.text}</span>
-        {!command.done && <BlinkingCursor />}
-      </div>
-      <div
-        style={{
-          ...monoStyle,
-          position: 'relative',
-          marginTop: 20,
-          color: COLOR.accentGlow,
-          opacity: checkOpacity,
-          transform: `scale(${Math.max(checkPop, 0)})`,
-          transformOrigin: 'left center',
-        }}
-      >
-        ✓ Connected — 4 tools available
-        <div style={{ position: 'absolute', left: 8, top: 12 }}>
-          <ConnectedBurst startFrame={50} />
+    <IdealizedPanel>
+      <Surface elevation="card" padding={22} style={{ maxWidth: 660 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <LinkGlyph color={glyph} />
+          <TextLine text="claude mcp add ocular https://mcp.ocular.io" entryFrame={0} />
         </div>
-      </div>
-    </Panel>
+        <Emergence entryFrame={52} duration="base" travelPx={6}>
+          <Surface elevation="raised" radius="sm" padding={12} style={{ marginTop: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <EyeGlyph color={glyph} />
+              <TextLine text="Connected — 4 tools available" entryFrame={-1000} mono={false} />
+            </div>
+          </Surface>
+        </Emergence>
+        {/* Positioned relative to this Surface (position:relative), whose
+            content-box dimensions are actually known — an ancestor further
+            out (IdealizedPanel) is flex-centered with no predictable size,
+            which is why an earlier version of this scene had the ring
+            floating disconnected from anything. */}
+        {frame > 52 ? (
+          <GazeRing
+            path={[
+              { x: 580, y: 6 },
+              { x: 300, y: 66 },
+            ]}
+            arrivalFrame={72}
+            action="fill"
+          />
+        ) : null}
+      </Surface>
+    </IdealizedPanel>
   );
 }
 
-function RetryPrompt() {
-  const prompt = useTypewriter('take a screenshot of stripe.com', 0, 30);
+// B4 — Empowerment + Confidence: retry, and the result resolves into focus
+// (Resolution reveal — "uncertainty becomes certainty" — not a glow pulse).
+function Retry() {
+  const awareness = useAwareness();
+  const glyph = iconColor(awareness.state);
   return (
-    <Panel>
-      <div style={monoStyle}>
-        <span style={{ color: COLOR.accentGlow }}>{'> '}</span>
-        <span style={{ color: COLOR.textPrimary }}>{prompt.text}</span>
-        {!prompt.done && <BlinkingCursor />}
-      </div>
-    </Panel>
+    <IdealizedPanel>
+      <Surface elevation="card" padding={22} style={{ maxWidth: 660 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <PromptGlyph color={glyph} />
+          <TextLine text="take a screenshot of stripe.com" entryFrame={0} />
+        </div>
+        <Resolution entryFrame={40} duration="base">
+          <Surface elevation="raised" radius="sm" padding={12} style={{ marginTop: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <EyeGlyph color={glyph} />
+              <TextLine text="view_page(url) -> rendered screenshot" entryFrame={-1000} />
+            </div>
+          </Surface>
+        </Resolution>
+        <GazeRing
+          path={[
+            { x: 580, y: 6 },
+            { x: 350, y: 66 },
+          ]}
+          arrivalFrame={18}
+          action="read"
+        />
+      </Surface>
+    </IdealizedPanel>
   );
 }
 
-function Success() {
-  const frame = useCurrentFrame();
-  const resultOpacity = interpolate(frame, [15, 35], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  const glowOpacity = interpolate(frame, [0, 20, 60, 90], [0, 0.5, 0.5, 0], { extrapolateRight: 'clamp' });
+export const workflowPlan: SequencePlan = {
+  id: 'ocular-hero-workflow',
+  width: WIDTH,
+  height: HEIGHT,
+  loop: true,
+  beats: [
+    {
+      id: 'b0-rest',
+      stage: 'Conviction (rest)',
+      frames: 96,
+      awarenessState: 'L3',
+      boundaryOut: 'LucidityStep',
+      attentionTarget: { subject: 'rest', framing: { x: 0, y: 0, scale: 1 }, move: 'dolly' },
+      render: () => <RestOrArrival animate={false} />,
+    },
+    {
+      id: 'b1-hook',
+      stage: 'Recognition + Curiosity (Hook)',
+      frames: 140,
+      awarenessState: 'L0',
+      boundaryOut: 'FieldHandoff',
+      motionEntries: [{ id: 'prompt', class: 'primary', startFrame: 0, endFrame: 70 }],
+      render: () => <Hook />,
+    },
+    {
+      id: 'b2-tension',
+      stage: 'Tension + Possibility',
+      frames: 230,
+      awarenessState: 'L1',
+      boundaryOut: 'LucidityStep',
+      motionEntries: [{ id: 'blocked', class: 'primary', startFrame: 0, endFrame: 32 }],
+      attentionTarget: {
+        subject: 'blocked-headline',
+        framing: { x: 0, y: -8, scale: 1.06 },
+        move: 'dolly',
+      },
+      render: () => <Blocked />,
+    },
+    {
+      id: 'b3-discovery',
+      stage: 'Discovery',
+      frames: 96,
+      awarenessState: 'L2',
+      boundaryOut: 'FieldHandoff',
+      // endFrame must stay inside this Beat's non-crossfading core window
+      // (frames - boundaryOverlapFrames('FieldHandoff') = 96 - 32 = 64) —
+      // spilling past it overlaps B4's own leading motion during the
+      // shared crossfade and blows the >1.0 budget (§I.5).
+      motionEntries: [{ id: 'connect', class: 'primary', startFrame: 0, endFrame: 60 }],
+      attentionTarget: {
+        subject: 'connect-card',
+        framing: { x: 0, y: 0, scale: 1 },
+        move: 'dolly',
+      },
+      render: () => <Connect />,
+    },
+    {
+      id: 'b4-empowerment',
+      stage: 'Empowerment + Confidence',
+      frames: 220,
+      awarenessState: 'L2',
+      boundaryOut: 'LucidityStep',
+      motionEntries: [{ id: 'retry', class: 'primary', startFrame: 0, endFrame: 61 }],
+      attentionTarget: {
+        subject: 'result-card',
+        framing: { x: 0, y: -6, scale: 1.05 },
+        move: 'dolly',
+      },
+      render: () => <Retry />,
+    },
+    {
+      id: 'b5-arrival',
+      stage: 'Clarity + Scale + Conviction',
+      frames: 150,
+      awarenessState: 'L3',
+      boundaryOut: 'FieldHandoff',
+      // Deliberately no motionEntries — Clarity/Conviction is near-total
+      // stillness by definition (Emotional Arc table, §I.4); the Sigil
+      // Reveal's settle into rest is the inherent shape of *reaching* that
+      // state, not a competing motion the ledger needs to gate.
+      attentionTarget: { subject: 'rest', framing: { x: 0, y: 0, scale: 1 }, move: 'dolly' },
+      render: () => <RestOrArrival animate={true} />,
+    },
+  ],
+};
 
-  return (
-    <Panel>
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          borderRadius: 16,
-          boxShadow: `inset 0 0 100px ${COLOR.accentGlow}`,
-          opacity: glowOpacity,
-          pointerEvents: 'none',
-        }}
-      />
-      <div style={monoStyle}>
-        <span style={{ color: COLOR.accentGlow }}>agent</span>
-        <span style={{ color: COLOR.textSecondary }}>.call(</span>
-        <span style={{ color: COLOR.accent }}>&quot;view_page&quot;</span>
-        <span style={{ color: COLOR.textSecondary }}>, {'{ url }'})</span>
-      </div>
-      <div style={{ ...monoStyle, color: COLOR.textSecondary, marginTop: 10 }}>→</div>
-      {/* Outcome only, no internal mechanics — no rung count, no exact
-          duration, no exact resize target. Same "assert the outcome,
-          withhold the mechanism" copy rule already applied to page copy. */}
-      <pre style={{ ...monoStyle, color: COLOR.textPrimary, opacity: resultOpacity, marginTop: 6, whiteSpace: 'pre-wrap' }}>
-{`{
-  "ok": true,
-  "image": "<rendered screenshot>"
-}`}
-      </pre>
-      <div style={{ ...monoStyle, color: COLOR.textSecondary, marginTop: 14, opacity: resultOpacity }}>
-        // your agent can see.
-      </div>
-    </Panel>
-  );
-}
+export const TOTAL_FRAMES = sequencePlanTotalFrames(workflowPlan);
 
 export function WorkflowDemo() {
-  const { width, height } = useVideoConfig();
-
-  return (
-    <AbsoluteFill style={{ width, height, backgroundColor: COLOR.bg }}>
-      <TransitionSeries>
-        <TransitionSeries.Sequence durationInFrames={BEATS.promptNoOcular}>
-          <PromptNoOcular />
-        </TransitionSeries.Sequence>
-        <TransitionSeries.Transition
-          presentation={fade()}
-          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-        />
-        <TransitionSeries.Sequence durationInFrames={BEATS.blocked}>
-          <Blocked />
-        </TransitionSeries.Sequence>
-        <TransitionSeries.Transition
-          presentation={slide({ direction: 'from-right' })}
-          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-        />
-        <TransitionSeries.Sequence durationInFrames={BEATS.connect}>
-          <Connect />
-        </TransitionSeries.Sequence>
-        <TransitionSeries.Transition
-          presentation={fade()}
-          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-        />
-        <TransitionSeries.Sequence durationInFrames={BEATS.retryPrompt}>
-          <RetryPrompt />
-        </TransitionSeries.Sequence>
-        <TransitionSeries.Transition
-          presentation={fade()}
-          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-        />
-        <TransitionSeries.Sequence durationInFrames={BEATS.success}>
-          <Success />
-        </TransitionSeries.Sequence>
-      </TransitionSeries>
-    </AbsoluteFill>
-  );
+  return <SequenceRenderer plan={workflowPlan} />;
 }

@@ -40,3 +40,11 @@ next-env.d.ts
 # TypeScript incremental build cache — regenerated locally, never meant to
 # be committed (accidentally swept into the dashboard commit's git add).
 *.tsbuildinfo
+
+# Local Claude Code session state (settings, skill cache, scheduler locks) —
+# machine-specific, not shared project config.
+.claude/
+
+# Crash artifacts from a Windows bash.exe stdio-pipe segfault seen this
+# session — never intentional output, safe to ignore wherever it lands.
+bash.exe.stackdump

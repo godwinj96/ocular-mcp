@@ -2,31 +2,54 @@ import { useEffect, useRef } from 'react';
 import { Mesh, Program, Renderer, Triangle } from 'ogl';
 
 // GPU-only ambient background — a single fragment shader draws the entire
-// dot grid procedurally (no per-dot JS/DOM work). Dots are subtle at rest
-// and scale up + drift toward the cursor within a falloff radius, per the
-// brand-identity texture pass. Mounted once at App root (single shared
-// WebGL context) rather than per-section.
-const CELL_PX = 18; // spacing between dot centers — denser grid, was too sparse at 28
-const HOVER_RADIUS_PX = 200; // cursor falloff radius
-const DRIFT_PX = 10; // max distance a dot's center shifts toward the cursor
-// Base values are the "visible at rest, everywhere" floor — cursor
-// reactivity and flow-field drift are additive on top of this, never a
-// replacement for it (all three properties must coexist, not trade off).
-const BASE_RADIUS_PX = 3.0;
-const MAX_RADIUS_PX = 3.7; // small delta over base — hover reads as "subtly brighter", not "switched on"
+// dot grid procedurally (no per-dot JS/DOM work). Mounted once at App root
+// (single shared WebGL context) rather than per-section.
+//
+// Cursor reactivity was removed (see the commented-out block below) after it
+// caused a visible bug: any positional drift (cursor-pull or the old
+// flow-field drift) large enough to approach a cell's half-width made dots
+// look clipped into little bounding boxes, because each fragment only ever
+// computes *its own* grid cell's dot — a drifted dot that crosses into a
+// neighboring cell's domain never gets drawn there, since that cell
+// independently computes its own (different) dot. The fix is a genuinely
+// static grid: dots never leave their cell center, so nothing can ever be
+// clipped by a cell boundary. The "wave" is now amplitude-only (radius +
+// opacity), evaluated once per cell so the whole dot breathes in unison
+// with zero flicker/banding.
+const CELL_PX = 9; // spacing between dot centers (halved per feedback — was too far apart)
+const BASE_RADIUS_PX = 0.6; // scaled down ~80% per feedback — dots were too big
+const WAVE_RADIUS_PX = 0.84; // per-cell wave peak — a gentle size "breathe", not a switch
 const BASE_OPACITY = 0.38;
-const MAX_OPACITY = 0.5;
-const FLOW_SPEED = 0.08; // how fast the wave field evolves over time
-const FLOW_SCALE = 0.045; // spatial frequency of the wave field
-const FLOW_DRIFT_PX = 12; // max positional offset from the flow field alone — was too small to notice at 6
+const WAVE_OPACITY = 0.62; // per-cell wave peak brightness
+const FLOW_SPEED = 0.08; // how fast the ambient wave evolves over time
+// uTime is wrapped at this period (seconds) before reaching the shader.
+// Without this, uTime grows unboundedly for the life of a long-open tab,
+// and GLSL's sin()/cos() lose enough precision on large arguments that the
+// wave visibly freezes (confirmed live: uTime kept advancing correctly on
+// the JS side, but the rendered canvas stopped changing at all once it grew
+// large). 20*pi/FLOW_SPEED is chosen so every sine term below (which use
+// phase rates of 1x, 0.7x, and 0.5x of `t`) lands back on an exact multiple
+// of 2*PI at the wrap point — the wrap is phase-continuous, not a visible
+// jump.
+const TIME_WRAP_SECONDS = (20 * Math.PI) / FLOW_SPEED;
+// Three different spatial frequencies/axes (not one) so the wave doesn't
+// read as an obviously repeating sine sweep.
+const WAVE_FREQ_X = 0.02;
+const WAVE_FREQ_Y = 0.025;
+const WAVE_FREQ_XY = 0.015;
 const MAX_DPR = 2; // cap device-pixel-ratio cost on very high-DPI screens
 
-// Cursor reactivity now depends on activity, not just position — a
-// stationary cursor releases the dots beneath it back to their idle wave
-// state after IDLE_TIMEOUT_MS, and re-engages quickly once it moves again.
-const IDLE_TIMEOUT_MS = 1000;
-const RELEASE_DURATION_MS = 450; // ease-out once idle
-const REENGAGE_DURATION_MS = 120; // snap back quickly on movement
+// -- Disabled cursor-reactivity subsystem -----------------------------------
+// Kept here (not deleted) in case a non-buggy reactive version is worth
+// revisiting later. To re-enable: uncomment these constants, the uMouse/
+// uMouseActive uniforms and shader terms below, and the pointermove/idle-
+// timeout logic in the effect.
+// const HOVER_RADIUS_PX = 200; // cursor falloff radius
+// const DRIFT_PX = 10; // max distance a dot's center shifts toward the cursor
+// const IDLE_TIMEOUT_MS = 1000;
+// const RELEASE_DURATION_MS = 450; // ease-out once idle
+// const REENGAGE_DURATION_MS = 120; // snap back quickly on movement
+// -----------------------------------------------------------------------------
 
 const VERTEX_SHADER = `
   attribute vec2 position;
@@ -41,22 +64,11 @@ const VERTEX_SHADER = `
 const FRAGMENT_SHADER = `
   precision highp float;
   uniform vec2 uResolution;
-  uniform vec2 uMouse;
   uniform float uTime;
   uniform float uReactivity;
-  uniform float uMouseActive;
+  // uniform vec2 uMouse;
+  // uniform float uMouseActive;
   varying vec2 vUv;
-
-  // Cheap analytic flow field — a scalar potential (angle) built from two
-  // overlapping sine/cosine terms over position + time, converted to a unit
-  // direction. No texture lookups, no real Perlin/simplex noise needed; this
-  // is the standard "scalar-potential-to-vector" trick used in shader
-  // flow-field art, and it's what makes the whole grid drift like slow
-  // waves independent of the cursor.
-  vec2 flowDirection(vec2 p, float t) {
-    float angle = sin(p.x * ${FLOW_SCALE.toFixed(3)} + t) + cos(p.y * ${FLOW_SCALE.toFixed(3)} - t * 0.8);
-    return vec2(cos(angle), sin(angle));
-  }
 
   void main() {
     vec2 fragCoord = vUv * uResolution;
@@ -65,27 +77,29 @@ const FRAGMENT_SHADER = `
     vec2 cellIndex = floor(gridPos);
     vec2 cellCenter = (cellIndex + 0.5) * ${CELL_PX.toFixed(1)};
 
-    // Wave drift — always on (subject to uReactivity/reduced-motion), runs
-    // everywhere, independent of the cursor.
-    float flowTime = uTime * ${FLOW_SPEED.toFixed(3)};
-    vec2 flow = flowDirection(cellCenter, flowTime) * ${FLOW_DRIFT_PX.toFixed(1)} * uReactivity;
-    vec2 restCenter = cellCenter + flow;
+    // Ambient wave — a per-cell scalar (constant across every pixel of the
+    // cell, since it's a function of cellCenter only), so the whole dot
+    // fades/grows in unison with zero per-pixel flicker. Three overlapping
+    // sine terms at different frequencies/axes avoid an obviously repeating
+    // sweep. uReactivity zeroes it under prefers-reduced-motion, collapsing
+    // every dot back to the static BASE_* values.
+    float t = uTime * ${FLOW_SPEED.toFixed(3)};
+    float waveA = sin(cellCenter.x * ${WAVE_FREQ_X.toFixed(4)} + t);
+    float waveB = sin(cellCenter.y * ${WAVE_FREQ_Y.toFixed(4)} - t * 0.7);
+    float waveC = sin((cellCenter.x + cellCenter.y) * ${WAVE_FREQ_XY.toFixed(4)} + t * 0.5);
+    float wave01 = (0.5 + 0.5 * ((waveA + waveB + waveC) / 3.0)) * uReactivity;
 
-    // Cursor pull — added on top of the wave drift, not a replacement.
-    // Gated by uMouseActive: a stationary cursor eases this term back to 0
-    // after IDLE_TIMEOUT_MS even though uMouse's position hasn't changed.
-    float distToMouse = length(cellCenter - uMouse);
-    float falloff = smoothstep(${HOVER_RADIUS_PX.toFixed(1)}, 0.0, distToMouse) * uReactivity * uMouseActive;
-    vec2 dir = normalize(uMouse - cellCenter + 0.0001);
-    vec2 driftedCenter = restCenter + dir * falloff * ${DRIFT_PX.toFixed(1)};
+    float radius = mix(${BASE_RADIUS_PX.toFixed(2)}, ${WAVE_RADIUS_PX.toFixed(2)}, wave01);
+    float opacityTarget = mix(${BASE_OPACITY.toFixed(2)}, ${WAVE_OPACITY.toFixed(2)}, wave01);
 
-    float distToCenter = length(fragCoord - driftedCenter);
-    float radius = mix(${BASE_RADIUS_PX.toFixed(2)}, ${MAX_RADIUS_PX.toFixed(2)}, falloff);
+    // Dots never leave their cell center — this alone is what makes it a
+    // true, gap-free grid (see the file-header comment for why the old
+    // drifting version broke this).
+    float distToCenter = length(fragCoord - cellCenter);
 
     float dotMask = 1.0 - smoothstep(radius - 1.0, radius + 1.0, distToCenter);
-    float opacity = mix(${BASE_OPACITY.toFixed(2)}, ${MAX_OPACITY.toFixed(2)}, falloff) * dotMask;
 
-    gl_FragColor = vec4(vec3(1.0), opacity);
+    gl_FragColor = vec4(vec3(1.0), opacityTarget * dotMask);
   }
 `;
 
@@ -113,10 +127,10 @@ export function DotField() {
       transparent: true,
       uniforms: {
         uResolution: { value: [window.innerWidth, window.innerHeight] },
-        uMouse: { value: [-9999, -9999] },
         uTime: { value: 0 },
         uReactivity: { value: prefersReducedMotion ? 0 : 1 },
-        uMouseActive: { value: 0 },
+        // uMouse: { value: [-9999, -9999] },
+        // uMouseActive: { value: 0 },
       },
     });
     const mesh = new Mesh(gl, { geometry, program });
@@ -128,32 +142,30 @@ export function DotField() {
     resize();
     window.addEventListener('resize', resize);
 
-    let lastMoveTime = -Infinity;
-    function handlePointerMove(event: PointerEvent) {
-      program.uniforms.uMouse.value = [event.clientX, window.innerHeight - event.clientY];
-      lastMoveTime = performance.now();
-    }
-    if (!prefersReducedMotion) {
-      window.addEventListener('pointermove', handlePointerMove);
-    }
+    // let lastMoveTime = -Infinity;
+    // function handlePointerMove(event: PointerEvent) {
+    //   program.uniforms.uMouse.value = [event.clientX, window.innerHeight - event.clientY];
+    //   lastMoveTime = performance.now();
+    // }
+    // if (!prefersReducedMotion) {
+    //   window.addEventListener('pointermove', handlePointerMove);
+    // }
 
     let rafId = 0;
     let running = true;
-    let mouseActive = 0;
+    // let mouseActive = 0;
     const startedAt = performance.now();
 
     function loop(now: number) {
       if (!running) return;
-      program.uniforms.uTime.value = (now - startedAt) / 1000;
+      program.uniforms.uTime.value = ((now - startedAt) / 1000) % TIME_WRAP_SECONDS;
 
-      // Ease mouseActive toward 1 while recently moved, toward 0 once idle
-      // past IDLE_TIMEOUT_MS — re-engage fast, release slow (see plan §2/3).
-      const idleMs = now - lastMoveTime;
-      const target = idleMs < IDLE_TIMEOUT_MS ? 1 : 0;
-      const duration = target === 1 ? REENGAGE_DURATION_MS : RELEASE_DURATION_MS;
-      const step = 1 / (duration / 16.7); // approx per-frame step at 60fps
-      mouseActive += (target - mouseActive) * Math.min(step, 1);
-      program.uniforms.uMouseActive.value = mouseActive;
+      // const idleMs = now - lastMoveTime;
+      // const target = idleMs < IDLE_TIMEOUT_MS ? 1 : 0;
+      // const duration = target === 1 ? REENGAGE_DURATION_MS : RELEASE_DURATION_MS;
+      // const step = 1 / (duration / 16.7);
+      // mouseActive += (target - mouseActive) * Math.min(step, 1);
+      // program.uniforms.uMouseActive.value = mouseActive;
 
       renderer.render({ scene: mesh });
       rafId = requestAnimationFrame(loop);
@@ -176,7 +188,7 @@ export function DotField() {
       running = false;
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', resize);
-      window.removeEventListener('pointermove', handlePointerMove);
+      // window.removeEventListener('pointermove', handlePointerMove);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);

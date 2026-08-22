@@ -12,9 +12,9 @@
   "dependencies": {
     "@fontsource/geist-mono": "^5.2.8",
     "@fontsource/geist-sans": "^5.2.5",
+    "@ocular/motion": "*",
     "@paper-design/shaders-react": "^0.0.77",
     "@remotion/player": "^4.0.488",
-    "@remotion/transitions": "^4.0.488",
     "framer-motion": "^11.11.17",
     "ogl": "^1.0.11",
     "react": "^18.3.1",

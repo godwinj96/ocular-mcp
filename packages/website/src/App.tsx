@@ -10,7 +10,7 @@ import { ScrollProgress } from './components/scroll-progress.js';
 
 export default function App() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-hidden">
       <DotField />
       <ScrollProgress />
       <Nav />

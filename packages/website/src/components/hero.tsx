@@ -49,7 +49,7 @@ function Watermark() {
   };
 
   return (
-    <Parallax range={40} className="pointer-events-none absolute -right-24 -top-24 -z-10">
+    <Parallax range={40} className="pointer-events-none absolute -right-12 -top-24 -z-10">
       {reduceMotion ? (
         <img
           src={logoMarkWatermark}
@@ -65,7 +65,7 @@ function Watermark() {
         >
           <Dithering
             shape="warp"
-            type="4x4"
+            type="8x8"
             colorBack="#0A0A0B00"
             colorFront="#8C7DFF"
             size={2.4}
@@ -109,10 +109,7 @@ function Spotlight() {
 
 export function Hero() {
   return (
-    <section
-      id="top"
-      className="relative mx-auto max-w-[1400px] overflow-hidden px-6 pb-16 pt-24 md:pt-32"
-    >
+    <section id="top" className="relative mx-auto max-w-[1400px] px-6 pb-16 pt-24 md:pt-32">
       <GrainOverlay />
       <Watermark />
       <Spotlight />

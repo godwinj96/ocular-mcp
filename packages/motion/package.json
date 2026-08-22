@@ -1,0 +1,27 @@
+{
+  "name": "@ocular/motion",
+  "version": "0.1.0",
+  "description": "Ocular's canonical motion system — tokens, systems, and primitives implementing the Ocular Motion Design Bible.",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@remotion/google-fonts": "4.0.488",
+    "@remotion/transitions": "4.0.488"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1",
+    "remotion": "^4.0.0"
+  }
+}
