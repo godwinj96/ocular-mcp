@@ -12,6 +12,7 @@ export const errorCodeSchema = z.enum([
   'INVALID_URL',
   'SSRF_BLOCKED',
   'QUOTA_EXCEEDED',
+  'RATE_LIMITED',
   'UPSTREAM_4XX',
   'UPSTREAM_5XX',
   'RENDER_ERROR',

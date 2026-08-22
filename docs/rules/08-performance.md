@@ -20,6 +20,8 @@
 | `MAX_ESCALATIONS`          | 2           | rungs beyond the routing-memory start point              |
 | `DAILY_PAID_BUDGET_USD`    | set low     | circuit breaker on Rung-3 spend                          |
 | `JWKS_CACHE_TTL_S`         | 600         | AuthKit key rotation tolerance                           |
+| `RATE_LIMIT_WINDOW_S`      | 60          | sliding window size, per account/key                     |
+| `RATE_LIMIT_MAX_REQUESTS`  | 20          | max tool calls per window, independent of monthly quota  |
 
 Never hardcode these values inline at a call site — import from `shared/src/constants.ts`. A PR that changes one of these numbers updates this table in the same diff.
 

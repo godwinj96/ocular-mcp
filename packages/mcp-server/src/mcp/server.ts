@@ -23,6 +23,7 @@ import {
 import type { FailureEnvelope, ResultEnvelope } from '@ocular/shared';
 import { resolveAccount } from '../auth/resolve-account.js';
 import { checkAndReserveQuota } from '../quota/redis-quota.js';
+import { checkAndRecordRateLimit } from '../rate-limit/redis-rate-limiter.js';
 import { precheckUrl } from '../ssrf/precheck.js';
 import { handleExtractAssets } from '../tools/extract-assets.js';
 import { handleGetQuota } from '../tools/get-quota.js';
@@ -81,6 +82,17 @@ async function runToolPipeline(
     return toCallToolResult(failureEnvelope('UNAUTHORIZED', 'Authentication failed.'));
   }
 
+  // Per-account rate limit, independent of monthly quota (docs/rules/07-security.md
+  // §4) — the backstop for the half-charge-on-failure billing policy. Applies to
+  // every tool call, not just render tools: get_quota is cheap per-call but still
+  // a Redis round-trip an account could otherwise hammer without limit.
+  const rateLimit = await checkAndRecordRateLimit(account.accountId);
+  if (!rateLimit.allowed) {
+    return toCallToolResult(
+      failureEnvelope('RATE_LIMITED', 'Too many requests. Please slow down and try again shortly.'),
+    );
+  }
+
   if (opts.url !== undefined) {
     const precheck = await precheckUrl(opts.url);
     if (precheck.blocked) {
@@ -108,8 +120,14 @@ async function runToolPipeline(
 function registerTools(mcpServer: McpServer): void {
   mcpServer.registerTool(
     'view_page',
-    { description: 'Render a page and return a screenshot.', inputSchema: viewPageInputSchema.shape },
-    async (args, extra) => runToolPipeline(extra, { url: args.url, requiresQuota: true }, (ctx) => handleViewPage(args, ctx)),
+    {
+      description: 'Render a page and return a screenshot.',
+      inputSchema: viewPageInputSchema.shape,
+    },
+    async (args, extra) =>
+      runToolPipeline(extra, { url: args.url, requiresQuota: true }, (ctx) =>
+        handleViewPage(args, ctx),
+      ),
   );
 
   mcpServer.registerTool(
@@ -118,7 +136,10 @@ function registerTools(mcpServer: McpServer): void {
       description: 'Extract design tokens and UI structure from a page.',
       inputSchema: inspectUiInputSchema.shape,
     },
-    async (args, extra) => runToolPipeline(extra, { url: args.url, requiresQuota: true }, (ctx) => handleInspectUi(args, ctx)),
+    async (args, extra) =>
+      runToolPipeline(extra, { url: args.url, requiresQuota: true }, (ctx) =>
+        handleInspectUi(args, ctx),
+      ),
   );
 
   mcpServer.registerTool(
@@ -128,13 +149,19 @@ function registerTools(mcpServer: McpServer): void {
       inputSchema: extractAssetsInputSchema.shape,
     },
     async (args, extra) =>
-      runToolPipeline(extra, { url: args.url, requiresQuota: true }, (ctx) => handleExtractAssets(args, ctx)),
+      runToolPipeline(extra, { url: args.url, requiresQuota: true }, (ctx) =>
+        handleExtractAssets(args, ctx),
+      ),
   );
 
   mcpServer.registerTool(
     'get_quota',
-    { description: 'Get remaining monthly quota and the next reset date.', inputSchema: getQuotaInputSchema.shape },
-    async (args, extra) => runToolPipeline(extra, { requiresQuota: false }, (ctx) => handleGetQuota(args, ctx)),
+    {
+      description: 'Get remaining monthly quota and the next reset date.',
+      inputSchema: getQuotaInputSchema.shape,
+    },
+    async (args, extra) =>
+      runToolPipeline(extra, { requiresQuota: false }, (ctx) => handleGetQuota(args, ctx)),
   );
 }
 

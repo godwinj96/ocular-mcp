@@ -18,6 +18,7 @@ Every failure has exactly one of the closed `ErrorCode` values from `03-shared-c
 | `INVALID_URL`      | Zod schema rejects the input (not a URL, bad viewport, etc.)                 | none                                                                |
 | `SSRF_BLOCKED`     | Pre-check or authoritative SSRF check rejects the resolved target            | none                                                                |
 | `QUOTA_EXCEEDED`   | Redis quota check fails before enqueue                                       | none                                                                |
+| `RATE_LIMITED`     | Per-account/per-key short-window rate limit exceeded before enqueue          | none                                                                |
 | `BLOCKED`          | Ladder exhausted, classifier verdict was `CHALLENGE`/`HARD_BLOCK` throughout | half (0.5)                                                          |
 | `TIMEOUT`          | `JOB_DEADLINE_MS` or `SERVER_AWAIT_MS` exceeded                              | half (0.5) if a rung was attempted, none if it never left the queue |
 | `UPSTREAM_4XX`     | Target origin returned 4xx that isn't a block signal                         | half (0.5)                                                          |
