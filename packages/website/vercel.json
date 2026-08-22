@@ -1,4 +1,4 @@
 {
   "installCommand": "cd ../.. && npm install",
-  "buildCommand": "cd ../.. && npm run build --workspace=@ocular/website"
+  "buildCommand": "cd ../.. && npm run build --workspace=@ocular/shared --workspace=@ocular/motion --workspace=@ocular/website"
 }
