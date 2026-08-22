@@ -25,7 +25,7 @@ Redis stores quota as a float counter _because_ of the 0.5 charge value. Never r
 
 The quota check-and-decrement in `mcp-server` (§3 step 6 of `04-mcp-server-and-auth.md`) is a single atomic Redis operation (e.g., a Lua script or `MULTI`/`EXEC` with optimistic locking), never a read-then-write pair. Two concurrent requests near the cap must not both pass the check based on a stale read — see the mandatory race-condition test in `10-testing.md` §3.
 
-The actual charge (1.0 or 0.5) is applied by `worker` after the job resolves, via a second atomic decrement keyed by the same `requestId` — reconcile against the pre-enqueue reservation rather than double-decrementing. Design this reservation model explicitly before implementing M5; do not ship a version where a slow job can be charged twice or not at all.
+The actual charge (1.0, 0.5, or 0) is applied by `worker` after the job resolves, via a second atomic operation keyed by the same `requestId` — reconcile against the pre-enqueue reservation rather than double-decrementing. Implemented in `worker/src/quota/settle-quota.ts`: `chargeForEnvelope` (in `@ocular/shared`, mirrors the `09-error-handling-and-logging.md` §1 table exactly) derives the actual charge from the resolved envelope, and a Lua script refunds `SUCCESS_CHARGE - actualCharge` back into the quota key, guarded by a `quota-settled:{requestId}` idempotency key so a duplicate settlement call never refunds twice. If the quota key has already expired by settlement time (billing cycle rolled over mid-job), the refund is skipped rather than resurrecting a stale key into a new cycle.
 
 ---
 

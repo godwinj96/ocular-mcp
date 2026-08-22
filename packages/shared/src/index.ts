@@ -2,6 +2,7 @@
 // this is the ONLY barrel file in the codebase; other packages import from
 // '@ocular/shared', never from a deep '@ocular/shared/src/...' path.
 
+export * from './charge.js';
 export * from './constants.js';
 export * from './errors.js';
 export * from './job.js';

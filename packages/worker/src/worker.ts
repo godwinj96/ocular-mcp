@@ -19,6 +19,7 @@ import { extractScreenshot } from './extractors/screenshot.js';
 import { encodeScreenshot } from './image/pipeline.js';
 import { runStealthLadder } from './ladder/stealth-ladder.js';
 import type { SelfHostedProvider } from './providers/self-hosted-provider.js';
+import { defaultQuotaSettler } from './quota/settle-quota.js';
 import { authoritativeSsrfCheck } from './ssrf/authoritative-check.js';
 
 export interface WorkerHandle {
@@ -120,7 +121,13 @@ async function processJob(provider: SelfHostedProvider, job: OcularJob): Promise
       return {
         ok: true,
         meta: { requestId: job.requestId, rungReached, durationMs: Date.now() - startedAt },
-        image: { b64: encoded.b64, mime: encoded.mime, w: encoded.w, h: encoded.h, bytes: encoded.bytes },
+        image: {
+          b64: encoded.b64,
+          mime: encoded.mime,
+          w: encoded.w,
+          h: encoded.h,
+          bytes: encoded.bytes,
+        },
       };
     }
 
@@ -174,6 +181,18 @@ export async function startWorker(provider: SelfHostedProvider): Promise<WorkerH
         if (provider.health().requestsSinceRecycle >= BROWSER_RECYCLE_REQUESTS) {
           await provider.recycle();
         }
+        // Reconcile the pre-enqueue quota reservation down to the actual
+        // charge (docs/rules/11-billing-and-quota.md §2). Never let a
+        // settlement failure fail the job itself — the render result is
+        // already final; a missed refund is a billing-accuracy bug to
+        // notice in logs, not a reason to report RENDER_ERROR back to the
+        // agent for a page that actually rendered fine.
+        try {
+          await defaultQuotaSettler.settleQuota(job.data.account.id, job.data.requestId, result);
+        } catch (error) {
+          // no logger wired up yet; replace with pino at M1 (see main.ts)
+          console.error('quota settlement failed', { requestId: job.data.requestId, error });
+        }
         return result;
       } finally {
         semaphore.release();
@@ -190,6 +209,7 @@ export async function startWorker(provider: SelfHostedProvider): Promise<WorkerH
       clearInterval(recycleInterval);
       await bullWorker.close();
       await provider.dispose();
+      await defaultQuotaSettler.close();
     },
   };
 }
