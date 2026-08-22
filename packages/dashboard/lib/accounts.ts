@@ -6,12 +6,15 @@
 // first-login creation point — mcp-server only ever reads this table.
 import { sql } from './postgres';
 
+export type SubscriptionStatus = 'none' | 'active' | 'past_due' | 'canceled';
+
 export interface Account {
   id: string;
   oauthSubjectId: string;
   email: string;
+  bachsCustomerId: string | null;
   plan: string | null;
-  subscriptionStatus: 'none' | 'active' | 'past_due' | 'canceled';
+  subscriptionStatus: SubscriptionStatus;
   quotaResetAt: string | null;
 }
 
@@ -19,8 +22,9 @@ interface AccountRow {
   id: string;
   oauth_subject_id: string;
   email: string;
+  bachs_customer_id: string | null;
   plan: string | null;
-  subscription_status: 'none' | 'active' | 'past_due' | 'canceled';
+  subscription_status: SubscriptionStatus;
   quota_reset_at: string | null;
 }
 
@@ -29,6 +33,7 @@ function toAccount(row: AccountRow): Account {
     id: row.id,
     oauthSubjectId: row.oauth_subject_id,
     email: row.email,
+    bachsCustomerId: row.bachs_customer_id,
     plan: row.plan,
     subscriptionStatus: row.subscription_status,
     quotaResetAt: row.quota_reset_at,
@@ -45,10 +50,63 @@ export async function ensureAccount(oauthSubjectId: string, email: string): Prom
     values (${oauthSubjectId}, ${email})
     on conflict (oauth_subject_id)
     do update set email = excluded.email, updated_at = now()
-    returning id, oauth_subject_id, email, plan, subscription_status, quota_reset_at
+    returning id, oauth_subject_id, email, bachs_customer_id, plan, subscription_status, quota_reset_at
   `) as AccountRow[];
 
   const row = rows[0];
   if (!row) throw new Error('ensureAccount: insert...returning produced no row');
   return toAccount(row);
+}
+
+// The three account mutations a Bachs webhook can trigger — see
+// lib/apply-bachs-event.ts for the pure event->update mapping and
+// app/webhooks/bachs/route.ts for where these are actually called. Kept as
+// three static, fully-parameterized queries (not one generic "patch"
+// builder) since each corresponds to exactly one event shape — no dynamic
+// SQL construction needed.
+
+/** checkout.completed (subscription mode): first time we learn the account's Bachs customer id. */
+export async function activateAccountFromCheckout(
+  accountId: string,
+  bachsCustomerId: string,
+  plan: string | null,
+): Promise<void> {
+  await sql`
+    update accounts
+    set bachs_customer_id = ${bachsCustomerId},
+        plan = coalesce(${plan}, plan),
+        subscription_status = 'active',
+        updated_at = now()
+    where id = ${accountId}
+  `;
+}
+
+/** customer.subscription.created/updated: full state sync from Bachs's own record. */
+export async function syncSubscriptionState(
+  bachsCustomerId: string,
+  subscriptionStatus: SubscriptionStatus,
+  plan: string | null,
+  quotaResetAt: string | null,
+): Promise<void> {
+  await sql`
+    update accounts
+    set subscription_status = ${subscriptionStatus},
+        plan = coalesce(${plan}, plan),
+        quota_reset_at = coalesce(${quotaResetAt}, quota_reset_at),
+        updated_at = now()
+    where bachs_customer_id = ${bachsCustomerId}
+  `;
+}
+
+/** customer.subscription.deleted / invoice.paid / invoice.payment_failed: status-only transitions. */
+export async function setSubscriptionStatus(
+  bachsCustomerId: string,
+  subscriptionStatus: SubscriptionStatus,
+): Promise<void> {
+  await sql`
+    update accounts
+    set subscription_status = ${subscriptionStatus},
+        updated_at = now()
+    where bachs_customer_id = ${bachsCustomerId}
+  `;
 }

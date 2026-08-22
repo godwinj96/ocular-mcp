@@ -9,7 +9,10 @@ import { authkitMiddleware } from '@workos-inc/authkit-nextjs';
 export default authkitMiddleware({
   middlewareAuth: {
     enabled: true,
-    unauthenticatedPaths: ['/login', '/callback'],
+    // /webhooks/bachs is called by Bachs's servers, never a signed-in
+    // browser — it authenticates the request itself via HMAC signature
+    // verification (see app/webhooks/bachs/route.ts), not an AuthKit session.
+    unauthenticatedPaths: ['/login', '/callback', '/webhooks/bachs'],
   },
 });
 

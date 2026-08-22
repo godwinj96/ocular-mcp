@@ -47,6 +47,8 @@ Redis (hot-path quota counter, reset on billing cycle boundary per plan)
 
 **Rule:** Redis quota state degrading (cache miss, Redis down) fails closed: `QUOTA_EXCEEDED`, not an open gate. Routing memory degrading, by contrast, fails soft (starts at Rung 0) — these are different failure modes with intentionally different defaults; do not conflate them.
 
+**Implemented** (Session 14) via the `bachs-sdk` npm package (unofficial, MIT, zero-dependency — verified directly against its published source before adoption): `packages/dashboard/app/webhooks/bachs/route.ts` receives and HMAC-verifies (`bachs.webhooks.constructEvent`) `checkout.completed`, `customer.subscription.created/updated/deleted`, and `invoice.paid/payment_failed`; `packages/dashboard/lib/apply-bachs-event.ts` is the pure event→account-update mapping (unit-tested in isolation); `packages/dashboard/lib/accounts.ts`'s three settlement functions apply it to Postgres. **Correction to this section's earlier assumption:** Session 2's research concluded Bachs had no hosted customer-billing-portal UI, so cancellation was scoped as dashboard-owned. That's since changed on Bachs's end — `bachs.customerSessions.create` (`POST /customers/{id}/portal-sessions`) is a real hosted portal, confirmed via the SDK's own type definitions, not re-assumed from the earlier note. `BachsClient.createPortalSession` now uses it directly; no custom in-house cancel-subscription UI was built.
+
 ---
 
 ## 4. Static API key issuance (headless/CI path)

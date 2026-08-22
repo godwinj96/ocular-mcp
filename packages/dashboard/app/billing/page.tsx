@@ -4,7 +4,14 @@ import { bachsClient } from '../../lib/bachs';
 
 export default async function BillingPage() {
   const account = await getCurrentAccount();
-  const checkout = await bachsClient.createCheckoutSession(account.id, 'default');
+
+  // An active subscriber manages an existing plan (Bachs's own hosted
+  // portal — invoices, payment method, cancellation); anyone else starts a
+  // new checkout. Never re-checkout an already-active subscriber.
+  const isActive = account.subscriptionStatus === 'active' && account.bachsCustomerId;
+  const session = isActive
+    ? await bachsClient.createPortalSession(account.bachsCustomerId!)
+    : await bachsClient.createCheckoutSession(account);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
@@ -20,17 +27,18 @@ export default async function BillingPage() {
         </p>
         <p className="mt-1 text-sm text-text-secondary capitalize">{account.subscriptionStatus}</p>
 
-        {checkout ? (
+        {session ? (
           <a
-            href={checkout.url}
+            href={session.url}
             className="mt-6 inline-block rounded-full bg-accent px-6 py-3 font-semibold text-surface-base transition hover:brightness-110"
           >
-            Manage billing
+            {isActive ? 'Manage billing' : 'Subscribe'}
           </a>
         ) : (
           <div className="mt-6 rounded-lg border border-dashed border-border bg-surface-raised p-4">
             <p className="text-sm text-text-secondary">
-              Billing isn't live yet — checkout will appear here once it's connected. No action needed on your end.
+              Billing isn't live yet — checkout will appear here once it's connected. No action
+              needed on your end.
             </p>
           </div>
         )}

@@ -27,7 +27,14 @@ MCP_SERVER_PORT=
 AUTHKIT_ISSUER_URL=
 AUTHKIT_RESOURCE_IDENTIFIER=
 AUTHKIT_JWKS_CACHE_TTL_S=
+
+# dashboard — Bachs lives here, not mcp-server: dashboard is the only
+# package that talks to Bachs (see docs/rules/11-billing-and-quota.md §3;
+# mcp-server never calls Bachs synchronously in the request path).
+NEXT_PUBLIC_APP_URL=
+BACHS_API_KEY=
 BACHS_WEBHOOK_SECRET=
+BACHS_PRODUCT_ID=
 
 # worker
 WORKER_RENDER_CONCURRENCY=
