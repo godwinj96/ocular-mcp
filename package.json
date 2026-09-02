@@ -31,16 +31,7 @@
     "typescript-eslint": "^8.12.2",
     "vitest": "^2.1.4"
   },
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
-  },
   "simple-git-hooks": {
-    "pre-commit": "npx lint-staged"
+    "pre-commit": "npx lint-staged --no-stash"
   }
 }

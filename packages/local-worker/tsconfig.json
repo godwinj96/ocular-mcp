@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    // DOM lib needed for the evaluateFn() closures in src/extractors/*.ts —
+    // those run inside the browser context (document/window/XMLSerializer),
+    // not Node. Same rationale as packages/worker/tsconfig.json.
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "dist", "supervisor", "dist-supervisor"]
+}
