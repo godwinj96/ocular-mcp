@@ -1,0 +1,10 @@
+---
+description: Local worker execution path — Go supervisor, chrome-headless-shell lifecycle, invisibility/packaging requirements, local cache, authenticated local profile. Canonical source: docs/rules/13-local-worker-and-distribution.md
+globs:
+  - "packages/local-worker/**/*"
+alwaysApply: true
+---
+
+See `docs/rules/13-local-worker-and-distribution.md` for the full rule text. Do not duplicate content here.
+
+Key points: the local path has a **different threat model** from the cloud worker — private IPs are permitted (separate named code path, never a bypass flag on the cloud SSRF check), no stealth ladder, `chrome-headless-shell` not Patchright. Invisibility is a product requirement, not polish: no window, dock icon, console flash, or firewall prompt — Windows builds need `-ldflags="-H windowsgui"`, macOS needs `LSUIElement` + notarization, IPC binds loopback only. Idle >30min fully terminates the browser (~10-15MB supervisor remains); warm on MCP `initialize`, not first capture. Local renders are unmetered but still require a cached subscription check. Nothing rendered locally ever reaches the cloud cache. Credentials are never read, stored, transmitted, or logged.

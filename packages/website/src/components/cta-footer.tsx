@@ -22,10 +22,11 @@ export function CtaFooter() {
             >
               <h2 className="text-display-md font-bold text-text-primary">Give your agent eyes.</h2>
               <p className="mx-auto mt-4 max-w-measure text-text-secondary">
-                One connection. $1/mo. Your agent sees the web the way you do.
+                One connection, from $2.50/mo. Your dev server and the live web, the way you'd see
+                them yourself.
               </p>
               <MotionCta
-                href="#pricing"
+                href="/setup"
                 className="mt-8 inline-block rounded-full bg-accent px-8 py-3 font-semibold text-surface-base transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               >
                 Connect Ocular

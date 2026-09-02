@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App.js';
+import { RouterProvider } from '@tanstack/react-router';
+import { router } from './router.js';
 // Self-hosted Geist Sans/Mono — the tailwind.config.ts fontFamily stack
 // declared these since Round 2 but no actual font file was ever loaded
 // (silently falling back to system fonts). @fontsource ships the real woff2
@@ -20,6 +21,6 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <App />
+    <RouterProvider router={router} />
   </StrictMode>,
 );

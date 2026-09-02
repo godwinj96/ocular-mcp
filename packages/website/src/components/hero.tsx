@@ -122,18 +122,18 @@ export function Hero() {
             Real eyes for AI agents.
           </h1>
           <p className="mt-6 max-w-measure text-lg leading-relaxed text-text-secondary md:text-xl">
-            Enterprise-grade stealth browsing for AI agents. No infrastructure to run, no blocks to
-            fight.
+            Sees your dev server and the live web. One MCP connection — no infrastructure to run, no
+            blocks to fight.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <MotionCta
-              href="#pricing"
+              href="/setup"
               className="rounded-full bg-accent px-6 py-3 font-semibold text-surface-base transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
-              Connect Ocular — $1/mo
+              Connect Ocular — from $2.50/mo
             </MotionCta>
             <span className="font-mono text-sm text-text-secondary">
-              4 tools · 1 MCP connection
+              5 tools · 1 MCP connection
             </span>
           </div>
         </BentoCell>

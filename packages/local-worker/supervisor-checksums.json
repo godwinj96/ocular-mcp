@@ -1,0 +1,10 @@
+{
+  "_comment": "Pinned SHA-256 checksums for each platform's supervisor binary, for the version below. Generated and committed by .github/workflows/release-supervisor.yml on every supervisor release tag — never hand-edited. binary-resolver.ts refuses to download+trust a binary for any platform missing an entry here, rather than falling back to an unverified download. See docs/rules/13-local-worker-and-distribution.md §10.",
+  "version": "0.1.0",
+  "binaries": {
+    "win32-x64": null,
+    "darwin-x64": null,
+    "darwin-arm64": null,
+    "linux-x64": null
+  }
+}
