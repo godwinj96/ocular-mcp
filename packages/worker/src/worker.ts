@@ -7,14 +7,25 @@ import { Worker } from 'bullmq';
 import {
   BROWSER_RECYCLE_MINUTES,
   BROWSER_RECYCLE_REQUESTS,
+  MAX_RUNG_INDEX_BY_TIER,
   QUEUE_CONCURRENCY,
   RENDER_CONCURRENCY,
   RENDER_QUEUE_NAME,
+  tierOfPlanSlug,
 } from '@ocular/shared';
-import type { ExtractAssetsInput, OcularJob, ResultEnvelope, ViewPageInput } from '@ocular/shared';
+import type {
+  ExtractAssetsInput,
+  MotionCaptureInput,
+  OcularJob,
+  ResultEnvelope,
+  ViewPageInput,
+} from '@ocular/shared';
 import { config } from './config.js';
+import { defaultCacheWriter } from './cache/cloud-cache.js';
+import { extractA11yTree } from './extractors/a11y-tree.js';
 import { extractAssets } from './extractors/assets.js';
 import { extractDesignTokens } from './extractors/design-tokens.js';
+import { captureMotion } from './extractors/motion-capture.js';
 import { extractScreenshot } from './extractors/screenshot.js';
 import { encodeScreenshot } from './image/pipeline.js';
 import { runStealthLadder } from './ladder/stealth-ladder.js';
@@ -96,9 +107,14 @@ async function processJob(provider: SelfHostedProvider, job: OcularJob): Promise
     return failure('SSRF_BLOCKED', 'The requested URL is not allowed.');
   }
 
+  // Same 'basic' fallback rationale as mcp-server's quota check — an account
+  // reaching a queued job already passed the active-subscription auth gate,
+  // so an unrecognized plan slug is defensive, not an expected path.
+  const maxRungIndex = MAX_RUNG_INDEX_BY_TIER[tierOfPlanSlug(job.account.plan) ?? 'basic'];
+
   let ladderResult;
   try {
-    ladderResult = await runStealthLadder(provider, args.url, job.deadlineMs);
+    ladderResult = await runStealthLadder(provider, args.url, job.deadlineMs, maxRungIndex);
   } catch {
     return failure('RENDER_ERROR', 'Rendering failed.');
   }
@@ -117,7 +133,14 @@ async function processJob(provider: SelfHostedProvider, job: OcularJob): Promise
     if (job.tool === 'view_page') {
       const input = job.args as ViewPageInput;
       const raw = await extractScreenshot(page, { fullPage: input.full_page });
-      const encoded = await encodeScreenshot(raw, input.detail);
+      const [encoded, a11yTree] = await Promise.all([
+        encodeScreenshot(raw, input.detail),
+        // Shipped alongside every screenshot, unconditionally — see
+        // docs/rules/05-worker-and-browser-pipeline.md §4a. A failure here
+        // degrades the response (no tree) rather than failing the whole
+        // render — the screenshot itself is still a complete, useful result.
+        extractA11yTree(page).catch(() => undefined),
+      ]);
       return {
         ok: true,
         meta: { requestId: job.requestId, rungReached, durationMs: Date.now() - startedAt },
@@ -128,6 +151,7 @@ async function processJob(provider: SelfHostedProvider, job: OcularJob): Promise
           h: encoded.h,
           bytes: encoded.bytes,
         },
+        a11yTree,
       };
     }
 
@@ -147,6 +171,24 @@ async function processJob(provider: SelfHostedProvider, job: OcularJob): Promise
         ok: true,
         meta: { requestId: job.requestId, rungReached, durationMs: Date.now() - startedAt },
         data: assets,
+      };
+    }
+
+    if (job.tool === 'motion_capture') {
+      const input = job.args as MotionCaptureInput;
+      const output = await captureMotion(page, input);
+      // Sequential, not Promise.all with captureMotion above: motion capture
+      // actively scrolls/samples the page over time, so reading the a11y
+      // tree concurrently would race the extractor's own wheel-scroll calls.
+      // Extracted after, at whatever scroll position sampling ended on —
+      // gives an agent the "what is this moving region" context the PRD
+      // asked for without a second, extractor-disrupting capture pass.
+      const a11yTree = await extractA11yTree(page).catch(() => undefined);
+      return {
+        ok: true,
+        meta: { requestId: job.requestId, rungReached, durationMs: Date.now() - startedAt },
+        a11yTree,
+        data: output,
       };
     }
 
@@ -193,6 +235,20 @@ export async function startWorker(provider: SelfHostedProvider): Promise<WorkerH
           // no logger wired up yet; replace with pino at M1 (see main.ts)
           console.error('quota settlement failed', { requestId: job.data.requestId, error });
         }
+        // Cache write — the ONLY place in the codebase that populates the
+        // cloud cache (docs/rules/05-worker-and-browser-pipeline.md §5a).
+        // setCachedEnvelope itself no-ops on a failed envelope; never let a
+        // cache-write failure fail the job — same reasoning as quota
+        // settlement above.
+        try {
+          await defaultCacheWriter.setCachedEnvelope(
+            job.data.tool,
+            job.data.args as Record<string, unknown>,
+            result,
+          );
+        } catch (error) {
+          console.error('cache write failed', { requestId: job.data.requestId, error });
+        }
         return result;
       } finally {
         semaphore.release();
@@ -210,6 +266,7 @@ export async function startWorker(provider: SelfHostedProvider): Promise<WorkerH
       await bullWorker.close();
       await provider.dispose();
       await defaultQuotaSettler.close();
+      await defaultCacheWriter.close();
     },
   };
 }
