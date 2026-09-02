@@ -89,27 +89,7 @@ jobs:
           merge-multiple: true
       - name: Assemble checksum manifest
         id: manifest
-        run: |
-          set -euo pipefail
-          version="${GITHUB_REF_NAME#supervisor-v}"
-          node - <<'EOF'
-          const fs = require('node:fs');
-          const path = require('node:path');
-          const version = process.env.VERSION;
-          const dir = 'artifacts';
-          const manifestPath = 'packages/local-worker/supervisor-checksums.json';
-          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-          manifest.version = version;
-          for (const key of Object.keys(manifest.binaries)) {
-            const shaFile = fs.readdirSync(dir).find((f) => f.startsWith(`${key}-`) && f.endsWith('.sha256'));
-            if (!shaFile) throw new Error(`Missing checksum artifact for ${key}`);
-            const hash = fs.readFileSync(path.join(dir, shaFile), 'utf8').trim().split(/\s+/)[0];
-            manifest.binaries[key] = hash;
-          }
-          fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-          EOF
-        env:
-          VERSION: ${{ github.ref_name }}
+        run: node .github/scripts/assemble-supervisor-checksums.cjs
       - name: Commit updated checksums
         run: |
           set -euo pipefail
