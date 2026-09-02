@@ -87,9 +87,34 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+      - name: List downloaded artifacts (diagnostic)
+        run: ls -la artifacts/ || echo "no artifacts dir"
       - name: Assemble checksum manifest
         id: manifest
-        run: node .github/scripts/assemble-supervisor-checksums.cjs
+        continue-on-error: true
+        run: node .github/scripts/assemble-supervisor-checksums.cjs > /tmp/manifest-output.log 2>&1
+      - name: Publish diagnostic log on failure
+        # TEMPORARY — remove once the manifest step is confirmed working.
+        # api.github.com's job-logs endpoint 403s for unauthenticated
+        # requests even on a public repo ("Must have admin rights"), so this
+        # writes the real error to a file that IS readable unauthenticated
+        # via raw.githubusercontent.com.
+        if: steps.manifest.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p .github/debug
+          cp /tmp/manifest-output.log .github/debug/last-manifest-error.log
+          ls -la artifacts/ >> .github/debug/last-manifest-error.log 2>&1 || true
+          git add .github/debug/last-manifest-error.log
+          git commit -m "chore(ci): capture manifest-step diagnostic log [skip ci]"
+          git push origin HEAD:main
+      - name: Fail if manifest step failed
+        if: steps.manifest.outcome == 'failure'
+        run: |
+          cat /tmp/manifest-output.log
+          exit 1
       - name: Commit updated checksums
         run: |
           set -euo pipefail
