@@ -123,13 +123,38 @@ jobs:
           cat /tmp/manifest-output.log
           exit 1
       - name: Commit updated checksums
+        # Uses the Contents API instead of `git commit` + `git push` — two
+        # earlier attempts at a plain `git push origin HEAD:main` from this
+        # job silently failed for a cause never fully diagnosed (confirmed
+        # not branch protection via the API). The Contents API PUT used by
+        # the diagnostic-log step above is confirmed to work reliably, so
+        # the real commit path uses the same mechanism.
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add packages/local-worker/supervisor-checksums.json
-          git commit -m "chore(local-worker): pin supervisor checksums for ${GITHUB_REF_NAME}" || echo "No changes to commit"
-          git push origin HEAD:main
+          path="packages/local-worker/supervisor-checksums.json"
+          content_b64=$(base64 -w0 "$path")
+          current_sha=$(curl -sS -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/contents/${path}?ref=main" \
+            | jq -r '.sha // empty')
+          payload=$(jq -n \
+            --arg msg "chore(local-worker): pin supervisor checksums for ${GITHUB_REF_NAME}" \
+            --arg content "$content_b64" \
+            --arg sha "$current_sha" \
+            '{message: $msg, content: $content, branch: "main"} + (if $sha != "" then {sha: $sha} else {} end)')
+          http_code=$(curl -sS -o /tmp/commit-response.json -w "%{http_code}" -X PUT \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/contents/${path}" \
+            -d "$payload")
+          echo "Contents API PUT responded: ${http_code}"
+          cat /tmp/commit-response.json
+          if [ "$http_code" -ge 300 ]; then
+            echo "Failed to commit checksums via Contents API"
+            exit 1
+          fi
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
