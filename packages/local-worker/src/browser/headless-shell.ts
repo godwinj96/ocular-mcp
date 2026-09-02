@@ -158,6 +158,13 @@ export interface ScreenshotOptions {
 export interface HeadlessShellPage {
   navigate(url: string, timeoutMs: number): Promise<void>;
   screenshot(opts: ScreenshotOptions): Promise<Buffer>;
+  /**
+   * Applies the capture tools' `viewport` input. Without this the page renders
+   * at whatever size the shell happened to start at, so every desktop-breakpoint
+   * request silently came back as the default size — the tool accepted the
+   * parameter and then ignored it.
+   */
+  setViewport(width: number, height: number): Promise<void>;
   /** Runtime.evaluate in the page's main world — used by inspect_ui/extract_assets extractors. */
   evaluate<T>(expression: string): Promise<T>;
   /**
@@ -211,17 +218,23 @@ class Page implements HeadlessShellPage {
     const params: Record<string, unknown> = { format: 'png' };
 
     if (opts.fullPage) {
-      const metrics = await this.conn.send<{
-        cssContentSize: { width: number; height: number };
-      }>('Page.getLayoutMetrics', {}, this.sessionId);
+      // NOT Page.getLayoutMetrics().cssContentSize. Since Chrome M111 that
+      // field returns the *visual viewport* size rather than the full
+      // document size, so clipping to it produced a viewport-sized image and
+      // full_page silently did nothing. Puppeteer moved off it for the same
+      // reason. The document's own scroll dimensions are the reliable source.
+      const size = await this.evaluate<{ width: number; height: number }>(
+        `(() => {
+          const d = document.documentElement;
+          const b = document.body;
+          return {
+            width: Math.max(d.scrollWidth, b ? b.scrollWidth : 0, d.clientWidth),
+            height: Math.max(d.scrollHeight, b ? b.scrollHeight : 0, d.clientHeight),
+          };
+        })()`,
+      );
       params.captureBeyondViewport = true;
-      params.clip = {
-        x: 0,
-        y: 0,
-        width: metrics.cssContentSize.width,
-        height: metrics.cssContentSize.height,
-        scale: 1,
-      };
+      params.clip = { x: 0, y: 0, width: size.width, height: size.height, scale: 1 };
     }
 
     const result = await this.conn.send<{ data: string }>(
@@ -230,6 +243,14 @@ class Page implements HeadlessShellPage {
       this.sessionId,
     );
     return Buffer.from(result.data, 'base64');
+  }
+
+  async setViewport(width: number, height: number): Promise<void> {
+    await this.conn.send(
+      'Emulation.setDeviceMetricsOverride',
+      { width, height, deviceScaleFactor: 1, mobile: false },
+      this.sessionId,
+    );
   }
 
   async evaluate<T>(expression: string): Promise<T> {

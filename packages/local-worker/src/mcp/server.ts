@@ -137,6 +137,14 @@ async function renderLocally(
   const page = await timePhase(phases, 'newPage', () => browser.newPage());
 
   try {
+    // Must precede navigate: a viewport applied afterward would leave any
+    // width-dependent work the page did on load (media queries resolved at the
+    // old size, JS that measured on mount) computed against the wrong size.
+    const viewport = args.viewport as { w: number; h: number } | undefined;
+    if (viewport) {
+      await timePhase(phases, 'viewport', () => page.setViewport(viewport.w, viewport.h));
+    }
+
     await timePhase(phases, 'navigate', () => page.navigate(args.url, JOB_DEADLINE_MS));
 
     if (toolName === 'view_page') {
