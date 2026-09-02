@@ -1,10 +1,11 @@
 ---
-description: Worker lifecycle, BrowserProvider implementation, StealthLadder, extractors, image pipeline. Canonical source: docs/rules/05-worker-and-browser-pipeline.md
+description: Worker lifecycle, BrowserProvider implementation, StealthLadder, extractors, a11y tree, motion capture, image pipeline, caching. Canonical source: docs/rules/05-worker-and-browser-pipeline.md
 globs:
   - "packages/worker/**/*"
+  - "packages/local-worker/**/*"
 alwaysApply: true
 ---
 
 See `docs/rules/05-worker-and-browser-pipeline.md` for the full rule text. Do not duplicate content here.
 
-Key points: one deadline threaded through every stage; `finally` always closes page/context; one warm browser per worker, fresh context per request; ladder escalates only on classifier evidence; extractors are capped and never return raw stylesheets/files.
+Key points: one deadline threaded through every stage; `finally` always closes page/context; one warm browser per worker, fresh context per request; ladder escalates only on classifier evidence; extractors are capped and never return raw stylesheets/files. **Applies to both workers:** always ship the annotated accessibility tree alongside the screenshot (annotate viewport position, never filter to the viewport); motion ships as discrete stills (no video, GIFs are first-frame-only) via contact sheet by default, with scroll-driven animation sampled by scroll offset rather than time; the cloud cache is populated only by Ocular's own cloud renders, never by local or user-contributed captures. Lifecycle/stealth/ladder sections are cloud-only — see `docs/rules/13-local-worker-and-distribution.md` for the local path.

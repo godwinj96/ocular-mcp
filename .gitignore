@@ -4,6 +4,10 @@ build/
 .next/
 tmp/
 
+# Compiled Go supervisor binary (packages/local-worker) — built via
+# `npm run build:supervisor`, platform-specific, never committed.
+dist-supervisor/
+
 # Dependencies (applies at every level — packages/*/node_modules)
 node_modules/
 
@@ -31,6 +35,11 @@ coverage/
 # temp directory
 .temp
 .tmp
+
+# Scratch artifacts from live-verification testing (screenshots, captured
+# assets, etc.) — never meant to be committed, kept locally so they're easy
+# to open from the repo root instead of a Claude-managed temp path.
+/test-output/
 
 # Next.js auto-regenerates this on every dev/build run and explicitly
 # instructs "do not edit" — gitignoring avoids repeated lint friction over a

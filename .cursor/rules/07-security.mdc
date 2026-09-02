@@ -1,5 +1,5 @@
 ---
-description: SSRF (two-layer), token verification, egress isolation, rate limiting, secrets, output hygiene — MVP-blocking. Canonical source: docs/rules/07-security.md
+description: SSRF (two-layer, cloud path), token verification, egress isolation, rate limiting, secrets, output hygiene — MVP-blocking. Canonical source: docs/rules/07-security.md
 globs:
   - "packages/**/*"
 alwaysApply: true
@@ -7,4 +7,4 @@ alwaysApply: true
 
 See `docs/rules/07-security.md` for the full rule text. Do not duplicate content here.
 
-Key points: never trust input, fail closed, least privilege. SSRF checked at both mcp-server (fast pre-check) and worker (authoritative, resolve-time + per-hop). Rate limiting is independent of quota and backstops the half-charge policy.
+Key points: never trust input, fail closed, least privilege. **On the cloud path** SSRF is checked at both mcp-server (fast pre-check) and worker (authoritative, resolve-time + per-hop) — and is never relaxed. `local-worker` permits private IPs via a **separate named code path**, never a bypass flag on the cloud check; see `docs/rules/13-local-worker-and-distribution.md` §1. Rate limiting is independent of quota and backstops the half-charge policy. Cookie extraction / session replay from the user's browser is permanently out of scope on both paths (Chrome DBSC); authenticated pages are supported only via `local-worker`'s own on-device profile, with no credential ever read, stored, transmitted, or logged.

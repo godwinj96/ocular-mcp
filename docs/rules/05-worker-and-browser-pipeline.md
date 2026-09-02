@@ -1,6 +1,8 @@
 # Ocular — Worker & Browser Pipeline Rules
 
-**Section 5 of 12 · Always Apply**
+**Section 5 of 13 · Always Apply**
+
+> **Scope: the cloud `worker` only.** `packages/local-worker` runs a deliberately different pipeline (no stealth ladder, `chrome-headless-shell` instead of Patchright, private IPs permitted) — see `13-local-worker-and-distribution.md`. Sections §4 (extractors), §4a (a11y tree), §4b (motion), and §5 (image pipeline) apply to **both** paths; everything else here is cloud-specific.
 
 ---
 
@@ -101,6 +103,44 @@ export class SelfHostedProvider implements BrowserProvider {
 
 ---
 
+## 4a. Accessibility tree — shipped alongside every screenshot
+
+Added 2026-09-01 (`docs/Ocular_PRD_v0.2.md` §6.1). **Applies to both workers.**
+
+**Tool scope:** `view_page` (added at launch) and `motion_capture` (added 2026-09-01, same day as §4b — a moving region is unidentifiable from stills alone without knowing what element it is; extracted once, after sampling completes, not concurrently with it, since motion capture actively scrolls the page and racing the tree read against the extractor's own wheel-scroll calls would corrupt scroll position). `inspect_ui`/`extract_assets` are excluded — neither takes a screenshot, so there is no pixel gap for the tree to close.
+
+Pixels and the accessibility tree each carry information the other structurally cannot. A screenshot cannot show content below the fold; the tree cannot represent canvas/WebGL content or visual correctness at all. Shipping both closes each gap; shipping one leaves a hole that no amount of tuning fixes.
+
+**Rule:** annotate every node with its viewport position — in-view vs. below-fold, plus coordinates. Set-of-Mark style.
+
+**Rule: annotate, never filter to the viewport.** The tree's principal advantage over the screenshot is precisely that it exposes what is off-screen. Trimming it to the visible region discards the only reason to send it. This is a tempting "optimization" that destroys the feature — do not make it.
+
+**Rule:** the tree is size-capped like every other extractor output (§4). A pathological DOM must not blow the payload.
+
+---
+
+## 4b. Motion & animation capture
+
+Added 2026-09-01 (`docs/Ocular_PRD_v0.2.md` §6.2). Planned as the fifth MCP tool. **Applies to both workers.**
+
+**Hard constraint:** Claude accepts no video input, and animated GIFs are read first-frame-only. Motion must be delivered as discrete still images. Do not attempt to return video or animated GIF from any tool.
+
+**Two modes:**
+
+- **Verification (default):** adaptive, diff-triggered sampling, delivered as a tiled **contact sheet** — N frames at one image's token cost rather than N images'. Sufficient for "is the stagger/easing/overshoot roughly right."
+- **Analysis (opt-in, costlier):** fixed high-fps sampling, full-size untiled frames. For measuring timing curves.
+
+**Rule: do not undersample.** Low frame rates invent artifacts that are not present in the source. This is not hypothetical — a 5fps analysis on this project once reported a "scale-pop" on entrance animations that measured 0.0% overshoot when resampled properly. Sampling rate is a correctness property, not a cost knob.
+
+**Rule: scroll-driven animation requires a different sampling axis.** Perceptual diffing fails here because scrolling changes nearly every pixel regardless of whether the animation is doing anything interesting.
+
+- _Scroll-scrubbed_ (parallax, pinned/sticky sections, scroll-timeline-driven): sample by **scroll-offset increment**, not by time. Progress is a deterministic function of scroll position, so stepping the offset gives frames that are meaningfully different by construction.
+- _Scroll-triggered_ (fires once past a threshold, then runs on its own clock): scroll to the trigger point, **hold still**, then apply time-based sampling. Once scrolling stops, ordinary diffing works correctly again.
+
+**Known gotcha:** JS smooth-scroll libraries (Lenis, Locomotive Scroll, and similar) hijack native scrolling and drive it from their own animation loop. Setting `scrollTop` programmatically may not update their internal state at all — simulated wheel input may be required. Detect and handle rather than silently capturing a frozen animation.
+
+---
+
 ## 5. Image pipeline (`sharp`)
 
 ```
@@ -113,6 +153,25 @@ screenshot buffer
 ```
 
 `detail` (`low`/`balanced`/`high`) maps to a max-edge ceiling — defined once in `shared/src/constants.ts`, not re-derived per call site.
+
+**Why the ceiling exists:** vision models resize internally to a fixed processing resolution before tokenizing (~1568px long edge for Claude). Pixels beyond that cap cost tokens and bandwidth for exactly zero accuracy gain. Never upscale a below-cap image either — it adds tokens and no information.
+
+---
+
+## 5a. Caching
+
+Added 2026-09-01 (`docs/Ocular_PRD_v0.2.md` §6.3). Two caches exist and they are **not** interchangeable.
+
+| Cache     | Scope                                | Contents                                                         |
+| --------- | ------------------------------------ | ---------------------------------------------------------------- |
+| **Cloud** | Shared across all users              | Public URLs only                                                 |
+| **Local** | The user's device, never transmitted | localhost + authenticated captures — may contain logged-in state |
+
+**Rule:** the cloud cache is populated **exclusively by Ocular's own cloud renders** — never by user-contributed or locally-rendered captures. This makes cache poisoning structurally impossible rather than requiring trust-scoring machinery to mitigate it.
+
+**Rule:** every capture tool exposes an explicit `fresh: true` force-refresh parameter, and cache TTL varies by target volatility (a pricing page and a docs page have very different staleness tolerances). Both caches honour the same contract so agents see consistent behaviour regardless of which path served them.
+
+**Rule:** the cloud cache never stores a render for a URL carrying a query string, userinfo (`user:pass@host`), or a secret-shaped path segment (`token`, `reset`, `invite`, `share`, `auth`, `session`, `otp`, `code`, …) — see `packages/shared/src/cache-key.ts`'s `isCacheableUrl`, enforced by the writer in `packages/worker/src/cache/cloud-cache.ts` before every `SET`. A URL shaped like that is plausibly personalized or single-use; caching it risks leaking one user's content to any other caller who requests an identical-looking URL. This is a blanket exclusion — a cache miss just costs one extra render, never a leak. (Geo/locale-keyed caching, so the same URL can cache differently per requester region, is not yet implemented — tracked as a follow-up, not blocking.)
 
 ---
 

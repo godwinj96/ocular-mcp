@@ -1,5 +1,5 @@
 ---
-description: Charge policy (1.0/0.5/0), atomic float quota, Bachs-Postgres-Redis sync, static-key issuance. Canonical source: docs/rules/11-billing-and-quota.md
+description: Charge policy (cloud only), local renders unmetered, daily cloud cap + per-rung multipliers, atomic float quota, Bachs-Postgres-Redis sync, static-key issuance. Canonical source: docs/rules/11-billing-and-quota.md
 globs:
   - "packages/**/*"
 alwaysApply: true
@@ -7,4 +7,4 @@ alwaysApply: true
 
 See `docs/rules/11-billing-and-quota.md` for the full rule text. Do not duplicate content here.
 
-Key points: full charge on CLEAN, half charge on exhausted ladder, no charge on pre-enqueue rejection. Quota is a float in Redis, decremented atomically. Bachs webhooks are async/off the hot path; no matching Postgres account row = UNAUTHORIZED, never a default quota.
+Key points: **charges apply to cloud renders only** — local renders are unmetered (but still require a cached subscription check with a defined offline grace window). Cloud quota is a **daily** cap, not monthly, with **per-rung charge multipliers** (a rung-1 residential-proxy render costs ~3 units) so escalation-heavy usage self-limits instead of breaking the tier. Base tier gets rungs 0–1; higher tier adds 2–3. Full charge on CLEAN, half charge on exhausted ladder, no charge on pre-enqueue rejection. Quota is a float in Redis, decremented atomically; multipliers live in `shared/src/constants.ts` and are applied only inside `chargeForEnvelope`. Bachs webhooks are async/off the hot path; no matching Postgres account row = UNAUTHORIZED, never a default quota.

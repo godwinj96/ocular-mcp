@@ -1,4 +1,5 @@
-export type ToolName = 'view_page' | 'inspect_ui' | 'extract_assets' | 'get_quota';
+export type ToolName =
+  'view_page' | 'inspect_ui' | 'extract_assets' | 'get_quota' | 'motion_capture';
 
 export interface OcularJobAccount {
   id: string;

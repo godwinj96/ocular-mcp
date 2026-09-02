@@ -8,9 +8,9 @@ Legend: ✅ keep brief's decision · ✏️ refine brief's decision · ⚠️ de
 
 ## 1. ⚠️ Browser engine: default to **Patchright**, keep Playwright's model
 
-**Conclusion.** Keep the Playwright *programming model* (contexts, auto-wait, API) but run it through **Patchright** (`patchright` npm, `channel: 'chrome'` against a real installed Chrome), not vanilla `playwright`. Patchright is API-compatible, so no application code changes; it patches the CDP/`Runtime.enable` leaks that put vanilla Playwright and `rebrowser-playwright` at the bottom of 2026 Cloudflare benchmarks.
+**Conclusion.** Keep the Playwright _programming model_ (contexts, auto-wait, API) but run it through **Patchright** (`patchright` npm, `channel: 'chrome'` against a real installed Chrome), not vanilla `playwright`. Patchright is API-compatible, so no application code changes; it patches the CDP/`Runtime.enable` leaks that put vanilla Playwright and `rebrowser-playwright` at the bottom of 2026 Cloudflare benchmarks.
 
-**Why deviate.** The brief's "Playwright over Puppeteer" reasoning (isolated contexts, auto-waiting, cross-browser) is sound and unchanged — but "vanilla Playwright" is now a *detectable* transport. The single highest-leverage change to hit the brief's reliability goal is swapping the driver, at near-zero code cost.
+**Why deviate.** The brief's "Playwright over Puppeteer" reasoning (isolated contexts, auto-waiting, cross-browser) is sound and unchanged — but "vanilla Playwright" is now a _detectable_ transport. The single highest-leverage change to hit the brief's reliability goal is swapping the driver, at near-zero code cost.
 
 **Why not nodriver** (the only zero-block tool): it is Python + AGPL-3.0. Adopting it means abandoning the committed Node/TypeScript worker and taking a copyleft license into a commercial product. Not worth it when Patchright + the paid fallback closes the same gap.
 
@@ -18,7 +18,7 @@ Legend: ✅ keep brief's decision · ✏️ refine brief's decision · ⚠️ de
 
 ---
 
-## 2. ✏️ Stealth is a *stack*, not a plugin — and it's layered by cost
+## 2. ✏️ Stealth is a _stack_, not a plugin — and it's layered by cost
 
 **Conclusion.** Implement stealth as an ordered escalation ladder, cheapest first, stopping at the first rung that returns a clean render:
 
@@ -29,13 +29,13 @@ Legend: ✅ keep brief's decision · ✏️ refine brief's decision · ⚠️ de
 
 **Detection of "did we get blocked"** is its own sub-problem: check HTTP status (403/429/503), known challenge markers (Cloudflare `cf-mitigated`, Turnstile widget, `__cf_chl`), title/body heuristics ("Just a moment…", "Attention Required"), and near-empty render heuristics. This "block classifier" gates escalation.
 
-**Why refine.** The brief's two-tier (DC→residential on 403) is correct but under-specified. Research shows escalation must be *evidence-driven and bounded*: blind retries burn proxy bandwidth (the 15–20% buffer tax) and clock (the 10s budget). Cap total escalations per request (e.g., ≤2 rungs) so a doomed URL fails fast instead of grinding to timeout.
+**Why refine.** The brief's two-tier (DC→residential on 403) is correct but under-specified. Research shows escalation must be _evidence-driven and bounded_: blind retries burn proxy bandwidth (the 15–20% buffer tax) and clock (the 10s budget). Cap total escalations per request (e.g., ≤2 rungs) so a doomed URL fails fast instead of grinding to timeout.
 
 ---
 
 ## 3. ⚠️ Add a per-domain **routing memory** (this is the real telemetry moat)
 
-**Conclusion.** Maintain a small Redis-backed table keyed by registrable domain recording the *cheapest rung that recently succeeded* and the winning fingerprint profile, with TTL/decay. On the next request to that domain, **start at the known-good rung** instead of always starting at Rung 0 and paying failed attempts.
+**Conclusion.** Maintain a small Redis-backed table keyed by registrable domain recording the _cheapest rung that recently succeeded_ and the winning fingerprint profile, with TTL/decay. On the next request to that domain, **start at the known-good rung** instead of always starting at Rung 0 and paying failed attempts.
 
 This operationalizes the brief's stated moat ("Behavioral Stealth Fingerprinting Matrixes" + "Deterministic Interface Structural Maps") into something concrete and cheap: a feedback loop where the fleet gets faster and cheaper per domain over time. It cuts both latency (fewer failed rungs) and cost (less wasted residential bandwidth).
 
@@ -45,9 +45,9 @@ This operationalizes the brief's stated moat ("Behavioral Stealth Fingerprinting
 
 ## 4. ⚠️ Concurrency: **15 jobs/worker is too high — use ~3–4 active renders/browser**
 
-**Conclusion.** The brief's "hard limit of 15 concurrent jobs per worker thread" will OOM-crash an 8GB node. Every production source converges on **3–4 concurrently *rendering* pages per browser on 8GB**. Reconcile the two numbers with a **two-level queue**:
+**Conclusion.** The brief's "hard limit of 15 concurrent jobs per worker thread" will OOM-crash an 8GB node. Every production source converges on **3–4 concurrently _rendering_ pages per browser on 8GB**. Reconcile the two numbers with a **two-level queue**:
 
-- **BullMQ worker concurrency** (jobs pulled from Redis): can be moderate (e.g., 8–12) *iff* gated by…
+- **BullMQ worker concurrency** (jobs pulled from Redis): can be moderate (e.g., 8–12) _iff_ gated by…
 - **A hard in-process semaphore of 3–4 simultaneous `page` renders.** Jobs beyond the semaphore wait in-memory, not in Chromium.
 
 So "15" becomes a queue-depth number, not a simultaneous-Chromium-tabs number. Tune the render semaphore empirically against RSS on the target VPS; treat 4 as the starting ceiling for a 4vCPU/8GB Hetzner node.
@@ -83,7 +83,9 @@ So "15" becomes a queue-depth number, not a simultaneous-Chromium-tabs number. T
 
 ## 7. ✅ Three atomic tools, thin MCP client, all heavy work server-side
 
-**Conclusion.** Keep the brief's three-tool decomposition — `view_page`, `inspect_ui`, `extract_assets` — as separate MCP tools so agents pull only what they need (token discipline). The **local MCP server is a thin stdio↔HTTPS shim**: validate input (Zod), authenticate, POST to the gateway, stream the result back over stdio. No browser logic ever runs locally. This satisfies the "zero host lag / <60s install via npx" success criteria.
+**Conclusion.** Keep the brief's three-tool decomposition — `view_page`, `inspect_ui`, `extract_assets` — as separate MCP tools so agents pull only what they need (token discipline). A fourth (`get_quota`) and a fifth (motion capture) tool were added later; see `docs/Ocular_PRD_v0.2.md`.
+
+**⚠️ Amended 2026-09-01 (PRD v0.2, `docs/rules/13-local-worker-and-distribution.md`):** the sentence originally here — "the local MCP server is a thin stdio↔HTTPS shim... no browser logic ever runs locally" — is **superseded**. The local path is no longer a proxy to the cloud gateway. It is a full local render pipeline: a Go supervisor spawns and manages `chrome-headless-shell` over CDP directly on the user's machine, exposed through a local stdio MCP server, for localhost/dev-server/authenticated-page targets. The cloud gateway (this section's original design) is retained for public, unauthenticated targets — the two are now parallel execution paths, not a client-shim-to-single-backend model. See `docs/rules/13-local-worker-and-distribution.md` for the full architecture.
 
 Add a 4th read-only tool, `get_quota`, so agents/users can see remaining monthly calls without triggering a render.
 
@@ -98,6 +100,8 @@ Add a 4th read-only tool, `get_quota`, so agents/users can see remaining monthly
 3. **Global daily paid-fallback budget** — a fleet-wide circuit breaker on Rung-3 spend so a bad traffic day (or an abuse spike) can't run up an unbounded unblocker bill. When tripped, Rung-3 disables and hard sites fail gracefully until reset.
 
 Failures are always **structured** (`{ ok: false, reason, rung_reached, partial? }`) so the agent can react intelligently instead of getting an opaque error.
+
+**⚠️ Amended 2026-09-01 (PRD v0.2 §4, `docs/rules/11-billing-and-quota.md` §0b):** guardrail 1's flat monthly quota is superseded and now applies to the **cloud path only** — local-worker renders are unmetered (zero marginal cost) but require an active, periodically-validated subscription. The cloud quota itself changed from a flat monthly count to a **daily cap** (~30-50/day, ~1,000-1,500/month) with per-rung charge multipliers (an escalated render costs more than one daily-cap unit) — exact cap and multipliers are provisional pending real M3 vendor cost data; see `docs/rules/11-billing-and-quota.md` §0b and `packages/shared/src/constants.ts`. Guardrails 2 and 3 are unaffected — both remain cloud-path, stealth-ladder concerns.
 
 ---
 
@@ -114,7 +118,9 @@ Failures are always **structured** (`{ ok: false, reason, rung_reached, partial?
 
 ## 10. ⚠️ Defer the cookie/authenticated-browsing feature out of Phase 1 MVP
 
-**Conclusion.** The brief's open question — streaming a user's local session cookies into an ephemeral worker to inspect authenticated dashboards — is the single highest-risk feature (cross-tenant session bleed, credential handling, expanded SSRF blast radius). **Ship Phase 1 without it.** Land the public-web MVP, then design cookie-handling as a deliberate, threat-modeled follow-up with memory-only handling and per-request context isolation. Note it prominently in docs as "coming later" rather than half-building it.
+**Conclusion.** The brief's open question — streaming a user's local session cookies into an ephemeral **cloud** worker to inspect authenticated dashboards — is the single highest-risk feature (cross-tenant session bleed, credential handling, expanded SSRF blast radius). **Ship Phase 1 without it, on the cloud path.** Land the public-web MVP, then design cookie-handling as a deliberate, threat-modeled follow-up with memory-only handling and per-request context isolation. Note it prominently in docs as "coming later" rather than half-building it.
+
+**⚠️ Amended 2026-09-01 (PRD v0.2 §5, `docs/rules/13-local-worker-and-distribution.md` §5, `docs/rules/07-security.md` §8):** this deferral is superseded, not for the cloud path but with a local-path carve-out. Cookie extraction/session replay from the user's browser remains permanently rejected on both paths — Chrome's Device Bound Session Credentials kills that approach structurally, not just as a risk-avoidance choice. But authenticated browsing itself is no longer categorically deferred: the local worker resolves it without ever moving a session — the user logs in once inside Ocular's own persistent local Chromium profile, on their own machine, and the credential never leaves the device. This is local-worker phase 2 (not day one), scoped after the unauthenticated local path is stable. The cloud-side deferral in this section stands unchanged.
 
 ---
 
@@ -122,7 +128,7 @@ Failures are always **structured** (`{ ok: false, reason, rung_reached, partial?
 
 **Conclusion.** Because MCP tool inputs are attacker-controllable via the LLM, the following are **MVP-blocking**, not nice-to-haves:
 
-- **SSRF guard at the gateway** *and* re-validated at the worker: reject non-http(s) schemes; resolve DNS and block RFC-1918, loopback, link-local, and cloud metadata IPs (`169.254.169.254`); block redirects that land on internal IPs (re-check after each hop).
+- **SSRF guard at the gateway** _and_ re-validated at the worker: reject non-http(s) schemes; resolve DNS and block RFC-1918, loopback, link-local, and cloud metadata IPs (`169.254.169.254`); block redirects that land on internal IPs (re-check after each hop).
 - **Egress isolation** of worker nodes: they should not have network routes to internal infra (Redis, gateway admin) beyond what they strictly need; treat every worker as internet-facing and hostile-input-facing.
 - **Absolute-link rewriting** (`extract_assets`) must only emit public absolute URLs, never internal ones.
 - **API-key auth** on the gateway from day one (keys map to quota + plan). No unauthenticated render path.
@@ -136,6 +142,8 @@ Failures are always **structured** (`{ ok: false, reason, rung_reached, partial?
 
 **Why deviate.** As of the November-2025 MCP spec revision, any internet-reachable MCP server is expected to implement OAuth 2.1+PKCE to work with off-the-shelf clients — this isn't just nicer UX, it's closer to spec-compliant. It also reaches **web-based agent surfaces** (ChatGPT, Claude.ai) that only support remote MCP, not stdio — a real win against the brief's "Autonomous Web Task Agents" persona. It removes the token-in-a-config-file leak risk that pushed Supabase's own MCP server away from copy-pasted personal access tokens. Local stdio packaging (the brief's original "npx install" plan) is **deferred**, not abandoned — it becomes a thin client-side bridge that can be added later without touching the backend.
 
+**⚠️ Amended 2026-09-01:** local stdio is no longer deferred, and it did not turn out to be a thin bridge. It shipped as a full local render pipeline (Go supervisor + `chrome-headless-shell` via CDP) per PRD v0.2 and `docs/rules/13-local-worker-and-distribution.md` — a first-class execution path alongside this section's remote+OAuth design, not a later fast-follow client shim.
+
 **Known risk:** client support for remote+OAuth MCP servers is not uniformly solid yet (documented flakiness in at least one popular IDE client as of this research). The static-key fallback exists specifically to de-risk this.
 
 ## 13. ✅ Charge policy: full charge on success, half charge on exhausted failure
@@ -146,9 +154,9 @@ Failures are always **structured** (`{ ok: false, reason, rung_reached, partial?
 
 **Conclusion.** Use **Bachs** (bachs.io) as the payments/subscription platform rather than raw Stripe. Bachs handles checkout, subscriptions, usage billing, tax, and settlement in one integration, with broader payment-method reach (cards, mobile money, stablecoins) across Africa, Europe, and North America — a better fit than Stripe alone for a $1/mo global indie-developer audience where reach and low-friction local payment methods matter more than Stripe's deeper US/EU tooling ecosystem. Keep a small Postgres table (account ↔ plan ↔ OAuth-subject mapping) synced via Bachs webhooks, same pattern as any merchant-of-record integration.
 
-## 15. ✅ Hosting: Hetzner, EU
+## 15. 🟡 Hosting: worker/mcp-server — reopened, not yet decided
 
-**Conclusion.** Confirmed as the Phase 1 worker fleet's home — cheapest per-vCPU/RAM of the brief's named options, which matters at the $1/mo price point. Residential proxy geo-matching can still target US/other pools from EU compute; revisit multi-region only if early signup geography demands it.
+**Status as of 2026-09-02 (Session 26).** This section previously recorded Hetzner, EU as the confirmed worker-fleet host — that decision was never actually provisioned (no Dockerfile, no compose file, no infra config exist anywhere in the repo for it) and is corrected here rather than left stale. `dashboard`/`website` are confirmed and live on Vercel; `worker`/`mcp-server`'s actual host is an open founder decision. Whatever is chosen must support: a long-lived process holding a warm, recyclable Chromium instance (the current architecture, not a per-invocation model — see `packages/worker/src/providers/self-hosted-provider.ts`), and network-level egress filtering in front of every Chromium process (the SSRF mitigation `docs/rules/07-security.md` §3 depends on — application-layer URL checks alone are insufficient, per the 2026 adversarial security audit). Revisit once a host is chosen.
 
 ---
 
@@ -156,12 +164,12 @@ Failures are always **structured** (`{ ok: false, reason, rung_reached, partial?
 
 **Conclusion.** For every remaining piece of paid/managed infra, pick the vendor that lets Ocular start at effectively $0 and scale usage-based, rather than the cheapest-at-volume or most-feature-complete option:
 
-| Role | Vendor | Why |
-|------|--------|-----|
-| **Redis** (queue + quota + routing memory) | **Upstash** | 256MB / 500K commands/mo free, no card required, pay-as-you-go beyond that ($0.20/100K commands), no bandwidth charge up to 200GB/mo. Fully Redis-protocol compatible — BullMQ works against it unmodified. Scales from "$1/mo product with a handful of users" to real volume without a migration. |
-| **Postgres** (accounts/plan/OAuth-subject) | **Neon** | 100 CU-hours + 0.5GB free, 10 branches/project, **scale-to-zero** compute. Since WorkOS AuthKit already owns auth, Ocular doesn't need Supabase's bundled auth/storage — Neon's pure usage-based pricing (no monthly floor) fits a product whose per-account DB load is sparse and bursty far better than Supabase's flat $25/mo Pro floor. |
-| **Datacenter proxy** (StealthLadder Rung 0) | **Webshare** | Most generous free tier in the category: 10 free proxies + 1GB bandwidth/mo, no card required. Catalog opens at $0.0299/IP, dropping further at volume — cheap enough to run as the default rung for the ~95% of traffic that should resolve here. |
-| **Residential proxy** (Rung 1) | **DataImpulse** | Value floor at $1/GB PAYG (vs. $3–8/GB industry average), traffic **never expires**, 99.51% published success rate. $5/5GB intro has no time limit and no business verification, so you can validate the ladder before committing spend. |
+| Role                                                                       | Vendor                  | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Redis** (queue + quota + routing memory)                                 | **Upstash**             | 256MB / 500K commands/mo free, no card required, pay-as-you-go beyond that ($0.20/100K commands), no bandwidth charge up to 200GB/mo. Fully Redis-protocol compatible — BullMQ works against it unmodified. Scales from "$1/mo product with a handful of users" to real volume without a migration.                                                                                                                                                                                                                                               |
+| **Postgres** (accounts/plan/OAuth-subject)                                 | **Neon**                | 100 CU-hours + 0.5GB free, 10 branches/project, **scale-to-zero** compute. Since WorkOS AuthKit already owns auth, Ocular doesn't need Supabase's bundled auth/storage — Neon's pure usage-based pricing (no monthly floor) fits a product whose per-account DB load is sparse and bursty far better than Supabase's flat $25/mo Pro floor.                                                                                                                                                                                                       |
+| **Datacenter proxy** (StealthLadder Rung 0)                                | **Webshare**            | Most generous free tier in the category: 10 free proxies + 1GB bandwidth/mo, no card required. Catalog opens at $0.0299/IP, dropping further at volume — cheap enough to run as the default rung for the ~95% of traffic that should resolve here.                                                                                                                                                                                                                                                                                                |
+| **Residential proxy** (Rung 1)                                             | **DataImpulse**         | Value floor at $1/GB PAYG (vs. $3–8/GB industry average), traffic **never expires**, 99.51% published success rate. $5/5GB intro has no time limit and no business verification, so you can validate the ladder before committing spend.                                                                                                                                                                                                                                                                                                          |
 | **Commercial unblocker** (Rung 3, revises `01`'s earlier Bright Data lean) | **Decodo Web Unlocker** | Real free tier (2K requests, no card charge) and transparent tiered pricing ($0.50→$0.14 per 1K as commitment grows) that a solo/bootstrapped account can actually access. **Bright Data's Web Unlocker trial requires business/KYC verification**, which blocks an indie founder from even testing it pre-revenue — disqualifying against the "easy to scale into" requirement despite its flatter unit economics at scale. Revisit Bright Data once Ocular is an incorporated, KYC-able business with real Rung-3 volume to justify the switch. |
 
 **Net effect:** the entire Phase 1 infra stack (Redis, Postgres, DC proxy) can be provisioned and validated at **$0 cash outlay**, with the residential proxy and unblocker tiers needing only small, low-commitment top-ups ($5–$20) to test the stealth ladder end-to-end before any paying user exists.
@@ -187,17 +195,17 @@ Failures are always **structured** (`{ ok: false, reason, rung_reached, partial?
 
 ## Summary table — brief vs. recommendation
 
-| Area | Brief said | Recommendation | Δ |
-|------|-----------|----------------|---|
-| Browser engine | Playwright | **Patchright** (Playwright-compatible), Camoufox optional | ⚠️ |
-| Stealth | DC→residential on 403 | 4-rung cost-ordered ladder + block classifier | ✏️ |
-| Telemetry moat | Abstract "fingerprint matrix" | Concrete per-domain **routing memory** in Redis | ⚠️ |
-| Concurrency | 15 jobs/worker | Queue depth ~8–12, **render semaphore 3–4** | ⚠️ |
-| Warm pool | 1 browser, incognito contexts | Keep + strict lifecycle + `BrowserProvider` abstraction | ✅✏️ |
-| Image | WebP, 100–200KB | Keep + `sharp` downscale to ≤1568px + `detail` knob | ✅✏️ |
-| Tools | view_page/inspect_ui/extract_assets | Keep + `get_quota`; thin stdio client | ✅ |
-| Recycle | every 250–500 req | Keep + time ceiling + zombie reaping + `/dev/shm` | ✅✏️ |
-| Runtime | Node **or** Bun | **Node LTS** on workers | ✏️ |
-| Cost policy | $0.002/run | Reliability-first + 3 hard caps (quota / per-req / global daily) | ✏️ |
-| Cookies/auth | Open question | **Defer out of MVP** | ⚠️ |
-| Security | Implied | SSRF guard + egress isolation + auth = **MVP-blocking** | ✏️ |
+| Area           | Brief said                          | Recommendation                                                   | Δ    |
+| -------------- | ----------------------------------- | ---------------------------------------------------------------- | ---- |
+| Browser engine | Playwright                          | **Patchright** (Playwright-compatible), Camoufox optional        | ⚠️   |
+| Stealth        | DC→residential on 403               | 4-rung cost-ordered ladder + block classifier                    | ✏️   |
+| Telemetry moat | Abstract "fingerprint matrix"       | Concrete per-domain **routing memory** in Redis                  | ⚠️   |
+| Concurrency    | 15 jobs/worker                      | Queue depth ~8–12, **render semaphore 3–4**                      | ⚠️   |
+| Warm pool      | 1 browser, incognito contexts       | Keep + strict lifecycle + `BrowserProvider` abstraction          | ✅✏️ |
+| Image          | WebP, 100–200KB                     | Keep + `sharp` downscale to ≤1568px + `detail` knob              | ✅✏️ |
+| Tools          | view_page/inspect_ui/extract_assets | Keep + `get_quota`; thin stdio client                            | ✅   |
+| Recycle        | every 250–500 req                   | Keep + time ceiling + zombie reaping + `/dev/shm`                | ✅✏️ |
+| Runtime        | Node **or** Bun                     | **Node LTS** on workers                                          | ✏️   |
+| Cost policy    | $0.002/run                          | Reliability-first + 3 hard caps (quota / per-req / global daily) | ✏️   |
+| Cookies/auth   | Open question                       | **Defer out of MVP**                                             | ⚠️   |
+| Security       | Implied                             | SSRF guard + egress isolation + auth = **MVP-blocking**          | ✏️   |

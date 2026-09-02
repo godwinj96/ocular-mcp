@@ -6,11 +6,17 @@ describe('@ocular/shared public surface', () => {
     expect(ocularShared.errorCodeSchema).toBeDefined();
   });
 
-  it('re-exports all four tool input schemas', () => {
+  it('re-exports all five tool input schemas', () => {
     expect(ocularShared.viewPageInputSchema).toBeDefined();
     expect(ocularShared.inspectUiInputSchema).toBeDefined();
     expect(ocularShared.extractAssetsInputSchema).toBeDefined();
     expect(ocularShared.getQuotaInputSchema).toBeDefined();
+    expect(ocularShared.motionCaptureInputSchema).toBeDefined();
+  });
+
+  it('re-exports the a11y-tree schema (shipped alongside every screenshot, both paths)', () => {
+    expect(ocularShared.a11yTreeSchema).toBeDefined();
+    expect(ocularShared.a11yNodeSchema).toBeDefined();
   });
 
   it('re-exports the starting configuration constants', () => {

@@ -10,7 +10,7 @@ alwaysApply: true
 
 # Ocular — Repo Structure Rules
 
-**Section 2 of 12 · Always Apply**
+**Section 2 of 13 · Always Apply**
 
 ---
 
@@ -20,6 +20,7 @@ alwaysApply: true
 2. **Layer separation inside each package** — routes/handlers, business logic, and I/O adapters are separate directories, never mixed in one file.
 3. **Flat over nested** — max two levels deep inside any feature/module folder.
 4. **`shared` has zero runtime dependencies on `mcp-server` or `worker`** — enforced by lint rule (`no-restricted-imports` in each package's `eslint.config.js`), not just convention.
+5. **`local-worker` never imports from `worker`** — the two execution paths share contracts through `shared` only. A helper both need goes in `shared`; it is never reached across package boundaries. See `13-local-worker-and-distribution.md` §1.
 
 ---
 
@@ -84,6 +85,26 @@ ocular/
 │       │   ├── worker.ts                    # BullMQ Worker + semaphore + recycle
 │       │   └── main.ts
 │       └── package.json
+│
+│   ├── local-worker/                      # LOCAL execution path — see 13-local-worker-and-distribution.md
+│   │   ├── supervisor/                    # Go: idle timer, subprocess lifecycle, loopback IPC
+│   │   │   └── main.go                    # build with -ldflags="-H windowsgui" on Windows
+│   │   ├── src/
+│   │   │   ├── mcp/
+│   │   │   │   └── server.ts              # stdio transport; warms browser on `initialize`
+│   │   │   ├── browser/
+│   │   │   │   ├── headless-shell.ts      # chrome-headless-shell via CDP — ONLY CDP touchpoint
+│   │   │   │   └── profile.ts             # persistent profile for auth'd pages (phase 2)
+│   │   │   ├── ssrf/
+│   │   │   │   └── local-check.ts         # private IPs PERMITTED; metadata ranges still blocked
+│   │   │   ├── cache/
+│   │   │   │   └── local-cache.ts         # device-only; never uploaded to cloud cache
+│   │   │   ├── routing/
+│   │   │   │   └── route-target.ts        # local vs. cloud API dispatch
+│   │   │   ├── subscription/
+│   │   │   │   └── validate.ts            # cached check + offline grace window
+│   │   │   └── main.ts
+│   │   └── package.json
 │
 │   ├── dashboard/                            # human-facing AUTHENTICATED surface — see research & planning/02 §17
 │   │   ├── app/

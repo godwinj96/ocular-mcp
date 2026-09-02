@@ -1,6 +1,6 @@
 # Ocular — Environment & Secrets Rules
 
-**Section 12 of 12 · Always Apply**
+**Section 12 of 13 · Always Apply**
 
 ---
 
@@ -27,24 +27,38 @@ MCP_SERVER_PORT=
 AUTHKIT_ISSUER_URL=
 AUTHKIT_RESOURCE_IDENTIFIER=
 AUTHKIT_JWKS_CACHE_TTL_S=
+# Optional. Comma-separated exact-match allowlist for the Origin header on
+# /mcp requests — real MCP clients never send Origin at all (only a browser
+# context does), so the default (empty = reject any request that carries
+# Origin) is correct until there's an actual browser-based caller to allow.
+MCP_ALLOWED_ORIGINS=
 
 # dashboard — Bachs lives here, not mcp-server: dashboard is the only
 # package that talks to Bachs (see docs/rules/11-billing-and-quota.md §3;
 # mcp-server never calls Bachs synchronously in the request path).
+# Four product IDs, not one — Basic/Pro x Monthly/Annual (see plans.ts in
+# @ocular/shared for the plan-slug scheme these map to).
 NEXT_PUBLIC_APP_URL=
 BACHS_API_KEY=
 BACHS_WEBHOOK_SECRET=
-BACHS_PRODUCT_ID=
+BACHS_BASIC_MONTHLY_PRICE_ID=
+BACHS_BASIC_ANNUAL_PRICE_ID=
+BACHS_PRO_MONTHLY_PRICE_ID=
+BACHS_PRO_ANNUAL_PRICE_ID=
 
 # worker
 WORKER_RENDER_CONCURRENCY=
 WORKER_QUEUE_CONCURRENCY=
+# Rung 0 (dc-proxy) + rung 1 (residential-proxy, -rotate suffix in code).
 WEBSHARE_PROXY_URL=
 WEBSHARE_PROXY_CREDENTIALS=
-DATAIMPULSE_PROXY_URL=
-DATAIMPULSE_PROXY_CREDENTIALS=
-DECODO_UNBLOCKER_API_KEY=
+# Rung 3 (paid-unblocker) — Decodo's Site Unblocker, proxy-style username/
+# password auth, not a bearer API key. Pro-tier only.
+DECODO_UNBLOCKER_USERNAME=
+DECODO_UNBLOCKER_PASSWORD=
 DAILY_PAID_BUDGET_USD=
+# Rung 2 (Camoufox) and rung 1's originally-planned vendor (DataImpulse) are
+# deferred/dropped — no env vars for either (see DEVLOG for rationale).
 ```
 
 ---
@@ -86,7 +100,7 @@ if (
 ## 3. Secret storage
 
 - Local dev: `.env` files, **never committed** (already covered by `.gitignore` — verify it stays that way as new services are added).
-- Staging/production (Hetzner): environment variables injected via the deployment mechanism (Docker Compose `env_file` pointed at a secret store, or a proper secret manager once one is provisioned) — never baked into a Docker image layer, never committed to `infra/`.
+- Staging/production: `dashboard`/`website` run on Vercel (env vars via Vercel's own project settings). `worker`/`mcp-server`'s hosting is **not yet decided** (see DEVLOG Session 26 — the earlier "Hetzner" plan was never actually provisioned); whatever host is chosen, secrets are injected via that platform's own mechanism — never baked into an image layer, never committed to `infra/`.
 - Rotate immediately anything that may have been exposed (accidental commit, log leak) — proxy credentials, AuthKit signing keys, Bachs webhook secret, DB/Redis URLs.
 
 ---

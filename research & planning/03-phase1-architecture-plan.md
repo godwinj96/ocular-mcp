@@ -5,6 +5,8 @@
 **Goal of Phase 1:** ship the `$1/mo` **Vision MCP server** + its cloud stealth-render backend. An agent calls a tool with a URL; Ocular returns an optimized WebP screenshot and/or a compact design-token/asset blueprint, bypassing common anti-bot walls, within a 10s budget, at <$0.002 server cost on the happy path.
 
 > **Revision note (2026-07-10, post-founder review):** Transport/auth architecture changed from "local stdio shim + copy-pasted API key" to **remote Streamable-HTTP MCP server with OAuth 2.1** via a hosted authorization provider (WorkOS AuthKit), with local stdio explicitly deferred. Billing moved to Bachs. Hosting confirmed as Hetzner EU. See `02` §12–15 for the rationale.
+>
+> **Revision note (2026-09-01, PRD v0.2):** local stdio is no longer deferred, and §13 below no longer describes what it became. It shipped as a second, first-class execution path — a Go supervisor driving `chrome-headless-shell` over CDP directly on the user's machine, not a thin bridge to this document's cloud gateway. The remote+OAuth cloud path described in this document is retained unchanged for public, unauthenticated targets. See `docs/Ocular_PRD_v0.2.md` and `docs/rules/13-local-worker-and-distribution.md` for the current architecture.
 
 ---
 
@@ -41,7 +43,9 @@ Billing (async, off the hot path): Bachs (subscriptions/usage/tax/settlement)
   --webhooks--> Postgres (account ↔ plan ↔ OAuth-subject mapping) <--read-- MCP Server (quota/plan lookups)
 ```
 
-**Why remote+OAuth instead of local stdio:** (1) it's the spec-compliant way to expose an internet-reachable MCP server as of the November-2025 MCP revision; (2) it reaches **web-based agent surfaces** (ChatGPT, Claude.ai) that only support remote MCP, not stdio — directly serving the brief's "Autonomous Web Task Agents" persona; (3) it removes the token-in-a-config-file leak risk that pushed Supabase's own MCP server off copy-pasted PATs. A static API key (via `Authorization: Bearer <key>`) remains as a fallback path for headless/CI/unattended-agent use where no browser exists for the OAuth flow. **Local stdio packaging is deferred — see §13.**
+**Why remote+OAuth instead of local stdio (for this cloud path):** (1) it's the spec-compliant way to expose an internet-reachable MCP server as of the November-2025 MCP revision; (2) it reaches **web-based agent surfaces** (ChatGPT, Claude.ai) that only support remote MCP, not stdio — directly serving the brief's "Autonomous Web Task Agents" persona; (3) it removes the token-in-a-config-file leak risk that pushed Supabase's own MCP server off copy-pasted PATs. A static API key (via `Authorization: Bearer <key>`) remains as a fallback path for headless/CI/unattended-agent use where no browser exists for the OAuth flow.
+
+**⚠️ Amended 2026-09-01:** "local stdio packaging is deferred" is no longer accurate — see the revision note at the top of this document and §13 below.
 
 ---
 
@@ -62,7 +66,7 @@ ocular/
 
 `shared` is the contract between `mcp-server`, `worker`, and `dashboard`: tool input schemas, the **result envelope**, error codes, and the job payload type. `dashboard` was added 2026-07-10 as a founder decision (`02` §17) — it's the self-serve surface for plan/billing status, static API key issuance, and quota viewing, kept deliberately minimal for Phase 1 (see `05-user-flows.md` Flows 2 & 4). It talks directly to Postgres/AuthKit/Bachs and never touches the MCP protocol surface or the render pipeline.
 
-`mcp-server` absorbs what would have been a separate "API gateway" — there is no longer a local shim proxying to a backend; the internet-facing service *is* the MCP server. Internally it still separates concerns (auth middleware → MCP handler → quota/SSRF → enqueue), just as one deployable.
+`mcp-server` absorbs what would have been a separate "API gateway" — there is no longer a local shim proxying to a backend; the internet-facing service _is_ the MCP server. Internally it still separates concerns (auth middleware → MCP handler → quota/SSRF → enqueue), just as one deployable.
 
 ---
 
@@ -70,12 +74,12 @@ ocular/
 
 ### 2.1 Tools (MCP surface, unchanged by the transport shift)
 
-| Tool | Input (Zod) | Returns |
-|------|-------------|---------|
-| `view_page` | `{ url, detail?: 'low'\|'balanced'\|'high', full_page?: boolean, viewport?: {w,h} }` | `image` (WebP) + short `text` meta (final URL, dimensions, rung used) |
-| `inspect_ui` | `{ url, detail? }` | `image` (WebP) + `text` JSON design-token blueprint |
-| `extract_assets` | `{ url, include?: ('svg'\|'img'\|'icons')[] }` | `text` JSON: inline SVGs + absolute asset URLs |
-| `get_quota` | `{}` | `text`: remaining calls, reset date, plan |
+| Tool             | Input (Zod)                                                                          | Returns                                                               |
+| ---------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| `view_page`      | `{ url, detail?: 'low'\|'balanced'\|'high', full_page?: boolean, viewport?: {w,h} }` | `image` (WebP) + short `text` meta (final URL, dimensions, rung used) |
+| `inspect_ui`     | `{ url, detail? }`                                                                   | `image` (WebP) + `text` JSON design-token blueprint                   |
+| `extract_assets` | `{ url, include?: ('svg'\|'img'\|'icons')[] }`                                       | `text` JSON: inline SVGs + absolute asset URLs                        |
+| `get_quota`      | `{}`                                                                                 | `text`: remaining calls, reset date, plan                             |
 
 Keep them as four separate tools (not one tool with a mode flag) so the agent's token cost matches its intent.
 
@@ -104,6 +108,7 @@ Failure: { ok: false, reason: <ErrorCode>, message, rung_reached, partial?: {...
 This is the one deployable that speaks MCP to the outside world. Framework: Fastify (schema support, throughput) with the official `@modelcontextprotocol/sdk`'s **Streamable HTTP** transport.
 
 **Auth setup (do this first, it's infra not code):**
+
 1. Create a WorkOS AuthKit tenant/project for Ocular.
 2. Configure Ocular's MCP server as the **protected resource** in AuthKit (per MCP's Protected Resource Metadata spec) — this is what lets AuthKit issue tokens correctly scoped/audienced to Ocular rather than a generic AuthKit token.
 3. Enable **dynamic client registration** (and Client ID Metadata Document per the Nov-2025 spec) so Claude Desktop/Cursor/ChatGPT/Claude.ai can self-register as OAuth clients without you pre-registering each one.
@@ -111,6 +116,7 @@ This is the one deployable that speaks MCP to the outside world. Framework: Fast
 5. AuthKit publishes the standard OAuth metadata endpoints (`/.well-known/oauth-authorization-server`, JWKS, etc.) that MCP clients discover automatically per spec — no custom discovery code needed on Ocular's side.
 
 **Per-request responsibilities:**
+
 1. **Verify the bearer token** on every MCP request: validate signature against AuthKit's JWKS, check `aud` matches Ocular's resource identifier, check expiry. Cache JWKS with standard rotation handling. On failure → MCP-level auth error (spec requires `WWW-Authenticate` with the resource metadata URL so the client can (re-)initiate OAuth).
 2. **Fallback path**: also accept `Authorization: Bearer <static-api-key>` for headless/CI use — these keys are minted from the dashboard (backed by Bachs-linked accounts), checked against the Postgres account table directly (no AuthKit round-trip), and are the only path for unattended agents.
 3. **Resolve token/key → account → plan** (cached briefly in-process).
@@ -125,6 +131,7 @@ Scaling: stateless aside from short-lived in-process caches → run ≥2 replica
 ### 3.2 Worker (`packages/worker`) — unchanged from the original plan
 
 One process per worker VPS (Hetzner, EU, 4vCPU/8GB to start). On boot:
+
 - Launch **one** Patchright/Chrome instance (warm), via `BrowserProvider`.
 - Start a BullMQ `Worker` with concurrency `QUEUE_CONCURRENCY` (start 8).
 - Initialize the **render semaphore** (start 4) — every page render acquires it first.
@@ -210,7 +217,7 @@ Target happy-path budget: P50 under ~4–6s, P95 under the 10s ceiling.
 ## 5. Security (MVP-blocking — build in from day one)
 
 - **Token verification**: every request's bearer token (AuthKit JWT or static key) is verified before any tool logic runs. JWT: signature via AuthKit JWKS, `aud` check, expiry. Static key: DB lookup, revocable, no expiry by default but rotatable.
-- **SSRF**: allowlist `http`/`https` only; reject `file:`, `data:`, `ftp:`, etc. Resolve the hostname and **reject if any resolved IP is** private (RFC1918), loopback, link-local (`169.254/16`, incl. `169.254.169.254` metadata), ULA/`fc00::/7`, or `::1`. Re-check on **every redirect hop**. Checked at `mcp-server` (fast reject) *and* the worker (authoritative — DNS can rebind between checks).
+- **SSRF**: allowlist `http`/`https` only; reject `file:`, `data:`, `ftp:`, etc. Resolve the hostname and **reject if any resolved IP is** private (RFC1918), loopback, link-local (`169.254/16`, incl. `169.254.169.254` metadata), ULA/`fc00::/7`, or `::1`. Re-check on **every redirect hop**. Checked at `mcp-server` (fast reject) _and_ the worker (authoritative — DNS can rebind between checks).
 - **Egress isolation**: worker nodes get no network path to Redis-internal admin, `mcp-server` admin, or cloud metadata endpoints beyond necessity.
 - **Rate limiting**: per-account/per-key short-window limit, independent of the monthly quota (this is what backstops the success/half-charge policy against abuse).
 - **Input hygiene**: everything arriving is untrusted (LLM-authored tool args). Zod-validate at `mcp-server`.
@@ -221,17 +228,17 @@ Target happy-path budget: P50 under ~4–6s, P95 under the 10s ceiling.
 
 ## 6. Known bottlenecks & how the plan addresses each
 
-| Bottleneck | Why it hurts | Mitigation in this plan |
-|-----------|--------------|-------------------------|
-| Chromium RAM growth | Worker OOM, crashes mid-render | 1 browser/worker, render semaphore 3–4, scheduled recycle (N req or M min), fresh context always closed |
-| `/dev/shm` exhaustion in Docker | Silent Chromium crash + zombie | Size `/dev/shm` up; `tini` PID1 reaping; health check restarts |
-| Navigation/scroll latency | Blows 10s budget | Single threaded deadline; `domcontentloaded` + bounded smart-scroll, not `networkidle` alone |
-| Proxy bandwidth burn | Kills unit economics | DC-first ladder, evidence-driven escalation, routing memory, 15–20% buffer in cost model |
-| Paid unblocker cost | ~$0.0015/call ≈ 75% of run budget | Rung 3 only after browser rungs fail; per-request 1-call ceiling; global daily budget circuit breaker |
-| Vision token bloat | Dev pays; hurts adoption | `sharp` downscale to ≤1568px, WebP q75, ≤200KB, `detail` knob |
-| Redis as SPOF | Queue+quota+routing memory all on it | Managed Redis w/ persistence; degrade gracefully (routing memory down → start at Rung 0; quota down → fail closed) |
-| OAuth client fragmentation | Some MCP clients don't yet handle remote+OAuth cleanly | Static API-key fallback path always available; document known-good clients at launch |
-| BullMQ retry vs. budget | External retries multiply cost/latency | `attempts:1`; retries live inside the ladder under the deadline |
+| Bottleneck                      | Why it hurts                                           | Mitigation in this plan                                                                                            |
+| ------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Chromium RAM growth             | Worker OOM, crashes mid-render                         | 1 browser/worker, render semaphore 3–4, scheduled recycle (N req or M min), fresh context always closed            |
+| `/dev/shm` exhaustion in Docker | Silent Chromium crash + zombie                         | Size `/dev/shm` up; `tini` PID1 reaping; health check restarts                                                     |
+| Navigation/scroll latency       | Blows 10s budget                                       | Single threaded deadline; `domcontentloaded` + bounded smart-scroll, not `networkidle` alone                       |
+| Proxy bandwidth burn            | Kills unit economics                                   | DC-first ladder, evidence-driven escalation, routing memory, 15–20% buffer in cost model                           |
+| Paid unblocker cost             | ~$0.0015/call ≈ 75% of run budget                      | Rung 3 only after browser rungs fail; per-request 1-call ceiling; global daily budget circuit breaker              |
+| Vision token bloat              | Dev pays; hurts adoption                               | `sharp` downscale to ≤1568px, WebP q75, ≤200KB, `detail` knob                                                      |
+| Redis as SPOF                   | Queue+quota+routing memory all on it                   | Managed Redis w/ persistence; degrade gracefully (routing memory down → start at Rung 0; quota down → fail closed) |
+| OAuth client fragmentation      | Some MCP clients don't yet handle remote+OAuth cleanly | Static API-key fallback path always available; document known-good clients at launch                               |
+| BullMQ retry vs. budget         | External retries multiply cost/latency                 | `attempts:1`; retries live inside the ladder under the deadline                                                    |
 
 ---
 
@@ -271,6 +278,7 @@ Target happy-path budget: P50 under ~4–6s, P95 under the 10s ceiling.
 ## 9. Observability & cost accounting (build minimal from the start)
 
 Emit structured logs + metrics per job: `requestId`, domain, tool, **rung reached**, block verdict, proxy bytes used, wall-time per stage, payload KB, outcome, charge applied (1 / 0.5 / 0). Aggregate:
+
 - **Success rate by rung and by domain** (drives routing-memory tuning and finds newly-hard sites).
 - **Rung-3 (paid) call rate and spend** (guards the budget circuit breaker).
 - **P50/P95 latency** and **per-run cost estimate** vs the $0.002 target.
@@ -298,23 +306,23 @@ Ship M1–M6 to a private beta; M7–M9 harden for public launch.
 
 ## 11. Starting configuration constants (tune, don't trust)
 
-| Const | Start value | Notes |
-|-------|-------------|-------|
-| `RENDER_CONCURRENCY` | 4 | simultaneous pages/browser on 4vCPU/8GB |
-| `QUEUE_CONCURRENCY` | 8 | BullMQ jobs pulled; gated by semaphore |
-| `JOB_DEADLINE_MS` | 10000 | hard per-request budget |
-| `SERVER_AWAIT_MS` | 12000 | > job deadline |
-| `BROWSER_RECYCLE_REQUESTS` | 300 | or… |
-| `BROWSER_RECYCLE_MINUTES` | 30 | whichever first |
-| `IMG_MAX_EDGE_PX` | 1568 | strictest common vision cap |
-| `IMG_WEBP_QUALITY` | 75 | step down to hit KB target |
-| `IMG_MAX_KB` | 200 | brief's ceiling |
-| `MAX_ESCALATIONS` | 2 | rungs beyond start |
-| `MONTHLY_QUOTA` | 300 | per the brief |
-| `SUCCESS_CHARGE` | 1.0 | quota units per clean render |
-| `EXHAUSTED_FAILURE_CHARGE` | 0.5 | quota units per fully-escalated failure |
-| `DAILY_PAID_BUDGET_USD` | set low | circuit breaker |
-| `JWKS_CACHE_TTL_S` | 600 | AuthKit key rotation tolerance |
+| Const                      | Start value | Notes                                                                                                                                                                                                                   |
+| -------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RENDER_CONCURRENCY`       | 4           | simultaneous pages/browser on 4vCPU/8GB                                                                                                                                                                                 |
+| `QUEUE_CONCURRENCY`        | 8           | BullMQ jobs pulled; gated by semaphore                                                                                                                                                                                  |
+| `JOB_DEADLINE_MS`          | 10000       | hard per-request budget                                                                                                                                                                                                 |
+| `SERVER_AWAIT_MS`          | 12000       | > job deadline                                                                                                                                                                                                          |
+| `BROWSER_RECYCLE_REQUESTS` | 300         | or…                                                                                                                                                                                                                     |
+| `BROWSER_RECYCLE_MINUTES`  | 30          | whichever first                                                                                                                                                                                                         |
+| `IMG_MAX_EDGE_PX`          | 1568        | strictest common vision cap                                                                                                                                                                                             |
+| `IMG_WEBP_QUALITY`         | 75          | step down to hit KB target                                                                                                                                                                                              |
+| `IMG_MAX_KB`               | 200         | brief's ceiling                                                                                                                                                                                                         |
+| `MAX_ESCALATIONS`          | 2           | rungs beyond start                                                                                                                                                                                                      |
+| `MONTHLY_QUOTA`            | 300         | ⚠️ superseded 2026-09-01 — cloud quota is now `DAILY_CLOUD_QUOTA` (~30-50/day, per-rung multipliers); local renders are unmetered. See `docs/rules/11-billing-and-quota.md` §0b and `packages/shared/src/constants.ts`. |
+| `SUCCESS_CHARGE`           | 1.0         | quota units per clean render (cloud path; now multiplied by rung reached)                                                                                                                                               |
+| `EXHAUSTED_FAILURE_CHARGE` | 0.5         | quota units per fully-escalated failure                                                                                                                                                                                 |
+| `DAILY_PAID_BUDGET_USD`    | set low     | circuit breaker                                                                                                                                                                                                         |
+| `JWKS_CACHE_TTL_S`         | 600         | AuthKit key rotation tolerance                                                                                                                                                                                          |
 
 ---
 
@@ -326,10 +334,19 @@ Ship M1–M6 to a private beta; M7–M9 harden for public launch.
 - Happy-path server cost measured ≤ ~$0.002/run; P95 latency ≤ 10s.
 - Stealth ladder + routing memory demonstrably passes a basket of Cloudflare-protected test sites; paid fallback covers the tail and is budget-capped.
 - Worker fleet (Hetzner EU) survives a multi-hour soak (recycle works; no unbounded RSS growth).
-- Token verification, SSRF, quota, and rate limiting verified by test. Bachs subscription state correctly gates quota. Cookie/auth feature explicitly documented as out-of-scope for now.
+- Token verification, SSRF, quota, and rate limiting verified by test. Bachs subscription state correctly gates quota. Cookie/auth feature explicitly documented as out-of-scope for now (cloud path — see §13's 2026-09-01 amendment for the local-path carve-out).
 
 ---
 
-## 13. Deferred: local stdio packaging
+## 13. ⚠️ Superseded 2026-09-01: local stdio packaging
 
-Not built in Phase 1. Tracked as a fast-follow for clients that don't yet support remote+OAuth MCP servers well. When picked up: a thin `npx`-installed package that holds a long-lived static API key (or performs the OAuth flow locally and caches the token), and proxies `tools/call` over stdio to the same `mcp-server` HTTP endpoint. No new backend work — it's a client-side bridge only, so it can be added without touching `worker` or the contract in `shared`.
+**The plan originally in this section was never built and is now superseded, not deferred.** It described local stdio as a thin `npx`-installed package holding a static API key (or a cached OAuth token) that proxies `tools/call` over stdio to the same `mcp-server` HTTP endpoint — "no new backend work... a client-side bridge only."
+
+That is not what shipped. Per `docs/Ocular_PRD_v0.2.md` §3 and `docs/rules/13-local-worker-and-distribution.md`, the local path is a **full local render pipeline**, not a bridge:
+
+- A **Go supervisor** (`packages/local-worker/supervisor/`) spawns, manages, and idle-shuts-down `chrome-headless-shell` directly over CDP — real new backend-equivalent work, entirely client-side but not thin.
+- A local **stdio MCP server** (`packages/local-worker/src/mcp/server.ts`, Node/TS) exposes the same tool surface as the cloud gateway, but for localhost/dev-server/authenticated-page targets it renders locally rather than proxying to `mcp-server`.
+- A routing layer decides per-target whether to render locally or forward to the cloud `mcp-server` HTTP API as a client — so the local worker is a superset of the old "thin bridge" concept, not an implementation of it: it only behaves like a bridge for the subset of targets it routes to the cloud path.
+- Three-tier lifecycle (idle/recent/active), invisibility requirements (no visible window, loopback-only IPC), and local-only authenticated browsing (via a persistent local browser profile, phase 2) are all new scope with no analogue in this section's original plan.
+
+See `docs/rules/13-local-worker-and-distribution.md` for the authoritative current design and `docs/rules/02-repo-structure.md` for the `packages/local-worker` file layout.

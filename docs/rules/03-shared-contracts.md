@@ -1,6 +1,6 @@
 # Ocular — Shared Contract Rules
 
-**Section 3 of 12 · Always Apply**
+**Section 3 of 13 · Always Apply**
 
 > This is the single most important file in the ruleset. `mcp-server` and `worker` are separate deployables; the _only_ thing keeping them in sync is `packages/shared`. Define this before writing any tool handler or extractor.
 

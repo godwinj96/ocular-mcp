@@ -1,18 +1,24 @@
 #!/usr/bin/env node
-// Runs eslint --fix then prettier --write on the given files, both from
-// inside this single process. Exists because lint-staged spawning eslint
-// and prettier as two SEQUENTIAL child processes for the same glob hangs
-// indefinitely in this environment (reproduced 3/3 times, with both the
-// package.json array form and an external config file's array-returning
-// function — a single command per glob never hung). Routing both tools
-// through one wrapper process keeps lint-staged's own spawn count at one
-// per glob while still running both tools.
+// Runs eslint --fix then prettier --write on the given files. Spawns both
+// tools' real entry points directly via `node <entry> <args>` — no `npx`,
+// no shell — because `npx ... --shell:true` on Windows wraps the whole
+// command in an outer pair of quotes while per-arg quoting (needed for
+// paths like "research & planning/...") adds inner quotes, and cmd.exe's
+// parser mishandles that nested quoting specifically when `&` appears
+// inside the inner quotes (confirmed: ETIMEDOUT hangs, reproducible only
+// with that exact directory name). Spawning the real JS entry point with
+// no shell involved sidesteps cmd.exe's parser entirely — argv reaches the
+// process exactly as given, regardless of spaces or special characters.
 'use strict';
 
+const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+
+const eslintBin = path.join(path.dirname(require.resolve('eslint/package.json')), 'bin/eslint.js');
+const prettierBin = require.resolve('prettier/bin/prettier.cjs');
 
 const files = process.argv.slice(2);
 if (files.length === 0) process.exit(0);
 
-execFileSync('npx', ['eslint', '--fix', ...files], { stdio: 'inherit', shell: true });
-execFileSync('npx', ['prettier', '--write', ...files], { stdio: 'inherit', shell: true });
+execFileSync(process.execPath, [eslintBin, '--fix', ...files], { stdio: 'inherit' });
+execFileSync(process.execPath, [prettierBin, '--write', ...files], { stdio: 'inherit' });

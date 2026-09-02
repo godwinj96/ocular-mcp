@@ -241,7 +241,7 @@ function Connect() {
           <Surface elevation="raised" radius="sm" padding={12} style={{ marginTop: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <EyeGlyph color={glyph} />
-              <TextLine text="Connected — 4 tools available" entryFrame={-1000} mono={false} />
+              <TextLine text="Connected — 5 tools available" entryFrame={-1000} mono={false} />
             </div>
           </Surface>
         </Emergence>

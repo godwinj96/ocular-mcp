@@ -1,6 +1,6 @@
 # Ocular — Error Handling & Logging Rules
 
-**Section 9 of 12 · Always Apply**
+**Section 9 of 13 · Always Apply**
 
 ---
 

@@ -17,8 +17,12 @@ const TOOLS = [
     description: 'Inline SVGs and image URLs, rewritten to absolute, safe-to-fetch links.',
   },
   {
+    name: 'motion_capture',
+    description: 'Verify animations and scroll effects as discrete stills — no video, no guessing.',
+  },
+  {
     name: 'get_quota',
-    description: 'Remaining renders and reset date for your account, at a glance.',
+    description: 'Remaining cloud renders and reset time — your dev-server captures are unmetered.',
   },
 ] as const;
 
@@ -28,7 +32,11 @@ export function HowItWorks() {
       <h2 className="mb-10 text-display-md font-bold text-text-primary">How it works</h2>
       <BentoGrid>
         {TOOLS.map((tool, index) => (
-          <ScrollReveal key={tool.name} index={index} className="col-span-2 md:col-span-2 lg:col-span-6">
+          <ScrollReveal
+            key={tool.name}
+            index={index}
+            className="col-span-2 md:col-span-2 lg:col-span-6"
+          >
             <BentoCell span="half" as="article" className="h-full">
               <h3 className="font-mono text-lg font-semibold text-accent">{tool.name}</h3>
               <p className="mt-3 max-w-measure text-text-secondary">{tool.description}</p>
@@ -37,8 +45,9 @@ export function HowItWorks() {
         ))}
       </BentoGrid>
       <p className="mt-8 max-w-measure text-text-secondary">
-        One MCP connection. Your agent calls a tool; Ocular's worker fleet renders the page in a
-        real, stealth-hardened browser and returns the result.
+        One MCP connection, two execution paths. Localhost and your own dev server render on your
+        machine, instantly, unmetered. The public web routes through Ocular's stealth-hardened cloud
+        fleet. Your agent never has to know which one it's using.
       </p>
     </section>
   );

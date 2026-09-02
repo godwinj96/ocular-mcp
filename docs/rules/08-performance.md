@@ -1,6 +1,6 @@
 # Ocular — Performance Rules
 
-**Section 8 of 12 · Always Apply**
+**Section 8 of 13 · Always Apply**
 
 ---
 
@@ -78,7 +78,9 @@ The image pipeline exists because vision-model token cost scales with image size
 
 ## 6. What NOT to optimize prematurely
 
-- Do not add a second `BrowserProvider` implementation, a caching layer for rendered pages, or horizontal proxy-pool logic beyond what's in `06-external-fetching-and-egress.md` before M8 (Observability + load test) produces real numbers showing they're needed. See `research & planning/03` §10 for milestone order — premature infra ahead of measured bottlenecks is scope creep.
+- Do not add a second `BrowserProvider` implementation or horizontal proxy-pool logic beyond what's in `06-external-fetching-and-egress.md` before M8 (Observability + load test) produces real numbers showing they're needed. See `research & planning/03` §10 for milestone order — premature infra ahead of measured bottlenecks is scope creep.
+
+**Amended 2026-09-01 — exception:** the two-tier local/cloud cache specified in `05-worker-and-browser-pipeline.md` §5a and `13-local-worker-and-distribution.md` §7 is **PRD-mandated scope** (`docs/Ocular_PRD_v0.2.md` §6.3), not a premature optimization this section warns against — it was added the same day as this file's original caution, as deliberate required scope, not an oversight. This section's caution still applies to any caching _beyond_ that explicit mandate (e.g. a second, ad-hoc caching layer, or caching decisions not already specified in §5a/§13 §7) — those still wait for M8 data.
 
 ---
 

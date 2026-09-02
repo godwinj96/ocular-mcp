@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { A11yTree } from './schemas/a11y-tree.schema.js';
 
 /**
  * Closed set of failure reasons. See docs/rules/09-error-handling-and-logging.md §1
@@ -37,6 +38,13 @@ export interface SuccessEnvelope<TData = unknown> {
     h: number;
     bytes: number;
   };
+  /**
+   * Shipped alongside every screenshot (view_page, both paths) — see
+   * docs/rules/05-worker-and-browser-pipeline.md §4a. Never gated behind a
+   * request flag: "annotate, never filter" applies to whether nodes are
+   * included, not to whether the tree is sent at all.
+   */
+  a11yTree?: A11yTree;
   data?: TData;
 }
 

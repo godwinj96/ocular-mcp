@@ -1,6 +1,8 @@
 # Ocular — External Fetching & Egress Rules
 
-**Section 6 of 12 · Always Apply**
+**Section 6 of 13 · Always Apply**
+
+> **Scope: the cloud path only.** `packages/local-worker` fetches from the user's own machine under a different threat model — see `13-local-worker-and-distribution.md` §1.
 
 > Ocular's entire product is fetching untrusted third-party web content on behalf of an agent. This is the "data fetching" rule file, but the data source is the open internet, not a first-party API — treat every outbound request as adversarial.
 

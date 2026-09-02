@@ -1,11 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import { Redis } from 'ioredis';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { EXHAUSTED_FAILURE_CHARGE, MONTHLY_QUOTA, SUCCESS_CHARGE } from '@ocular/shared';
+import { chargeForEnvelope, DAILY_CLOUD_QUOTA_BY_TIER, MAX_RESERVE_CHARGE } from '@ocular/shared';
 import type { ResultEnvelope } from '@ocular/shared';
 import { config } from '../config.js';
 import { createQuotaSettler } from './settle-quota.js';
 
+// Settlement math is quota-cap-agnostic (it refunds relative to whatever's
+// stored under the key) — any tier's cap works as a seed value here.
+const DAILY_CLOUD_QUOTA = DAILY_CLOUD_QUOTA_BY_TIER.basic;
+
+// rungReached: 1 on success, 2 on blocked — chosen specifically so the
+// rung-multiplied actual charge differs from a naive 1.0/0.5, proving
+// settlement uses chargeForEnvelope's multiplier, not a flat charge.
 function success(): ResultEnvelope {
   return { ok: true, meta: { requestId: 'r', rungReached: 1, durationMs: 1 } };
 }
@@ -43,49 +50,72 @@ describe('createQuotaSettler', () => {
     client.disconnect();
   });
 
-  it('refunds SUCCESS_CHARGE - EXHAUSTED_FAILURE_CHARGE for a half-charge outcome', async () => {
+  it('refunds MAX_RESERVE_CHARGE - the actual rung-multiplied charge for a half-charge outcome', async () => {
     const { accountId, requestId } = newIds();
-    // Simulate mcp-server's pre-enqueue reservation.
-    await client.set(`quota:${accountId}`, String(MONTHLY_QUOTA - SUCCESS_CHARGE), 'EX', 60);
+    // Simulate mcp-server's pre-enqueue worst-case reservation.
+    await client.set(
+      `quota:${accountId}`,
+      String(DAILY_CLOUD_QUOTA - MAX_RESERVE_CHARGE),
+      'EX',
+      60,
+    );
 
     await settler.settleQuota(accountId, requestId, blocked());
 
     const remaining = await client.get(`quota:${accountId}`);
-    expect(Number(remaining)).toBeCloseTo(MONTHLY_QUOTA - EXHAUSTED_FAILURE_CHARGE, 5);
+    const expected = DAILY_CLOUD_QUOTA - chargeForEnvelope(blocked());
+    expect(Number(remaining)).toBeCloseTo(expected, 5);
   }, 15_000);
 
   it('refunds the full reservation for a no-charge outcome (e.g. worker-layer SSRF_BLOCKED)', async () => {
     const { accountId, requestId } = newIds();
-    await client.set(`quota:${accountId}`, String(MONTHLY_QUOTA - SUCCESS_CHARGE), 'EX', 60);
+    await client.set(
+      `quota:${accountId}`,
+      String(DAILY_CLOUD_QUOTA - MAX_RESERVE_CHARGE),
+      'EX',
+      60,
+    );
 
     await settler.settleQuota(accountId, requestId, ssrfBlocked());
 
     const remaining = await client.get(`quota:${accountId}`);
-    expect(Number(remaining)).toBeCloseTo(MONTHLY_QUOTA, 5);
+    expect(Number(remaining)).toBeCloseTo(DAILY_CLOUD_QUOTA, 5);
   });
 
-  it('leaves the reservation untouched for a full-charge success', async () => {
+  it('settles down to the actual rung-multiplied charge for a success (not always MAX_RESERVE_CHARGE)', async () => {
     const { accountId, requestId } = newIds();
-    await client.set(`quota:${accountId}`, String(MONTHLY_QUOTA - SUCCESS_CHARGE), 'EX', 60);
+    await client.set(
+      `quota:${accountId}`,
+      String(DAILY_CLOUD_QUOTA - MAX_RESERVE_CHARGE),
+      'EX',
+      60,
+    );
 
     await settler.settleQuota(accountId, requestId, success());
 
     const remaining = await client.get(`quota:${accountId}`);
-    expect(Number(remaining)).toBeCloseTo(MONTHLY_QUOTA - SUCCESS_CHARGE, 5);
+    const expected = DAILY_CLOUD_QUOTA - chargeForEnvelope(success());
+    expect(Number(remaining)).toBeCloseTo(expected, 5);
   });
 
   it('is idempotent — a duplicate settlement call for the same requestId never refunds twice', async () => {
     const { accountId, requestId } = newIds();
-    await client.set(`quota:${accountId}`, String(MONTHLY_QUOTA - SUCCESS_CHARGE), 'EX', 60);
+    await client.set(
+      `quota:${accountId}`,
+      String(DAILY_CLOUD_QUOTA - MAX_RESERVE_CHARGE),
+      'EX',
+      60,
+    );
 
     await settler.settleQuota(accountId, requestId, blocked());
     await settler.settleQuota(accountId, requestId, blocked());
 
     const remaining = await client.get(`quota:${accountId}`);
-    expect(Number(remaining)).toBeCloseTo(MONTHLY_QUOTA - EXHAUSTED_FAILURE_CHARGE, 5);
+    const expected = DAILY_CLOUD_QUOTA - chargeForEnvelope(blocked());
+    expect(Number(remaining)).toBeCloseTo(expected, 5);
   });
 
-  it('skips the refund if the quota key already expired (billing cycle rolled over)', async () => {
+  it('skips the refund if the quota key already expired (daily window rolled over)', async () => {
     const { accountId, requestId } = newIds();
     // No key set — simulates the reservation's TTL having already elapsed.
 

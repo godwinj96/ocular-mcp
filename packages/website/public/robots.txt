@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://ocular.io/sitemap.xml
+Sitemap: https://www.useocular.dev/sitemap.xml

@@ -1,12 +1,15 @@
-// Post-job quota reconciliation. See docs/rules/11-billing-and-quota.md §2:
-// mcp-server reserves SUCCESS_CHARGE atomically before enqueue (the maximum
-// possible per-request charge); this settles the difference down to the
-// actual charge (chargeForEnvelope, in @ocular/shared) once the job resolves,
-// via a second atomic operation keyed by requestId — never a second
-// independent decrement that could double-charge or under-charge a slow job.
+// Post-job quota reconciliation — CLOUD PATH ONLY. See
+// docs/rules/11-billing-and-quota.md §2: mcp-server reserves
+// MAX_RESERVE_CHARGE atomically before enqueue (the highest possible
+// per-request charge, since the rung actually reached isn't known until the
+// job resolves); this settles the difference down to the actual
+// rung-multiplied charge (chargeForEnvelope, in @ocular/shared) once the job
+// resolves, via a second atomic operation keyed by requestId — never a
+// second independent decrement that could double-charge or under-charge a
+// slow job.
 
 import { Redis } from 'ioredis';
-import { chargeForEnvelope, SUCCESS_CHARGE } from '@ocular/shared';
+import { chargeForEnvelope, MAX_RESERVE_CHARGE } from '@ocular/shared';
 import type { ResultEnvelope } from '@ocular/shared';
 import { config } from '../config.js';
 
@@ -58,7 +61,7 @@ export function createQuotaSettler(redisUrl: string) {
     envelope: ResultEnvelope,
   ): Promise<void> {
     const actualCharge = chargeForEnvelope(envelope);
-    const refundAmount = SUCCESS_CHARGE - actualCharge;
+    const refundAmount = MAX_RESERVE_CHARGE - actualCharge;
 
     await redis.eval(
       SETTLE_SCRIPT,

@@ -5,8 +5,7 @@
 import type { ResultEnvelope } from '@ocular/shared';
 
 export type McpContentBlock =
-  | { type: 'image'; data: string; mimeType: 'image/webp' }
-  | { type: 'text'; text: string };
+  { type: 'image'; data: string; mimeType: 'image/webp' } | { type: 'text'; text: string };
 
 export function toContentBlocks(envelope: ResultEnvelope): McpContentBlock[] {
   if (!envelope.ok) {
@@ -22,6 +21,13 @@ export function toContentBlocks(envelope: ResultEnvelope): McpContentBlock[] {
   }
   if (envelope.data !== undefined) {
     blocks.push({ type: 'text', text: JSON.stringify(envelope.data) });
+  }
+  if (envelope.a11yTree !== undefined) {
+    // Separate block, not merged into `data` — view_page's `data` is
+    // otherwise unused, and keeping the tree distinctly labeled lets an
+    // agent tell it apart from a tool's own data payload (inspect_ui,
+    // extract_assets) at a glance.
+    blocks.push({ type: 'text', text: JSON.stringify({ a11yTree: envelope.a11yTree }) });
   }
   return blocks;
 }

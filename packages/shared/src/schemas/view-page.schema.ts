@@ -15,6 +15,13 @@ export const viewPageInputSchema = z.object({
       h: z.number().int().min(200).max(2160),
     })
     .optional(),
+  /**
+   * Force-refresh bypass for the two-tier cache — skips the cache read on
+   * this call (a normal render still populates the cache afterward). See
+   * docs/rules/05-worker-and-browser-pipeline.md §5a: every capture tool
+   * must expose this, never a silent server-side cache decision.
+   */
+  fresh: z.boolean().default(false),
 });
 
 export type ViewPageInput = z.infer<typeof viewPageInputSchema>;

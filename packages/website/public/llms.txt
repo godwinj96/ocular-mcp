@@ -1,19 +1,24 @@
 # Ocular
 
-> Ocular gives AI agents real eyes on the web — enterprise-grade stealth browsing, for $1 a month. No infrastructure to run, no blocks to fight. Connect once; your agent sees everything a human would.
+> Ocular gives AI agents real eyes on your dev server and the live web — one MCP connection, $2.50 a month. No infrastructure to run, no blocks to fight. Read-only: Ocular cannot act on your browser.
 
-Ocular is a Model Context Protocol (MCP) server that gives AI agents web vision: real browser rendering that avoids automation detection, exposed as four tools over a single MCP connection.
+Ocular is a Model Context Protocol (MCP) server that gives AI agents web vision, over two execution paths: a local worker for localhost and your own dev server (unmetered, renders on your machine), and a cloud worker for the public web (stealth-hardened, quota-capped). Five tools, one MCP connection — your agent doesn't need to know which path served a given request.
 
-- [Homepage](https://ocular.io) — positioning, pricing, and FAQ.
-- [Pricing](https://ocular.io/#pricing) — $1/month, 300 renders included.
+- [Homepage](https://www.useocular.dev) — positioning, pricing, and FAQ.
+- [Pricing](https://www.useocular.dev/#pricing) — $2.50/month: unlimited local captures, plus 40 cloud renders/day.
 
 ## Tools
 
 - `view_page` — full-page or viewport screenshot of any URL, at low/balanced/high detail.
 - `inspect_ui` — derived design tokens (palette, typography, spacing, breakpoints) for a page, without raw CSS.
 - `extract_assets` — inline SVGs and image URLs, rewritten to absolute, safe-to-fetch links.
-- `get_quota` — remaining renders and reset date for the connected account.
+- `motion_capture` — animations and scroll effects captured as discrete stills (no video, no animated GIF).
+- `get_quota` — remaining cloud renders and reset time for the connected account. Local captures are unmetered and don't draw from this.
 
 ## Pricing
 
-$1/month, 300 renders included. Full charge only on a successful render; half charge if the stealth ladder exhausts every escalation and still fails; nothing charged on a render error.
+$2.50/month: unlimited renders of localhost and your own dev server, plus 40 public-web renders/day. On the cloud path, full charge only on a successful render; half charge if the stealth ladder exhausts every escalation and still fails; nothing charged on a render error. Local captures never touch quota or billing.
+
+## Security
+
+Ocular is read-only — it cannot click, type, fill forms, or navigate with side effects; it cannot act on your browser. This removes action risk, not content risk: captured page content still enters the calling agent's context, the same as any other tool that reads the web. Authenticated/cookie-based browsing is planned for the local path only, via a browser profile you log into once on your own machine — that session never leaves your device. It is not, and will not be, supported on the public-web path.

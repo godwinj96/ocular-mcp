@@ -1,15 +1,30 @@
 # Ocular — Architecture Rules
 
-**Section 1 of 12 · Always Apply**
+**Section 1 of 13 · Always Apply**
 
 > Full rationale for every decision here lives in `research & planning/02-conclusions-and-recommendations.md` and `research & planning/03-phase1-architecture-plan.md`. This file is the enforceable summary — if the two ever disagree, the planning doc's _reasoning_ wins but this file's _rule_ is what code must follow; update this file in the same PR that changes the decision.
 
 ---
 
-## 0. The one deployable topology (Phase 1)
+## 0. Topology — two execution paths
+
+Amended 2026-09-01 (`docs/Ocular_PRD_v0.2.md`). Ocular has **two execution paths routed by target**, not one:
 
 ```
-Agent (Claude/Cursor/ChatGPT/Claude.ai)
+Agent (Claude Code / Cursor)
+   │  stdio MCP
+   ▼
+local MCP server ────► local-worker   (localhost, dev servers, authenticated pages)
+   │                    chrome-headless-shell, no stealth, private IPs permitted
+   │                    see 13-local-worker-and-distribution.md
+   │
+   └──── HTTPS ───────► the cloud path below (public web)
+```
+
+The cloud path is unchanged and remains reachable directly, via its own remote MCP surface, for clients that cannot run a local binary (claude.ai connectors, hosted CI, web agents):
+
+```
+Agent (ChatGPT/Claude.ai/CI)
    │  Streamable HTTP MCP, Bearer: AuthKit JWT or static key
    ▼
 mcp-server  (stateless, N replicas, Fastify + @modelcontextprotocol/sdk)
@@ -26,18 +41,21 @@ result envelope → back through mcp-server → MCP content blocks → agent
 Async, off the hot path: Bachs (billing) ──webhooks──▶ Postgres ◀──reads── mcp-server
 ```
 
+**Two MCP surfaces is deliberate and cheap here** — there is effectively no state to synchronize between them. Auth is outsourced to AuthKit; quota and the shared cache live server-side; `local-worker` holds only its own browser profile and local cache. They are independent front doors onto the same backend, not a distributed system.
+
 There is no separate "API gateway" package. `mcp-server` **is** the internet-facing MCP service. `packages/dashboard` (added 2026-07-10, see `research & planning/02` §17) is a second, deliberate HTTP-facing package for the human-facing surface only — it never speaks MCP and is not a second "API gateway" in the sense this rule warns against. Do not introduce a _third_ HTTP-facing package without updating this file and the plan doc first.
 
 ---
 
 ## 1. Package boundaries (non-negotiable)
 
-| Package               | Owns                                                                                                                       | Never does                                                                                                         |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `packages/shared`     | Zod schemas, result envelope, `ErrorCode` enum, job payload type, tool contracts                                           | Import from `mcp-server`, `worker`, or `dashboard`. No I/O, no side effects, no `fetch`/`fs`/Redis clients.        |
-| `packages/mcp-server` | Token verification, SSRF pre-check, quota check, enqueue, await, MCP protocol mapping                                      | Launch a browser. Talk to a proxy. Run extractors. Serve any non-MCP HTTP route. Anything that touches Patchright. |
-| `packages/dashboard`  | AuthKit login, plan status + Bachs checkout/portal links, static API key CRUD, quota display (Next.js, deployed to Vercel) | Speak MCP. Touch the render pipeline, BullMQ queue, or a browser. Duplicate billing logic Bachs already hosts.     |
-| `packages/worker`     | BullMQ consumption, `BrowserProvider`, `StealthLadder`, extractors, `sharp` pipeline                                       | Speak MCP. Verify OAuth tokens. Own the public HTTP surface.                                                       |
+| Package                 | Owns                                                                                                                       | Never does                                                                                                                 |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared`       | Zod schemas, result envelope, `ErrorCode` enum, job payload type, tool contracts                                           | Import from `mcp-server`, `worker`, or `dashboard`. No I/O, no side effects, no `fetch`/`fs`/Redis clients.                |
+| `packages/mcp-server`   | Token verification, SSRF pre-check, quota check, enqueue, await, MCP protocol mapping                                      | Launch a browser. Talk to a proxy. Run extractors. Serve any non-MCP HTTP route. Anything that touches Patchright.         |
+| `packages/dashboard`    | AuthKit login, plan status + Bachs checkout/portal links, static API key CRUD, quota display (Next.js, deployed to Vercel) | Speak MCP. Touch the render pipeline, BullMQ queue, or a browser. Duplicate billing logic Bachs already hosts.             |
+| `packages/worker`       | BullMQ consumption, `BrowserProvider`, `StealthLadder`, extractors, `sharp` pipeline                                       | Speak MCP. Verify OAuth tokens. Own the public HTTP surface.                                                               |
+| `packages/local-worker` | Local stdio MCP server, Go supervisor, `chrome-headless-shell` lifecycle, local cache, local persistent browser profile    | Invoke the stealth ladder. Import from `packages/worker`. Upload anything it renders to the cloud cache. Hold credentials. |
 
 `shared` is the contract. If a type or schema is needed by two or more of `mcp-server`/`worker`/`dashboard`, it goes in `shared` — never duplicated, never re-exported through one service into another.
 
@@ -83,7 +101,9 @@ Rung-3 (paid unblocker) is **not** a `BrowserProvider` — it's a separate `Unbl
 
 Four MCP tools, never collapsed into one tool with a `mode` flag: `view_page`, `inspect_ui`, `extract_assets`, `get_quota`. Each tool has its own Zod input schema and its own handler in `mcp-server`, and its own extractor (where applicable) in `worker`. An agent's token cost should match its intent — a `mode` flag would force every caller to pay for the union of all tools' documentation.
 
-If a fifth tool is ever proposed, it must justify why it isn't better expressed as a parameter on an existing tool (and vice versa) before being added — see `research & planning/04-open-questions.md` for the standing bar.
+A **fifth tool for motion/animation capture** is planned (`docs/Ocular_PRD_v0.2.md` §6.2) and clears the bar below: it has a fundamentally different input surface (sampling mode, frame budget, scroll-axis strategy) and a different output shape (contact sheet vs. single image), so folding it into `view_page` as a parameter would force every caller to pay for documentation they will never use.
+
+Any tool proposed beyond that must justify why it isn't better expressed as a parameter on an existing tool (and vice versa) before being added — see `research & planning/04-open-questions.md` for the standing bar.
 
 ---
 
@@ -91,8 +111,8 @@ If a fifth tool is ever proposed, it must justify why it isn't better expressed 
 
 Do not build these without a corresponding update to `research & planning/02` and this file:
 
-- Local stdio MCP packaging (tracked as a fast-follow — see plan §13).
-- Cookie/authenticated-page browsing (needs its own threat model first).
+- ~~Local stdio MCP packaging~~ — **no longer deferred.** Promoted to a first-class path 2026-09-01; see `13-local-worker-and-distribution.md`.
+- ~~Cookie/authenticated-page browsing~~ — **the cloud-side deferral stands**, but the local path resolves the underlying objection (no credential custody, session never leaves the device). See `13-local-worker-and-distribution.md` §5. Phase 2 of the local worker.
 - `ManagedBrowserProvider` implementation (interface exists; implementation is a Phase-2+ concern).
 - Any second stealth engine (Camoufox) beyond the interface allowing it later.
 

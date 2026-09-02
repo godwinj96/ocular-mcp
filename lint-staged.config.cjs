@@ -14,5 +14,5 @@ function quoteAll(files) {
 
 module.exports = {
   '*.{ts,tsx}': (files) => `node scripts/lint-fix.cjs ${quoteAll(files)}`,
-  '*.{json,md}': (files) => `prettier --write ${quoteAll(files)}`,
+  '*.{json,md}': (files) => `node scripts/prettier-fix.cjs ${quoteAll(files)}`,
 };

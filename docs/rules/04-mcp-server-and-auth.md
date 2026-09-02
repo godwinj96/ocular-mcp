@@ -1,6 +1,6 @@
 # Ocular — MCP Server & Auth Rules
 
-**Section 4 of 12 · Always Apply**
+**Section 4 of 13 · Always Apply**
 
 ---
 

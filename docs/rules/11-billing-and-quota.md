@@ -1,23 +1,61 @@
 # Ocular — Billing & Quota Rules
 
-**Section 11 of 12 · Always Apply**
+**Section 11 of 13 · Always Apply**
 
 ---
 
 ## 0. Charge policy (locked — see `research & planning/02` §13)
 
-- A render that reaches `CLEAN` at any rung → **full charge (1.0)** against monthly quota.
+> **Amended 2026-09-01** (`docs/Ocular_PRD_v0.2.md` §4). Charges apply to **cloud renders only**. Local renders are unmetered — see §0a. The quota period changed from monthly to **daily** for cloud, and escalated rungs now cost **multiple units** — see §0b.
+
+- A render that reaches `CLEAN` at any rung → **full charge (1.0 × rung multiplier)** against the daily cloud quota.
 - A render that exhausts the stealth ladder (including an attempted Rung-3 paid fallback) and still fails → **half charge (0.5)**. It consumed proxy/compute; the user gets a discount, not a refund.
 - A request rejected before enqueue (`UNAUTHORIZED`, `INVALID_URL`, `SSRF_BLOCKED`, `QUOTA_EXCEEDED`) → **no charge**. It never reached the worker.
 - Full error-code-to-charge mapping: `09-error-handling-and-logging.md` §1.
 
-**Rule:** the half-charge leniency is deliberately generous UX, not a loophole — it's backstopped by per-key rate limiting (`07-security.md` §4), independent of monthly quota. Never weaken rate limiting to "fix" perceived abuse of the half-charge policy; that's the wrong lever.
+**Rule:** the half-charge leniency is deliberately generous UX, not a loophole — it's backstopped by per-key rate limiting (`07-security.md` §4), independent of quota. Never weaken rate limiting to "fix" perceived abuse of the half-charge policy; that's the wrong lever.
+
+---
+
+## 0a. Local renders are unmetered
+
+`packages/local-worker` executes on the user's own machine. Marginal cost to Ocular is zero, so local renders consume **no quota** — this is what makes the dev-loop wedge viable, where high call frequency is the norm.
+
+**Rule:** unmetered does not mean unauthenticated. `local-worker` must validate an active subscription against the server, or local rendering is trivially freeloadable. Validate against a **cached, periodically-refreshed** subscription state — never a live network round-trip per capture, which would reintroduce exactly the latency the local path exists to eliminate.
+
+**Rule:** define and document the offline grace window explicitly (how long a cached subscription check stays valid without network). A developer on a plane must not lose their dev loop; a lapsed subscriber must not get indefinite free rendering. Pick a number, put it in `shared/src/constants.ts`, don't leave it implicit.
+
+---
+
+## 0b. Cloud quota: daily cap with per-rung multipliers
+
+The original flat 300/month quota predates the local/cloud split and is superseded.
+
+|       | Quota                               |
+| ----- | ----------------------------------- |
+| Local | Unlimited (§0a)                     |
+| Cloud | **~30-50/day** (~1,000-1,500/month) |
+
+**Escalated rungs cost multiple units rather than being feature-gated.** Rung 1 is residential proxy, billed per GB — roughly $0.002–0.005 per render depending on page weight. At ~10% escalation that is comfortably absorbed; at 60–80% escalation (a user whose targets are mostly protected sites) it breaks the tier's unit economics entirely.
+
+Charging a rung-1 render ~3 units against the daily cap means a user who escalates constantly exhausts their cap ~3× faster. Cost is bounded automatically, with no separate escalation quota and no hard feature wall.
+
+| Tier                             | Rungs available        |
+| -------------------------------- | ---------------------- |
+| Base ($2.50/mo)                  | Rungs **0 and 1**      |
+| Higher (~$13.99/mo, provisional) | Adds rungs **2 and 3** |
+
+**Rule:** rung multipliers live in `shared/src/constants.ts` and are applied inside `chargeForEnvelope` (`@ocular/shared`), which stays the single source of truth for charge derivation. Do not compute a multiplier at any call site.
+
+**Blocking dependency:** exact multipliers and the higher-tier price cannot be finalized without real per-rung cost data, which requires the M3 vendor accounts (Webshare, DataImpulse, Camoufox, Decodo). Both are provisional until then — do not treat the numbers above as settled.
 
 ---
 
 ## 1. Quota is a float, not an integer
 
-Redis stores quota as a float counter _because_ of the 0.5 charge value. Never round mid-calculation — round only for display in `get_quota` responses. A `parseInt` or integer cast anywhere in the quota decrement path is a bug.
+Redis stores quota as a float counter _because_ of the 0.5 charge value. Never round mid-calculation — round only for display in `get_quota` responses. A `parseInt` or integer cast anywhere in the quota decrement path is a bug. Rung multipliers (§0b) multiply into the same float; they do not make the value integral.
+
+**Rule:** `get_quota` reports the **cloud** quota. Since local renders are unmetered, the response must make clear which path the number applies to — an agent seeing a low remaining count should not conclude its local dev-loop captures are about to stop working.
 
 ---
 
@@ -62,8 +100,9 @@ Static keys are minted from a dashboard, backed by a Bachs-linked account, store
 Per §9 of `research & planning/03`, every job's structured log (see `09-error-handling-and-logging.md` §3) includes `chargeApplied`. Aggregate dashboards must be able to answer, at minimum:
 
 - Success rate by rung and by domain (drives routing-memory tuning, surfaces newly-hard sites).
-- Rung-3 call rate and spend against `DAILY_PAID_BUDGET_USD`.
+- Rung-3 call rate and spend against `DAILY_PAID_BUDGET_USD` — enforced as a real global circuit breaker since Session 26 (`packages/worker/src/ladder/paid-budget.ts`'s `tryReservePaidBudget`, an atomic Redis EVAL gating `stealth-ladder.ts`'s `tryPaidUnblockerRung` before every Decodo call, reset at UTC midnight like the quota keys). This closes the audit's "half-charge economic DoS" finding — repeated rung-3 attempts now hit a hard daily $ ceiling regardless of how many distinct accounts are driving them.
 - Half-charge rate over time (a rising trend may indicate a classifier regression, not just harder sites).
+- **Escalation rate per user** — the input that validates or breaks the §0b multiplier model. If the real distribution of rung-1 escalations differs materially from the ~10% assumption, the multipliers need retuning before the tier loses money.
 
 ---
 

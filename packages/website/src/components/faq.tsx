@@ -5,19 +5,19 @@ import { ScrollReveal } from './scroll-reveal.js';
 const FAQS = [
   {
     q: 'Is this secure?',
-    a: 'Every request goes through resolve-time and per-redirect-hop SSRF checks that block private, loopback, and cloud-metadata IP ranges before any render happens.',
+    a: "Ocular cannot act on your browser — no clicking, typing, or navigation, read-only by design. On the public web, every request also goes through resolve-time and per-redirect-hop SSRF checks. That removes the action risk. It doesn't remove the risk of what a captured page contains: content still enters your agent's context, same as any other tool that reads the web.",
   },
   {
     q: 'What happens if a site blocks the request?',
-    a: 'You get a clear failure response and a half-charge — never a silent hang, never a full charge for nothing.',
+    a: 'You get a clear failure response and a half-charge on the public-web path — never a silent hang, never a full charge for nothing. Your own dev server never fails this way, since nothing is trying to block you from it.',
   },
   {
     q: 'Will the bill surprise me?',
-    a: 'No. $1/mo covers 300 renders. Full charge only on success, half on an exhausted failure, nothing on error — no metered surprises.',
+    a: 'No. $2.50/mo covers unlimited captures of your own localhost and dev server, plus 40 public-web renders a day. Full charge only on a clean render, half on an exhausted failure, nothing on error — no metered surprises.',
   },
   {
     q: 'Do you support authenticated or cookie-based browsing?',
-    a: 'Not yet — that needs its own threat model and is explicitly out of scope for this phase.',
+    a: "On your own machine — yes, planned via a local browser profile you log into once, and that session never leaves your device. On the public web — no, and it won't: extracting or replaying someone else's session cookies is a permanently different, worse threat model.",
   },
 ] as const;
 

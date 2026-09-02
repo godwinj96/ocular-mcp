@@ -11,6 +11,7 @@ describe('viewPageInputSchema', () => {
       url: 'https://example.com',
       detail: 'balanced',
       full_page: false,
+      fresh: false,
     });
   });
 

@@ -11,12 +11,16 @@ export function WhyReliable() {
       <BentoGrid>
         <ScrollReveal index={0} className="col-span-2 md:col-span-4 lg:col-span-8">
           <BentoCell span="hero" className="h-full">
+            <p className="mb-2 font-mono text-sm uppercase tracking-widest text-accent-glow">
+              Beyond localhost
+            </p>
             <h2 className="text-display-md font-bold text-text-primary">
               Most bots get caught in the first second.
             </h2>
             <p className="mt-4 max-w-measure text-text-secondary">
-              Ocular doesn't. What happens between your request and a rendered page is the part
-              we don't publish — every serious competitor would love to know.
+              Ocular doesn't. When your agent needs the public web — not your dev server — what
+              happens between the request and a rendered page is the part we don't publish; every
+              serious competitor would love to know.
             </p>
           </BentoCell>
         </ScrollReveal>
@@ -25,7 +29,9 @@ export function WhyReliable() {
             <Parallax range={12}>
               <p className="font-mono text-3xl font-bold text-accent">↑</p>
             </Parallax>
-            <p className="mt-2 text-text-secondary">escalates only when it has to — never runaway, never wasted.</p>
+            <p className="mt-2 text-text-secondary">
+              escalates only when it has to — never runaway, never wasted.
+            </p>
           </BentoCell>
         </ScrollReveal>
       </BentoGrid>
