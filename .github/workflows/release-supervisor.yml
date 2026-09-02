@@ -98,20 +98,25 @@ jobs:
         # api.github.com's job-logs endpoint 403s for unauthenticated
         # requests even on a public repo ("Must have admin rights"), so this
         # writes the real error to a file that IS readable unauthenticated
-        # via raw.githubusercontent.com. No `set -e` here deliberately — this
-        # step's whole job is to get *something* committed even if part of
-        # it fails, and continue-on-error keeps a failure here from masking
-        # whether it worked.
+        # via raw.githubusercontent.com. Uses the Contents API directly
+        # (not `git push`) — two prior attempts via git push silently failed
+        # for a still-unknown reason (not branch protection — confirmed via
+        # the API that main is unprotected) and, without log access, a git
+        # push failure is exactly as undiagnosable as the thing it's meant
+        # to diagnose. A single PUT call is a smaller surface to get wrong.
         if: steps.manifest.outcome == 'failure'
-        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          mkdir -p .github/debug
-          { echo "--- manifest step output ---"; cat /tmp/manifest-output.log; echo "--- artifacts dir ---"; ls -la artifacts/; } > .github/debug/last-manifest-error.log 2>&1
-          git add .github/debug/last-manifest-error.log
-          git commit --allow-empty -m "chore(ci): capture manifest-step diagnostic log [skip ci]"
-          git push origin HEAD:main
+          { echo "--- manifest step output ---"; cat /tmp/manifest-output.log; echo "--- artifacts dir ---"; ls -la artifacts/; } > /tmp/debug.log 2>&1
+          content_b64=$(base64 -w0 /tmp/debug.log)
+          http_code=$(curl -sS -o /tmp/put-response.json -w "%{http_code}" -X PUT \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/contents/.github/debug/last-manifest-error.log" \
+            -d "{\"message\":\"chore(ci): capture manifest-step diagnostic log [skip ci]\",\"content\":\"${content_b64}\",\"branch\":\"main\"}")
+          echo "Contents API PUT responded: ${http_code}"
+          cat /tmp/put-response.json
       - name: Fail if manifest step failed
         if: steps.manifest.outcome == 'failure'
         run: |
