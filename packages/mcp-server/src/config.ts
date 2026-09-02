@@ -30,6 +30,17 @@ for (const key of required) {
   }
 }
 
+// Optional — MCP clients (Claude Desktop, agents, curl) never send an Origin
+// header at all, only a browser context does. Per the MCP spec's Streamable
+// HTTP transport security guidance (DNS-rebinding defense), an Origin header
+// is only ever legitimate here if it's from Ocular's own dashboard/website;
+// default empty means "reject any request that carries an Origin header,"
+// which is correct until there's an actual browser-based caller to allow.
+const allowedOrigins = (process.env.MCP_ALLOWED_ORIGINS ?? '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter((origin) => origin.length > 0);
+
 export const config = {
   port: Number(process.env.MCP_SERVER_PORT),
   authkitIssuerUrl: process.env.AUTHKIT_ISSUER_URL!,
@@ -37,10 +48,15 @@ export const config = {
   authkitJwksCacheTtlS: Number(process.env.AUTHKIT_JWKS_CACHE_TTL_S),
   redisUrl: process.env.REDIS_URL!,
   postgresUrl: process.env.POSTGRES_URL!,
+  allowedOrigins,
   nodeEnv: (process.env.NODE_ENV ?? 'development') as 'development' | 'staging' | 'production',
   isProd: process.env.NODE_ENV === 'production',
 } as const;
 
-if (config.isProd && !config.postgresUrl.startsWith('postgres://') && !config.postgresUrl.startsWith('postgresql://')) {
+if (
+  config.isProd &&
+  !config.postgresUrl.startsWith('postgres://') &&
+  !config.postgresUrl.startsWith('postgresql://')
+) {
   throw new Error('Production POSTGRES_URL must be a valid postgres connection string');
 }

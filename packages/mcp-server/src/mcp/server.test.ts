@@ -4,6 +4,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { Redis } from 'ioredis';
+import { computeCacheKey } from '@ocular/shared';
+import type { ResultEnvelope } from '@ocular/shared';
 import { hashApiKey } from '../auth/hash-key.js';
 import { config } from '../config.js';
 import { startMcpServer } from './server.js';
@@ -52,29 +54,37 @@ describe('mcp-server end-to-end', () => {
     insertedAccountIds.push(row.id);
 
     const rawKey = `ocular_sk_test_${randomUUID()}`;
-    await pool.query('insert into static_api_keys (account_id, key_hash, key_prefix) values ($1, $2, $3)', [
-      row.id,
-      hashApiKey(rawKey),
-      rawKey.slice(0, 8),
-    ]);
+    await pool.query(
+      'insert into static_api_keys (account_id, key_hash, key_prefix) values ($1, $2, $3)',
+      [row.id, hashApiKey(rawKey), rawKey.slice(0, 8)],
+    );
 
     return { accountId: row.id, rawKey };
   }
 
   async function connectClient(authorization?: string): Promise<Client> {
-    const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${server.port}/mcp`), {
-      requestInit: authorization ? { headers: { authorization } } : undefined,
-    });
+    const transport = new StreamableHTTPClientTransport(
+      new URL(`http://127.0.0.1:${server.port}/mcp`),
+      {
+        requestInit: authorization ? { headers: { authorization } } : undefined,
+      },
+    );
     const client = new Client({ name: 'ocular-test-client', version: '0.0.1' });
     await client.connect(transport);
     return client;
   }
 
-  it('lists all four tools', async () => {
+  it('lists all five tools', async () => {
     const client = await connectClient();
     try {
       const { tools } = await client.listTools();
-      expect(tools.map((t) => t.name).sort()).toEqual(['extract_assets', 'get_quota', 'inspect_ui', 'view_page']);
+      expect(tools.map((t) => t.name).sort()).toEqual([
+        'extract_assets',
+        'get_quota',
+        'inspect_ui',
+        'motion_capture',
+        'view_page',
+      ]);
     } finally {
       await client.close();
     }
@@ -100,16 +110,23 @@ describe('mcp-server end-to-end', () => {
     }
   });
 
-  it('get_quota succeeds for a valid static key and returns remaining/monthlyQuota', async () => {
+  it('get_quota succeeds for a valid static key and returns remaining/dailyQuota, explicitly scoped to the cloud path', async () => {
     const { rawKey } = await insertActiveAccountWithKey();
     const client = await connectClient(`Bearer ${rawKey}`);
     try {
       const result = await client.callTool({ name: 'get_quota', arguments: {} });
       expect(result.isError).toBeFalsy();
-      const textBlock = (result.content as Array<{ type: string; text?: string }>).find((b) => b.type === 'text');
-      const data = JSON.parse(textBlock?.text ?? '{}') as { remaining: number; monthlyQuota: number };
-      expect(data.monthlyQuota).toBeGreaterThan(0);
-      expect(data.remaining).toBe(data.monthlyQuota);
+      const textBlock = (result.content as Array<{ type: string; text?: string }>).find(
+        (b) => b.type === 'text',
+      );
+      const data = JSON.parse(textBlock?.text ?? '{}') as {
+        remaining: number;
+        dailyQuota: number;
+        path: string;
+      };
+      expect(data.dailyQuota).toBeGreaterThan(0);
+      expect(data.remaining).toBe(data.dailyQuota);
+      expect(data.path).toBe('cloud');
     } finally {
       await client.close();
     }
@@ -133,4 +150,75 @@ describe('mcp-server end-to-end', () => {
       await client.close();
     }
   });
+
+  it('a cache hit returns the cached result WITHOUT ever touching quota — the free-cache-hit contract', async () => {
+    const { rawKey, accountId } = await insertActiveAccountWithKey();
+    const url = `https://example.com/${randomUUID()}`;
+    const args = { url, detail: 'balanced', full_page: false };
+    const cacheKey = computeCacheKey('view_page', args);
+
+    const seededB64 = Buffer.from('seeded-cache-hit-marker').toString('base64');
+    const seeded: ResultEnvelope = {
+      ok: true,
+      meta: { requestId: 'seed', rungReached: 0, durationMs: 1 },
+      image: { b64: seededB64, mime: 'image/webp', w: 1, h: 1, bytes: 1 },
+    };
+    await redis.set(cacheKey, JSON.stringify(seeded), 'EX', 60);
+
+    const client = await connectClient(`Bearer ${rawKey}`);
+    try {
+      const result = await client.callTool({ name: 'view_page', arguments: args });
+      expect(result.isError).toBeFalsy();
+      const imageBlock = (result.content as Array<{ type: string; data?: string }>).find(
+        (b) => b.type === 'image',
+      );
+      expect(imageBlock?.data).toBe(seededB64);
+
+      // The whole point: a hit must never reserve or decrement quota.
+      const quotaValue = await redis.get(`quota:${accountId}`);
+      expect(quotaValue).toBeNull();
+    } finally {
+      await client.close();
+      await redis.del(cacheKey);
+    }
+  });
+
+  it('fresh:true bypasses the cache read and never returns the seeded cache content', async () => {
+    const { rawKey } = await insertActiveAccountWithKey();
+    const url = `https://example.com/${randomUUID()}`;
+    const args = { url, detail: 'balanced', full_page: false };
+    const cacheKey = computeCacheKey('view_page', args);
+    const seededMarkerB64 = Buffer.from('should-not-be-returned').toString('base64');
+
+    const seeded: ResultEnvelope = {
+      ok: true,
+      meta: { requestId: 'seed', rungReached: 0, durationMs: 1 },
+      image: { b64: seededMarkerB64, mime: 'image/webp', w: 1, h: 1, bytes: 1 },
+    };
+    await redis.set(cacheKey, JSON.stringify(seeded), 'EX', 60);
+
+    const client = await connectClient(`Bearer ${rawKey}`);
+    try {
+      // fresh:true bypasses the cache read, so the real pipeline runs
+      // (enqueue + await). This suite's own RENDER_QUEUE_NAME is shared
+      // with queue/enqueue.test.ts's real BullMQ Worker test double, so
+      // whether this job times out (no consumer active right now) or
+      // gets picked up by that unrelated worker and resolves some other
+      // way is not something this test can control when run alongside
+      // the rest of the suite — deliberately not asserted on. The one
+      // thing that must always hold regardless of timing is the actual
+      // point of `fresh`: the seeded cache marker is never returned.
+      const result = await client.callTool({
+        name: 'view_page',
+        arguments: { ...args, fresh: true },
+      });
+      const imageBlock = (result.content as Array<{ type: string; data?: string }>).find(
+        (b) => b.type === 'image',
+      );
+      expect(imageBlock?.data).not.toBe(seededMarkerB64);
+    } finally {
+      await client.close();
+      await redis.del(cacheKey);
+    }
+  }, 25_000); // may need to wait out SERVER_AWAIT_MS (12s) if nothing else consumes the job.
 });

@@ -15,19 +15,25 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
+  DAILY_CLOUD_QUOTA_BY_TIER,
   extractAssetsInputSchema,
   getQuotaInputSchema,
   inspectUiInputSchema,
+  motionCaptureInputSchema,
+  tierOfPlanSlug,
   viewPageInputSchema,
 } from '@ocular/shared';
-import type { FailureEnvelope, ResultEnvelope } from '@ocular/shared';
+import type { FailureEnvelope, ResultEnvelope, ToolName } from '@ocular/shared';
 import { resolveAccount } from '../auth/resolve-account.js';
+import { config as appConfig } from '../config.js';
+import { getCachedEnvelope } from '../cache/redis-cache.js';
 import { checkAndReserveQuota } from '../quota/redis-quota.js';
 import { checkAndRecordRateLimit } from '../rate-limit/redis-rate-limiter.js';
 import { precheckUrl } from '../ssrf/precheck.js';
 import { handleExtractAssets } from '../tools/extract-assets.js';
 import { handleGetQuota } from '../tools/get-quota.js';
 import { handleInspectUi } from '../tools/inspect-ui.js';
+import { handleMotionCapture } from '../tools/motion-capture.js';
 import { handleViewPage } from '../tools/view-page.js';
 import type { ToolRequestContext } from '../tools/view-page.js';
 import { toContentBlocks } from './to-content-blocks.js';
@@ -50,9 +56,18 @@ interface RequestHeaderSource {
   requestInfo?: { headers: Record<string, string | string[] | undefined> };
 }
 
+interface CacheOptions {
+  tool: ToolName;
+  args: Record<string, unknown>;
+  /** From the tool's own `fresh` input field — bypasses the cache read, never the write. */
+  fresh: boolean;
+}
+
 interface PipelineOptions {
   url?: string;
   requiresQuota: boolean;
+  /** Present only for cacheable render tools — get_quota never sets this. */
+  cache?: CacheOptions;
 }
 
 function failureEnvelope(reason: FailureEnvelope['reason'], message: string): FailureEnvelope {
@@ -102,10 +117,27 @@ async function runToolPipeline(
     }
   }
 
+  // Cache check — after SSRF precheck (a hit never navigates anywhere, so
+  // no re-check needed) but before quota reserve: a hit is free and never
+  // touches quota at all, not reserve-then-refund (docs/rules/11-billing-and-quota.md
+  // §9's cache-hit-is-free decision). `fresh: true` bypasses the read only —
+  // the render that follows still writes a fresh cache entry (in worker).
+  if (opts.cache && !opts.cache.fresh) {
+    const cached = await getCachedEnvelope(opts.cache.tool, opts.cache.args);
+    if (cached) {
+      return toCallToolResult(cached);
+    }
+  }
+
   if (opts.requiresQuota) {
-    const quota = await checkAndReserveQuota(account.accountId);
+    // verify-jwt/verify-static-key already reject any account without an
+    // active subscription (see auth/), so tierOfPlanSlug should never return
+    // null here — the 'basic' fallback only guards against an unrecognized
+    // plan slug reaching this far, not against no plan at all.
+    const tier = tierOfPlanSlug(account.plan) ?? 'basic';
+    const quota = await checkAndReserveQuota(account.accountId, DAILY_CLOUD_QUOTA_BY_TIER[tier]);
     if (!quota.allowed) {
-      return toCallToolResult(failureEnvelope('QUOTA_EXCEEDED', 'Monthly quota exceeded.'));
+      return toCallToolResult(failureEnvelope('QUOTA_EXCEEDED', 'Daily cloud quota exceeded.'));
     }
   }
 
@@ -125,8 +157,14 @@ function registerTools(mcpServer: McpServer): void {
       inputSchema: viewPageInputSchema.shape,
     },
     async (args, extra) =>
-      runToolPipeline(extra, { url: args.url, requiresQuota: true }, (ctx) =>
-        handleViewPage(args, ctx),
+      runToolPipeline(
+        extra,
+        {
+          url: args.url,
+          requiresQuota: true,
+          cache: { tool: 'view_page', args, fresh: args.fresh },
+        },
+        (ctx) => handleViewPage(args, ctx),
       ),
   );
 
@@ -137,8 +175,14 @@ function registerTools(mcpServer: McpServer): void {
       inputSchema: inspectUiInputSchema.shape,
     },
     async (args, extra) =>
-      runToolPipeline(extra, { url: args.url, requiresQuota: true }, (ctx) =>
-        handleInspectUi(args, ctx),
+      runToolPipeline(
+        extra,
+        {
+          url: args.url,
+          requiresQuota: true,
+          cache: { tool: 'inspect_ui', args, fresh: args.fresh },
+        },
+        (ctx) => handleInspectUi(args, ctx),
       ),
   );
 
@@ -149,8 +193,32 @@ function registerTools(mcpServer: McpServer): void {
       inputSchema: extractAssetsInputSchema.shape,
     },
     async (args, extra) =>
-      runToolPipeline(extra, { url: args.url, requiresQuota: true }, (ctx) =>
-        handleExtractAssets(args, ctx),
+      runToolPipeline(
+        extra,
+        {
+          url: args.url,
+          requiresQuota: true,
+          cache: { tool: 'extract_assets', args, fresh: args.fresh },
+        },
+        (ctx) => handleExtractAssets(args, ctx),
+      ),
+  );
+
+  mcpServer.registerTool(
+    'motion_capture',
+    {
+      description: 'Capture discrete stills of an animation for motion verification.',
+      inputSchema: motionCaptureInputSchema.shape,
+    },
+    async (args, extra) =>
+      runToolPipeline(
+        extra,
+        {
+          url: args.url,
+          requiresQuota: true,
+          cache: { tool: 'motion_capture', args, fresh: args.fresh },
+        },
+        (ctx) => handleMotionCapture(args, ctx),
       ),
   );
 
@@ -189,6 +257,21 @@ export async function startMcpServer(config: McpServerConfig): Promise<McpServer
   // reused across requests" on a second call otherwise. Registering the four
   // tools is pure closure setup (no I/O), so doing it per request is cheap.
   fastify.all('/mcp', async (request, reply) => {
+    // Origin/CORS guard — see docs/rules/04-mcp-server-and-auth.md §5 and
+    // config.ts's allowedOrigins comment. No @fastify/cors plugin is
+    // registered (so no Access-Control-Allow-Origin is ever emitted — this
+    // is never a browser-embeddable API), and this rejects outright any
+    // request that does carry an Origin header not on the explicit
+    // allowlist, closing the DNS-rebinding vector the MCP spec's Streamable
+    // HTTP transport guidance calls out. Real MCP clients (stdio bridges,
+    // server-to-server calls) never send Origin at all, so this never
+    // affects them.
+    const origin = request.headers.origin;
+    if (origin && !appConfig.allowedOrigins.includes(origin)) {
+      reply.code(403).send({ error: 'origin_not_allowed' });
+      return;
+    }
+
     reply.hijack();
     const mcpServer = new McpServer({ name: 'ocular', version: '0.1.0' });
     registerTools(mcpServer);
