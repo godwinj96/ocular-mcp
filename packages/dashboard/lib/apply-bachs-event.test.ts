@@ -1,6 +1,15 @@
-import { describe, expect, it } from 'vitest';
-import { accountUpdateForBachsEvent } from './apply-bachs-event';
+import { describe, expect, it, vi } from 'vitest';
 import type { BachsWebhookEvent } from './apply-bachs-event';
+
+// bachs.ts's product-id map is built once at module load from
+// process.env — must be stubbed before the dynamic import below, same
+// pattern as resolve-account.test.ts for env-var-gated modules.
+vi.stubEnv('BACHS_BASIC_MONTHLY_PRICE_ID', 'prod_1');
+vi.stubEnv('BACHS_BASIC_ANNUAL_PRICE_ID', 'prod_2');
+vi.stubEnv('BACHS_PRO_MONTHLY_PRICE_ID', 'prod_3');
+vi.stubEnv('BACHS_PRO_ANNUAL_PRICE_ID', 'prod_4');
+
+const { accountUpdateForBachsEvent } = await import('./apply-bachs-event.js');
 
 const BASE = { id: 'evt_1', created_at: '2026-01-01T00:00:00Z', organization_id: 'org_1' };
 
@@ -45,6 +54,7 @@ function subscriptionEvent(
     | 'customer.subscription.updated'
     | 'customer.subscription.deleted',
   status: string,
+  productId = 'prod_1',
 ): BachsWebhookEvent {
   return {
     ...BASE,
@@ -61,7 +71,7 @@ function subscriptionEvent(
         updated_at: null,
         billing_address: null,
       },
-      product_id: 'prod_1',
+      product_id: productId,
       status,
       collection_method: 'charge_automatically',
       currency: 'USD',
@@ -158,11 +168,21 @@ describe('accountUpdateForBachsEvent', () => {
         kind: 'syncSubscriptionState',
         bachsCustomerId: 'cus_1',
         subscriptionStatus: expected,
-        plan: 'prod_1',
+        // 'prod_1' is stubbed to BACHS_BASIC_MONTHLY_PRICE_ID above —
+        // proves the raw Bachs product id gets normalized to a plan slug.
+        plan: 'basic_monthly',
         quotaResetAt: '2026-02-01T00:00:00Z',
       });
     },
   );
+
+  it('normalizes an unrecognized product_id to null rather than storing a raw vendor id', () => {
+    const update = accountUpdateForBachsEvent(
+      subscriptionEvent('customer.subscription.updated', 'active', 'prod_unknown'),
+    );
+
+    expect(update).toMatchObject({ plan: null });
+  });
 
   it('sets canceled on customer.subscription.deleted, status-only', () => {
     const update = accountUpdateForBachsEvent(

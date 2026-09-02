@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { Redis } from 'ioredis';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { MONTHLY_QUOTA, SUCCESS_CHARGE } from '@ocular/shared';
+import { DAILY_CLOUD_QUOTA_BY_TIER, MAX_RESERVE_CHARGE } from '@ocular/shared';
+
+const DAILY_CLOUD_QUOTA = DAILY_CLOUD_QUOTA_BY_TIER.basic;
 import { config } from '../config.js';
 import { createQuotaChecker } from './redis-quota.js';
 
@@ -30,35 +32,31 @@ describe('checkAndReserveQuota', () => {
     client.disconnect();
   });
 
-  it(
-    'initializes a new account at MONTHLY_QUOTA and reserves SUCCESS_CHARGE on first check',
-    async () => {
-      const accountId = newAccountId();
+  it('initializes a new account at DAILY_CLOUD_QUOTA and reserves MAX_RESERVE_CHARGE on first check', async () => {
+    const accountId = newAccountId();
 
-      const result = await checkAndReserveQuota(accountId, null);
+    const result = await checkAndReserveQuota(accountId, DAILY_CLOUD_QUOTA);
 
-      expect(result.allowed).toBe(true);
-      expect(result.remaining).toBe(MONTHLY_QUOTA - SUCCESS_CHARGE);
-    },
-    // First call in the file pays the cold TLS-connect cost to Upstash —
-    // subsequent tests reuse the warm connection well under the default 5s.
-    15_000,
-  );
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBe(DAILY_CLOUD_QUOTA - MAX_RESERVE_CHARGE);
+  }, // First call in the file pays the cold TLS-connect cost to Upstash —
+  // subsequent tests reuse the warm connection well under the default 5s.
+  15_000);
 
   it('decrements on each subsequent call without resetting the TTL', async () => {
     const accountId = newAccountId();
 
-    await checkAndReserveQuota(accountId, null);
-    const second = await checkAndReserveQuota(accountId, null);
+    await checkAndReserveQuota(accountId, DAILY_CLOUD_QUOTA);
+    const second = await checkAndReserveQuota(accountId, DAILY_CLOUD_QUOTA);
 
-    expect(second.remaining).toBe(MONTHLY_QUOTA - SUCCESS_CHARGE * 2);
+    expect(second.remaining).toBe(DAILY_CLOUD_QUOTA - MAX_RESERVE_CHARGE * 2);
   });
 
   it('rejects once the account is exhausted, without going negative', async () => {
     const accountId = newAccountId();
     await client.set(`quota:${accountId}`, '0.5', 'EX', 60);
 
-    const result = await checkAndReserveQuota(accountId, null);
+    const result = await checkAndReserveQuota(accountId, DAILY_CLOUD_QUOTA);
 
     expect(result.allowed).toBe(false);
     expect(result.remaining).toBe(0.5);
@@ -68,10 +66,10 @@ describe('checkAndReserveQuota', () => {
     // See docs/rules/10-testing.md §3: the mandatory race-condition test.
     // Seed just enough quota for exactly 3 of 10 concurrent requests.
     const accountId = newAccountId();
-    await client.set(`quota:${accountId}`, String(SUCCESS_CHARGE * 3), 'EX', 60);
+    await client.set(`quota:${accountId}`, String(MAX_RESERVE_CHARGE * 3), 'EX', 60);
 
     const results = await Promise.all(
-      Array.from({ length: 10 }, () => checkAndReserveQuota(accountId, null)),
+      Array.from({ length: 10 }, () => checkAndReserveQuota(accountId, DAILY_CLOUD_QUOTA)),
     );
 
     const allowedCount = results.filter((r) => r.allowed).length;
@@ -81,14 +79,16 @@ describe('checkAndReserveQuota', () => {
     expect(Number(finalRemaining)).toBe(0);
   });
 
-  it('sets a TTL pinned to the provided quotaResetAt instead of a sliding window', async () => {
+  it('sets a TTL pinned to the next UTC midnight, not a sliding window', async () => {
     const accountId = newAccountId();
-    const resetAt = new Date(Date.now() + 120_000);
 
-    await checkAndReserveQuota(accountId, resetAt);
+    await checkAndReserveQuota(accountId, DAILY_CLOUD_QUOTA);
     const ttl = await client.ttl(`quota:${accountId}`);
 
+    // Can't assert an exact value (depends on time-of-day the suite runs),
+    // but it must be a same-day-bounded window: > 1 minute (MIN_TTL_S floor)
+    // and <= 24h, never the old 30-day rolling fallback.
     expect(ttl).toBeGreaterThan(60);
-    expect(ttl).toBeLessThanOrEqual(120);
+    expect(ttl).toBeLessThanOrEqual(24 * 60 * 60);
   });
 });

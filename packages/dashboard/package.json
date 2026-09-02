@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
+    "@ocular/shared": "*",
     "@workos-inc/authkit-nextjs": "^2.0.0",
     "bachs-sdk": "^1.1.0",
     "ioredis": "^5.4.1",

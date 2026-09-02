@@ -1,17 +1,28 @@
 import Link from 'next/link';
 import { getCurrentAccount } from '../../lib/current-account';
-import { bachsClient } from '../../lib/bachs';
+import { bachs, bachsClient } from '../../lib/bachs';
+import { PLAN_PRICE_USD, tierOfPlanSlug, type PlanCycle, type PlanTier } from '@ocular/shared';
+
+const PLAN_CARDS: Array<{ tier: PlanTier; label: string; blurb: string }> = [
+  { tier: 'basic', label: 'Basic', blurb: 'Unlimited local, 40 cloud renders/day, rungs 0-1.' },
+  {
+    tier: 'pro',
+    label: 'Pro',
+    blurb: 'Unlimited local, 150 cloud renders/day, full stealth ladder.',
+  },
+];
 
 export default async function BillingPage() {
   const account = await getCurrentAccount();
 
   // An active subscriber manages an existing plan (Bachs's own hosted
-  // portal — invoices, payment method, cancellation); anyone else starts a
-  // new checkout. Never re-checkout an already-active subscriber.
+  // portal — invoices, payment method, cancellation); anyone else picks a
+  // plan below and starts a new checkout from there.
   const isActive = account.subscriptionStatus === 'active' && account.bachsCustomerId;
-  const session = isActive
+  const portalSession = isActive
     ? await bachsClient.createPortalSession(account.bachsCustomerId!)
-    : await bachsClient.createCheckoutSession(account);
+    : null;
+  const currentTier = tierOfPlanSlug(account.plan);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
@@ -21,28 +32,53 @@ export default async function BillingPage() {
       <h1 className="mt-4 text-3xl font-bold text-text-primary">Billing</h1>
 
       <div className="mt-8 rounded-xl border border-border bg-surface-elevated p-6">
-        <p className="text-sm text-text-secondary">Plan</p>
+        <p className="text-sm text-text-secondary">Current plan</p>
         <p className="mt-1 text-xl font-semibold text-text-primary">
-          {account.plan ?? 'No active plan'}
+          {currentTier ? PLAN_CARDS.find((p) => p.tier === currentTier)?.label : 'No active plan'}
         </p>
         <p className="mt-1 text-sm text-text-secondary capitalize">{account.subscriptionStatus}</p>
 
-        {session ? (
+        {isActive && portalSession && (
           <a
-            href={session.url}
+            href={portalSession.url}
             className="mt-6 inline-block rounded-full bg-accent px-6 py-3 font-semibold text-surface-base transition hover:brightness-110"
           >
-            {isActive ? 'Manage billing' : 'Subscribe'}
+            Manage billing
           </a>
-        ) : (
-          <div className="mt-6 rounded-lg border border-dashed border-border bg-surface-raised p-4">
-            <p className="text-sm text-text-secondary">
-              Billing isn't live yet — checkout will appear here once it's connected. No action
-              needed on your end.
-            </p>
-          </div>
         )}
       </div>
+
+      {!bachs && (
+        <div className="mt-6 rounded-lg border border-dashed border-border bg-surface-raised p-4">
+          <p className="text-sm text-text-secondary">
+            Billing isn't live yet — checkout will appear here once it's connected. No action needed
+            on your end.
+          </p>
+        </div>
+      )}
+
+      {bachs && !isActive && (
+        <div className="mt-8 grid gap-6 sm:grid-cols-2">
+          {PLAN_CARDS.map(({ tier, label, blurb }) => (
+            <div key={tier} className="rounded-xl border border-border bg-surface-elevated p-6">
+              <p className="text-lg font-semibold text-text-primary">{label}</p>
+              <p className="mt-1 text-sm text-text-secondary">{blurb}</p>
+              <div className="mt-4 flex flex-col gap-2">
+                {(['monthly', 'annual'] as PlanCycle[]).map((cycle) => (
+                  <a
+                    key={cycle}
+                    href={`/billing/checkout?tier=${tier}&cycle=${cycle}`}
+                    className="rounded-full border border-border px-5 py-2.5 text-center font-semibold text-text-primary transition hover:border-accent hover:text-accent"
+                  >
+                    ${PLAN_PRICE_USD[`${tier}_${cycle}`]}
+                    {cycle === 'monthly' ? '/mo' : '/yr'}
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </main>
   );
 }

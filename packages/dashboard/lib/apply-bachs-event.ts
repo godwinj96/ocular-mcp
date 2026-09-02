@@ -3,6 +3,7 @@
 // live Postgres or a signed HTTP request — same "derive, then apply" split
 // as @ocular/shared's chargeForEnvelope / worker's settle-quota.ts.
 import type { Bachs } from 'bachs-sdk';
+import { planSlugForProductId } from './bachs';
 import type { SubscriptionStatus } from './accounts';
 
 // bachs-sdk's own BachsWebhookEvent type (defined in its src/types/webhooks.ts)
@@ -63,11 +64,17 @@ export function accountUpdateForBachsEvent(event: BachsWebhookEvent): AccountUpd
 
     case 'customer.subscription.created':
     case 'customer.subscription.updated':
+      // event.data.product_id is Bachs's product ID, not an Ocular plan slug
+      // — normalized here so accounts.plan always holds one of plans.ts's
+      // PLAN_SLUGS values, never a raw vendor ID. An unrecognized product ID
+      // (stale env config, a product not in the four-tier scheme) maps to
+      // null rather than silently storing garbage — COALESCE in
+      // syncSubscriptionState then leaves the account's existing plan alone.
       return {
         kind: 'syncSubscriptionState',
         bachsCustomerId: event.data.customer.customer_id,
         subscriptionStatus: toSubscriptionStatus(event.data.status),
-        plan: event.data.product_id,
+        plan: planSlugForProductId(event.data.product_id),
         quotaResetAt: event.data.current_period_end,
       };
 
