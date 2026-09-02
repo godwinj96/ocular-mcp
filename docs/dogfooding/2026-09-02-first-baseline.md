@@ -1,5 +1,12 @@
 # 2026-09-02 — First baseline: Ocular measured on Ocular
 
+> **Superseded in part by `2026-09-02-phase-breakdown-and-engine.md`.** The
+> 11,490ms "cold render" below is **not** render time — ~10s of it is the
+> subscription check making two intercontinental database round trips before
+> the browser is touched. The actual render is ~1s. Finding 3's "the cold 11.5s
+> is a genuine render, not a hidden browser launch" is wrong. Findings 1 and 2
+> (a11y tree token cost, tree composition) stand.
+
 First measurements taken through Ocular's own MCP connection, capturing this
 repo's website dev server. Session 27.
 

@@ -106,29 +106,57 @@ async function forwardToCloud(
   }
 }
 
+// Phase timing for the local render path. Emitted to stderr (never stdout —
+// that carries the MCP JSON-RPC framing) and only when OCULAR_TRACE_PHASES is
+// set, so normal runs pay nothing. Exists because `meta.durationMs` was a
+// single opaque number: knowing a capture took 11s doesn't say whether the
+// cost is navigation, paint, the a11y walk, or the encode, and those point at
+// completely different fixes. See docs/dogfooding/.
+async function timePhase<T>(phases: Record<string, number>, name: string, fn: () => Promise<T>) {
+  const t = Date.now();
+  try {
+    return await fn();
+  } finally {
+    phases[name] = Date.now() - t;
+  }
+}
+
+function tracePhases(url: string, phases: Record<string, number>, totalMs: number): void {
+  if (!process.env.OCULAR_TRACE_PHASES) return;
+  process.stderr.write(JSON.stringify({ ocularPhaseTrace: { url, totalMs, phases } }) + '\n');
+}
+
 async function renderLocally(
   toolName: string,
   args: { url: string; [key: string]: unknown },
   cdpUrl: string,
 ): Promise<ResultEnvelope> {
-  const browser = await getBrowserSession(cdpUrl);
-  const page = await browser.newPage();
+  const phases: Record<string, number> = {};
+  const startedAt = Date.now();
+  const browser = await timePhase(phases, 'session', () => getBrowserSession(cdpUrl));
+  const page = await timePhase(phases, 'newPage', () => browser.newPage());
 
   try {
-    await page.navigate(args.url, JOB_DEADLINE_MS);
+    await timePhase(phases, 'navigate', () => page.navigate(args.url, JOB_DEADLINE_MS));
 
     if (toolName === 'view_page') {
       const input = args as unknown as ViewPageInput;
-      const raw = await page.screenshot({ fullPage: input.full_page });
+      const raw = await timePhase(phases, 'screenshot', () =>
+        page.screenshot({ fullPage: input.full_page }),
+      );
+      // encode and a11y extraction run concurrently, so their phase times
+      // overlap and must not be read as additive against the total.
       const [encoded, a11yTree] = await Promise.all([
-        encodeScreenshot(raw, input.detail),
+        timePhase(phases, 'encode', () => encodeScreenshot(raw, input.detail)),
         // See packages/worker/src/worker.ts's identical comment — shipped
         // unconditionally alongside every screenshot on both paths.
-        extractA11yTree(page).catch(() => undefined),
+        timePhase(phases, 'a11yTree', () => extractA11yTree(page).catch(() => undefined)),
       ]);
+      const durationMs = Date.now() - startedAt;
+      tracePhases(args.url, phases, durationMs);
       return {
         ok: true,
-        meta: { requestId: '', rungReached: 0, durationMs: 0 },
+        meta: { requestId: '', rungReached: 0, durationMs },
         image: {
           b64: encoded.b64,
           mime: encoded.mime,
