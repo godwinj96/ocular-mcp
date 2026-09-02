@@ -98,17 +98,19 @@ jobs:
         # api.github.com's job-logs endpoint 403s for unauthenticated
         # requests even on a public repo ("Must have admin rights"), so this
         # writes the real error to a file that IS readable unauthenticated
-        # via raw.githubusercontent.com.
+        # via raw.githubusercontent.com. No `set -e` here deliberately — this
+        # step's whole job is to get *something* committed even if part of
+        # it fails, and continue-on-error keeps a failure here from masking
+        # whether it worked.
         if: steps.manifest.outcome == 'failure'
+        continue-on-error: true
         run: |
-          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           mkdir -p .github/debug
-          cp /tmp/manifest-output.log .github/debug/last-manifest-error.log
-          ls -la artifacts/ >> .github/debug/last-manifest-error.log 2>&1 || true
+          { echo "--- manifest step output ---"; cat /tmp/manifest-output.log; echo "--- artifacts dir ---"; ls -la artifacts/; } > .github/debug/last-manifest-error.log 2>&1
           git add .github/debug/last-manifest-error.log
-          git commit -m "chore(ci): capture manifest-step diagnostic log [skip ci]"
+          git commit --allow-empty -m "chore(ci): capture manifest-step diagnostic log [skip ci]"
           git push origin HEAD:main
       - name: Fail if manifest step failed
         if: steps.manifest.outcome == 'failure'
