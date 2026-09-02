@@ -87,41 +87,8 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
-      - name: List downloaded artifacts (diagnostic)
-        run: ls -la artifacts/ || echo "no artifacts dir"
       - name: Assemble checksum manifest
-        id: manifest
-        continue-on-error: true
-        run: node .github/scripts/assemble-supervisor-checksums.cjs > /tmp/manifest-output.log 2>&1
-      - name: Publish diagnostic log on failure
-        # TEMPORARY — remove once the manifest step is confirmed working.
-        # api.github.com's job-logs endpoint 403s for unauthenticated
-        # requests even on a public repo ("Must have admin rights"), so this
-        # writes the real error to a file that IS readable unauthenticated
-        # via raw.githubusercontent.com. Uses the Contents API directly
-        # (not `git push`) — two prior attempts via git push silently failed
-        # for a still-unknown reason (not branch protection — confirmed via
-        # the API that main is unprotected) and, without log access, a git
-        # push failure is exactly as undiagnosable as the thing it's meant
-        # to diagnose. A single PUT call is a smaller surface to get wrong.
-        if: steps.manifest.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          { echo "--- manifest step output ---"; cat /tmp/manifest-output.log; echo "--- artifacts dir ---"; ls -la artifacts/; } > /tmp/debug.log 2>&1
-          content_b64=$(base64 -w0 /tmp/debug.log)
-          http_code=$(curl -sS -o /tmp/put-response.json -w "%{http_code}" -X PUT \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/contents/.github/debug/last-manifest-error.log" \
-            -d "{\"message\":\"chore(ci): capture manifest-step diagnostic log [skip ci]\",\"content\":\"${content_b64}\",\"branch\":\"main\"}")
-          echo "Contents API PUT responded: ${http_code}"
-          cat /tmp/put-response.json
-      - name: Fail if manifest step failed
-        if: steps.manifest.outcome == 'failure'
-        run: |
-          cat /tmp/manifest-output.log
-          exit 1
+        run: node .github/scripts/assemble-supervisor-checksums.cjs
       - name: Commit updated checksums
         # Uses the Contents API instead of `git commit` + `git push` — two
         # earlier attempts at a plain `git push origin HEAD:main` from this
