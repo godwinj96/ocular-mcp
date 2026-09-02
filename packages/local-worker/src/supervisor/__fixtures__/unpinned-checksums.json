@@ -1,0 +1,10 @@
+{
+  "_comment": "Test fixture only — a manifest with no pinned hash for any platform, mirroring the pre-release state of supervisor-checksums.json. Used by binary-resolver.test.ts to prove an unpinned platform is refused rather than downloaded unverified.",
+  "version": "0.0.0-test",
+  "binaries": {
+    "win32-x64": null,
+    "darwin-x64": null,
+    "darwin-arm64": null,
+    "linux-x64": null
+  }
+}

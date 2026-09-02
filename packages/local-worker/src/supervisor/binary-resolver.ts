@@ -28,7 +28,23 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const pkgRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+// Walk up to the nearest package.json rather than a fixed number of levels:
+// this file runs from two different depths — `src/supervisor/` under vitest,
+// and a single bundled `dist/main.js` once esbuild has run — so any hardcoded
+// `../..` is correct for exactly one of them and silently wrong for the other.
+function findPackageRoot(from: string): string {
+  let dir = from;
+  while (!existsSync(path.join(dir, 'package.json'))) {
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      throw new Error(`Could not locate the local-worker package root from ${from}`);
+    }
+    dir = parent;
+  }
+  return dir;
+}
+
+const pkgRoot = findPackageRoot(path.dirname(fileURLToPath(import.meta.url)));
 
 export type SupportedPlatformKey = 'win32-x64' | 'darwin-x64' | 'darwin-arm64' | 'linux-x64';
 
@@ -56,8 +72,11 @@ interface ChecksumManifest {
   binaries: Record<SupportedPlatformKey, string | null>;
 }
 
-async function readChecksumManifest(): Promise<ChecksumManifest> {
-  const raw = await readFile(path.join(pkgRoot, 'supervisor-checksums.json'), 'utf8');
+async function readChecksumManifest(manifestPath?: string): Promise<ChecksumManifest> {
+  const raw = await readFile(
+    manifestPath ?? path.join(pkgRoot, 'supervisor-checksums.json'),
+    'utf8',
+  );
   return JSON.parse(raw) as ChecksumManifest;
 }
 
@@ -79,8 +98,11 @@ function sha256Hex(data: Buffer): string {
   return createHash('sha256').update(data).digest('hex');
 }
 
-async function downloadAndVerify(key: SupportedPlatformKey): Promise<string> {
-  const manifest = await readChecksumManifest();
+async function downloadAndVerify(
+  key: SupportedPlatformKey,
+  manifestPath?: string,
+): Promise<string> {
+  const manifest = await readChecksumManifest(manifestPath);
   const expectedHash = manifest.binaries[key];
   if (!expectedHash) {
     throw new Error(
@@ -125,6 +147,8 @@ async function downloadAndVerify(key: SupportedPlatformKey): Promise<string> {
 export interface ResolveOptions {
   /** Test-only escape hatch — skip the dev-build short-circuit so download/checksum logic is reachable without deleting the committed dist-supervisor/ binary. */
   skipDevBuild?: boolean;
+  /** Test-only escape hatch — read checksums from this path instead of the committed manifest, so the "no pinned checksum" path stays testable now that every real platform has a pinned hash. */
+  manifestPath?: string;
 }
 
 export async function resolveSupervisorBinaryPath(opts: ResolveOptions = {}): Promise<string> {
@@ -135,11 +159,11 @@ export async function resolveSupervisorBinaryPath(opts: ResolveOptions = {}): Pr
     if (existsSync(devPath)) return devPath;
   }
 
-  const manifest = await readChecksumManifest().catch(() => null);
+  const manifest = await readChecksumManifest(opts.manifestPath).catch(() => null);
   if (manifest) {
     const cached = cachedDownloadPath(manifest.version, key);
     if (existsSync(cached)) return cached;
   }
 
-  return downloadAndVerify(key);
+  return downloadAndVerify(key, opts.manifestPath);
 }

@@ -24,17 +24,18 @@ describe('resolveSupervisorBinaryPath', () => {
     await rm(cacheRoot, { recursive: true, force: true }).catch(() => undefined);
   });
 
-  it('refuses to download when supervisor-checksums.json has no pinned hash for this platform (current committed manifest — placeholder version)', async () => {
-    // supervisor-checksums.json ships with every binaries.* entry as null
-    // until the release workflow has run for real (see that file's own
-    // comment) — this proves the resolver fails loudly instead of silently
-    // trusting an unverified download when that's still the case, and that
-    // no dist-supervisor/ dev build exists in this test environment to
-    // short-circuit the check.
+  it('refuses to download when the manifest has no pinned hash for this platform', async () => {
+    // Reads a fixture manifest with every entry null rather than the
+    // committed one: since supervisor-v0.1.0 shipped, every real platform
+    // has a pinned hash, so the committed manifest can no longer exercise
+    // this path. What's under test is the refusal itself — an unpinned
+    // platform must fail loudly, never fall through to an unverified
+    // download.
+    const manifestPath = path.join(import.meta.dirname, '__fixtures__', 'unpinned-checksums.json');
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
 
-    await expect(resolveSupervisorBinaryPath({ skipDevBuild: true })).rejects.toThrow(
+    await expect(resolveSupervisorBinaryPath({ skipDevBuild: true, manifestPath })).rejects.toThrow(
       /No pinned checksum/,
     );
     expect(fetchSpy).not.toHaveBeenCalled();
