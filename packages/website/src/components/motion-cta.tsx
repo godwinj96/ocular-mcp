@@ -1,29 +1,24 @@
 import type { ReactNode } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
-import { motionTokens, springs } from '../lib/motion-tokens.js';
 
 interface MotionCtaProps {
   href: string;
-  className: string;
+  className?: string;
   children: ReactNode;
 }
 
-// Shared spring press/pop feedback for every "Connect Ocular" CTA — the
-// gradient-hairline BentoCells already had hover-lift via CSS; the anchor
-// buttons themselves had none beyond a brightness tween. Reduced motion
-// disables the transform, keeping only the existing CSS brightness hover.
+// Reduced to a plain anchor. This previously applied a framer-motion spring
+// scale on tap, which the Instrument concept rules out — "nothing else
+// animates beyond default hover states." The spec'd interaction is a 1px lift
+// and a literal colour swap, both of which are plain CSS supplied by the call
+// site's className, so there is nothing left here that an <a> can't do.
+//
+// Kept as a component rather than deleted outright only because several call
+// sites still route through it; it is a seam, not behaviour. Fold it into the
+// call sites next time one of them is touched.
 export function MotionCta({ href, className, children }: MotionCtaProps) {
-  const reduceMotion = useReducedMotion();
-
   return (
-    <motion.a
-      href={href}
-      className={className}
-      whileHover={reduceMotion ? undefined : { scale: motionTokens.scale.pop }}
-      whileTap={reduceMotion ? undefined : { scale: motionTokens.scale.press }}
-      transition={springs.snappy}
-    >
+    <a href={href} className={className}>
       {children}
-    </motion.a>
+    </a>
   );
 }

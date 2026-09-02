@@ -1,5 +1,4 @@
 import { BentoCell, BentoGrid } from './bento-grid.js';
-import { Parallax } from './parallax.js';
 import { ScrollReveal } from './scroll-reveal.js';
 
 // Copy directive (Round 2): assert the outcome with confidence, withhold the
@@ -14,7 +13,7 @@ export function WhyReliable() {
             <p className="mb-2 font-mono text-sm uppercase tracking-widest text-accent-glow">
               Beyond localhost
             </p>
-            <h2 className="text-display-md font-bold text-text-primary">
+            <h2 className="text-[clamp(1.5rem,1.3rem+0.8vw,1.875rem)] font-semibold leading-[1.2] tracking-[-0.02em] text-text-primary">
               Most bots get caught in the first second.
             </h2>
             <p className="mt-4 max-w-measure text-text-secondary">
@@ -26,9 +25,8 @@ export function WhyReliable() {
         </ScrollReveal>
         <ScrollReveal index={1} className="col-span-2 md:col-span-2 lg:col-span-4">
           <BentoCell span="third" className="h-full">
-            <Parallax range={12}>
-              <p className="font-mono text-3xl font-bold text-accent">↑</p>
-            </Parallax>
+            <p className="font-mono text-3xl font-bold text-accent">↑</p>
+
             <p className="mt-2 text-text-secondary">
               escalates only when it has to — never runaway, never wasted.
             </p>

@@ -1,6 +1,5 @@
 import logo from '../assets/logo.svg';
 import { MotionCta } from './motion-cta.js';
-import { Parallax } from './parallax.js';
 import { ScrollReveal } from './scroll-reveal.js';
 
 // One action per viewport (Stripe teardown rule, brand-identity.md §5.7).
@@ -9,33 +8,33 @@ export function CtaFooter() {
     <>
       <section className="mx-auto max-w-[1400px] px-6 py-16 md:py-24">
         <ScrollReveal>
-          <Parallax range={16}>
-            <div
-              className="rounded-2xl p-10 text-center md:p-16"
-              style={{
-                backgroundImage:
-                  'linear-gradient(var(--surface-elevated), var(--surface-elevated)), linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.02) 40%, rgba(124,108,255,0.18))',
-                backgroundOrigin: 'border-box',
-                backgroundClip: 'padding-box, border-box',
-                border: '1px solid transparent',
-              }}
+          <div
+            className="rounded p-10 text-center md:p-16"
+            style={{
+              backgroundImage:
+                'linear-gradient(var(--surface-elevated), var(--surface-elevated)), linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.02) 40%, rgba(124,108,255,0.18))',
+              backgroundOrigin: 'border-box',
+              backgroundClip: 'padding-box, border-box',
+              border: '1px solid transparent',
+            }}
+          >
+            <h2 className="text-[clamp(1.5rem,1.3rem+0.8vw,1.875rem)] font-semibold leading-[1.2] tracking-[-0.02em] text-text-primary">
+              Give your agent eyes.
+            </h2>
+            <p className="mx-auto mt-4 max-w-measure text-text-secondary">
+              One connection, from $2.50/mo. Your dev server and the live web, the way you'd see
+              them yourself.
+            </p>
+            <MotionCta
+              href="/setup"
+              className="mt-8 inline-block rounded-full bg-accent px-8 py-3 font-semibold text-surface-base transition-[background-color,transform] duration-150 ease-base hover:-translate-y-px hover:bg-accent-hover active:translate-y-0 active:bg-accent-active"
             >
-              <h2 className="text-display-md font-bold text-text-primary">Give your agent eyes.</h2>
-              <p className="mx-auto mt-4 max-w-measure text-text-secondary">
-                One connection, from $2.50/mo. Your dev server and the live web, the way you'd see
-                them yourself.
-              </p>
-              <MotionCta
-                href="/setup"
-                className="mt-8 inline-block rounded-full bg-accent px-8 py-3 font-semibold text-surface-base transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              >
-                Connect Ocular
-              </MotionCta>
-            </div>
-          </Parallax>
+              Connect your agent
+            </MotionCta>
+          </div>
         </ScrollReveal>
       </section>
-      <footer className="border-t border-border">
+      <footer className="border-t border-rule-structural">
         <div className="mx-auto flex max-w-[1400px] flex-col items-center gap-4 px-6 py-10 md:flex-row md:justify-between">
           <img src={logo} alt="Ocular" className="h-5 w-auto opacity-80" />
           <p className="font-mono text-xs text-text-secondary">

@@ -34,17 +34,12 @@ const SPAN_CLASSES: Record<NonNullable<BentoCellProps['span']>, string> = {
   quarter: 'col-span-1 md:col-span-1 lg:col-span-3',
 };
 
-// Gradient-hairline border via the mask technique: a padded gradient layer
-// masked to only its edge, so the border reads as a real subtle gradient
-// rather than a flat single-tone line — replaces Round 1's `border-border`.
-const GRADIENT_BORDER_STYLE = {
-  backgroundImage:
-    'linear-gradient(var(--surface-elevated), var(--surface-elevated)), linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.02) 40%, rgba(124,108,255,0.18))',
-  backgroundOrigin: 'border-box',
-  backgroundClip: 'padding-box, border-box',
-  border: '1px solid transparent',
-} as const;
-
+// Depth via value-shift only, per the "Instrument" concept (research &
+// planning/moodboards/2026-09-02-ocular-visual-identity.html): a single
+// hairline border, no gradient, no glow-shadow, no background fill change on
+// hover beyond a one-step surface lift. Refactoring UI's "border + shadow +
+// background at once" anti-pattern — Round 2's gradient-border-plus-violet-
+// glow combination — is exactly what this replaces.
 export function BentoCell({
   children,
   span = 'quarter',
@@ -58,10 +53,8 @@ export function BentoCell({
 
   return (
     <Tag
-      className={`${SPAN_CLASSES[span]} group relative rounded-2xl p-6 transition-transform duration-300 hover:-translate-y-0.5 md:p-8 ${className}`}
-      style={GRADIENT_BORDER_STYLE}
+      className={`${SPAN_CLASSES[span]} rounded border border-rule-structural bg-surface-elevated p-6 transition-colors duration-200 hover:bg-surface-raised md:p-8 ${className}`}
     >
-      <div className="pointer-events-none absolute inset-0 -z-10 rounded-2xl opacity-0 shadow-[0_0_40px_rgba(124,108,255,0.15)] transition-opacity duration-300 group-hover:opacity-100" />
       {children}
     </Tag>
   );

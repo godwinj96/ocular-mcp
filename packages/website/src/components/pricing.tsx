@@ -13,14 +13,17 @@ const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL ?? 'http://localhost:30
 // design-ethics constraint.
 //
 // Two-tier model (Basic/Pro x Monthly/Annual) replaced the old flat $2.50/mo
-// plan 2026-09-01 (Session 26) — Pro exists specifically to unlock the
-// expensive stealth-ladder rungs (camoufox, paid unblocker), which is why
-// its price step is larger than Basic's quota bump alone would suggest.
+// plan 2026-09-01 (Session 26) — Pro exists specifically to unlock deeper
+// reach into pages that block simple scrapers, which is why its price step
+// is larger than Basic's quota bump alone would suggest. Copy deliberately
+// says "web requests," never "stealth ladder"/"rungs" — internal mechanism
+// names stay out of customer-facing copy (see feedback_website_copy_and_
+// positioning memory).
 const PLANS: Array<{
   tier: 'basic' | 'pro';
   label: string;
   quota: number;
-  rungs: string;
+  reach: string;
   monthly: number;
   annual: number;
 }> = [
@@ -28,17 +31,26 @@ const PLANS: Array<{
     tier: 'basic',
     label: 'Basic',
     quota: 40,
-    rungs: 'proxy + residential proxy',
+    reach: 'web requests a day',
     monthly: 2.5,
     annual: 25,
   },
-  { tier: 'pro', label: 'Pro', quota: 150, rungs: 'full stealth ladder', monthly: 20, annual: 180 },
+  {
+    tier: 'pro',
+    label: 'Pro',
+    quota: 150,
+    reach: 'web requests a day, with extra reach into pages that block simple scrapers',
+    monthly: 20,
+    annual: 180,
+  },
 ];
 
 export function Pricing() {
   return (
     <section id="pricing" className="mx-auto max-w-[1400px] px-6 py-16 md:py-24">
-      <h2 className="mb-10 text-display-md font-bold text-text-primary">Pricing</h2>
+      <h2 className="mb-10 text-[clamp(1.5rem,1.3rem+0.8vw,1.875rem)] font-semibold leading-[1.2] tracking-[-0.02em] text-text-primary">
+        Pricing
+      </h2>
       <BentoGrid>
         {PLANS.map((plan, index) => (
           <ScrollReveal
@@ -48,23 +60,24 @@ export function Pricing() {
           >
             <BentoCell span="hero" className="h-full">
               <p className="font-mono text-2xl font-semibold text-text-primary">{plan.label}</p>
-              <p className="mt-2 font-mono text-5xl font-bold text-accent">${plan.monthly}</p>
+              <p className="mt-2 font-mono text-5xl font-bold text-accent">
+                ${plan.monthly.toFixed(2)}
+              </p>
               <p className="mt-1 text-text-secondary">
-                per month (${plan.annual}/yr) — unlimited local captures, plus {plan.quota} cloud
-                renders/day
+                per month (${plan.annual}/yr) — unlimited localhost requests, plus {plan.quota}{' '}
+                {plan.reach}
               </p>
               <ul className="mt-6 space-y-2 text-text-secondary">
                 <li>Your dev server and localhost: unmetered, always.</li>
-                <li>Stealth ladder: {plan.rungs}.</li>
                 <li>
                   Full charge on a clean render, half if it doesn't come through, nothing on error.
                 </li>
               </ul>
               <MotionCta
                 href={`${DASHBOARD_URL}/login`}
-                className="mt-8 inline-block rounded-full bg-accent px-6 py-3 font-semibold text-surface-base transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="mt-8 inline-block rounded-full bg-accent px-6 py-3 font-semibold text-surface-base transition-[background-color,transform] duration-150 ease-base hover:-translate-y-px hover:bg-accent-hover active:translate-y-0 active:bg-accent-active"
               >
-                Connect Ocular
+                Connect your agent
               </MotionCta>
             </BentoCell>
           </ScrollReveal>

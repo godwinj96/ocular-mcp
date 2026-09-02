@@ -1,147 +1,86 @@
-import { useRef } from 'react';
-import { Dithering } from '@paper-design/shaders-react';
-import { useReducedMotion } from 'framer-motion';
-import { BentoCell, BentoGrid } from './bento-grid.js';
-import { MotionCta } from './motion-cta.js';
-import { Parallax } from './parallax.js';
-import { WorkflowPlayer } from './workflow-player.js';
-import logoMarkWatermark from '../assets/logo-mark-watermark.png';
+import { CaptureReadout } from './capture-readout.js';
 
-// Fixed, full-viewport grain — inline SVG feTurbulence, no network asset,
-// ~3-4% opacity via mix-blend-mode. brand-identity.md §6 texture notes.
-function GrainOverlay() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 -z-10 h-full w-full opacity-[0.035] mix-blend-overlay"
-    >
-      <filter id="grain">
-        <feTurbulence
-          type="fractalNoise"
-          baseFrequency="0.85"
-          numOctaves="2"
-          stitchTiles="stitch"
-        />
-      </filter>
-      <rect width="100%" height="100%" filter="url(#grain)" />
-    </svg>
-  );
-}
-
-// Oversized logo mark bleeding off one corner — the actual Ocular icon
-// silhouette (Ocular Assets/446821.png, confirmed transparent PNG via header
-// inspection) filled with a live paper-design Dithering shader (warp preset,
-// brand violet/cyan) instead of a flat static image, per brand-identity's
-// "wonder, not a teardown" direction. Falls back to the static image under
-// prefers-reduced-motion.
-function Watermark() {
-  const reduceMotion = useReducedMotion();
-
-  const maskStyle: React.CSSProperties = {
-    WebkitMaskImage: `url(${logoMarkWatermark})`,
-    maskImage: `url(${logoMarkWatermark})`,
-    WebkitMaskSize: 'contain',
-    maskSize: 'contain',
-    WebkitMaskRepeat: 'no-repeat',
-    maskRepeat: 'no-repeat',
-    WebkitMaskPosition: 'center',
-    maskPosition: 'center',
-  };
-
-  return (
-    <Parallax range={40} className="pointer-events-none absolute -right-12 -top-24 -z-10">
-      {reduceMotion ? (
-        <img
-          src={logoMarkWatermark}
-          alt=""
-          aria-hidden="true"
-          className="h-[32rem] w-[32rem] select-none opacity-[0.08] md:h-[40rem] md:w-[40rem]"
-        />
-      ) : (
-        <div
-          aria-hidden="true"
-          className="h-[32rem] w-[32rem] select-none opacity-[0.16] md:h-[40rem] md:w-[40rem]"
-          style={maskStyle}
-        >
-          <Dithering
-            shape="warp"
-            type="8x8"
-            colorBack="#0A0A0B00"
-            colorFront="#8C7DFF"
-            size={2.4}
-            speed={0.3}
-            className="h-full w-full"
-          />
-        </div>
-      )}
-    </Parallax>
-  );
-}
-
-// Cursor-reactive spotlight — a radial gradient following the pointer,
-// disabled entirely under prefers-reduced-motion.
-function Spotlight() {
-  const ref = useRef<HTMLDivElement>(null);
-  const reduceMotion = useReducedMotion();
-
-  if (reduceMotion) return null;
-
-  const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
-    const el = ref.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    el.style.setProperty('--x', `${event.clientX - rect.left}px`);
-    el.style.setProperty('--y', `${event.clientY - rect.top}px`);
-  };
-
-  return (
-    <div
-      ref={ref}
-      onMouseMove={handleMouseMove}
-      className="pointer-events-none absolute inset-0 -z-10 opacity-60 transition-opacity"
-      style={{
-        background:
-          'radial-gradient(400px circle at var(--x, 50%) var(--y, 20%), rgba(124,108,255,0.12), transparent 70%)',
-      }}
-    />
-  );
-}
+// Round 4. Built from the moodboard's "Instrument" concept plus live
+// measurements taken off linear.app and vercel.com at 1440x900 — not from
+// taste, and not from the moodboard thumbnail, which misled an earlier pass
+// into treating a concept-card headline as a hero headline.
+//
+// What the measurements actually say:
+//   - Linear's H1 is 64px at line-height 1.0, weight ~510, tracking -0.022em,
+//     over a 15px subhead. That is a 4.3x headline:body ratio. Restraint does
+//     not come from a small headline; it comes from tight leading, a weight
+//     at or below 600, and a deliberately small subhead. Rounds 1-3 argued
+//     about headline size and all three missed for that reason.
+//   - The hero has ZERO entrance animation. No fade, no stagger, no
+//     translate. The page simply renders, and only the signature moment
+//     moves. A staggered five-element entrance is the exact tic the concept
+//     rejects.
+//   - The product panel is full-bleed and cropped by the fold at the BOTTOM.
+//     That pulls the eye downward rather than sideways, and it survives every
+//     breakpoint without a special case. The two-column hero split this file
+//     used to have was itself part of the template problem.
+//
+// The stacked order is therefore: headline → split row → CTA → full-bleed
+// panel running off the bottom of the viewport.
 
 export function Hero() {
   return (
-    <section id="top" className="relative mx-auto max-w-[1400px] px-6 pb-16 pt-24 md:pt-32">
-      <GrainOverlay />
-      <Watermark />
-      <Spotlight />
-      <BentoGrid>
-        <BentoCell span="full" surface="open" className="mb-6">
-          <p className="mb-5 font-mono text-sm uppercase tracking-widest text-accent-glow">
-            Ocular · MCP server
+    <section id="top" className="relative overflow-hidden pt-[136px]">
+      <div style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}>
+        <div className="mx-auto max-w-[1240px]">
+          <p className="font-mono text-[11px] font-medium uppercase leading-none tracking-[0.16em] text-text-quaternary [margin-left:-0.04em]">
+            MCP server · Claude Code
           </p>
-          <h1 className="max-w-3xl text-display-lg font-bold text-text-primary">
-            Real eyes for AI agents.
-          </h1>
-          <p className="mt-6 max-w-measure text-lg leading-relaxed text-text-secondary md:text-xl">
-            Sees your dev server and the live web. One MCP connection — no infrastructure to run, no
-            blocks to fight.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-4">
-            <MotionCta
-              href="/setup"
-              className="rounded-full bg-accent px-6 py-3 font-semibold text-surface-base transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            >
-              Connect Ocular — from $2.50/mo
-            </MotionCta>
-            <span className="font-mono text-sm text-text-secondary">
-              5 tools · 1 MCP connection
-            </span>
-          </div>
-        </BentoCell>
 
-        <BentoCell span="full" surface="open">
-          <WorkflowPlayer />
-        </BentoCell>
-      </BentoGrid>
+          {/* Weight-mixing inside one sentence is the concept's named
+              hierarchy mechanism. Emphasis caps at 600 — 700 at this size is
+              the marketing register the concept exists to avoid. */}
+          <h1 className="mt-6 max-w-[17ch] text-[clamp(2.25rem,1.5rem+2.6vw,4rem)] font-normal leading-[1.0] tracking-[-0.022em] [text-wrap:balance]">
+            {/* Non-breaking space binds "UI" to the phrase it belongs with,
+                so the line can only ever break after "writes". Without it the
+                balancer strands "UI" alone at the head of line 2. */}
+            <span className="text-text-quaternary">Your agent writes</span>
+            <span className="font-semibold text-text-primary">{' '}UI it can&rsquo;t see.</span>
+          </h1>
+
+          {/* One row, two ends, shared baseline — Linear aligns its hero link
+              flush to the H1's right edge to within a pixel. Better use of the
+              width than a stacked caption, and it puts price where it belongs:
+              present, subordinate, not the first thing read. */}
+          <div className="mt-10 flex flex-col gap-4 border-t border-rule-divider pt-6 sm:flex-row sm:items-baseline sm:justify-between sm:gap-10">
+            <p className="max-w-[52ch] text-[15px] font-normal leading-6 tracking-[-0.011em] text-[#8a8f98] [text-wrap:pretty]">
+              So it guesses at layout, can&rsquo;t tell whether the canvas ever painted, and asks
+              you whether it looks right. Ocular gives it sight — starting with your dev server.
+            </p>
+            <p className="shrink-0 font-mono text-[11.5px] leading-none tracking-[0.02em] text-text-quaternary">
+              from $2.50/mo · unmetered on localhost
+            </p>
+          </div>
+
+          <div className="mt-9 flex flex-wrap items-center gap-6">
+            <a
+              href="/setup"
+              className="inline-flex h-[42px] items-center rounded-full bg-accent px-[22px] text-[13.5px] font-semibold tracking-[-0.005em] text-surface-base transition-[background-color,transform] duration-fast hover:-translate-y-px hover:bg-accent-hover active:translate-y-0 active:bg-accent-active"
+            >
+              Connect your agent
+            </a>
+            {/* NOTE: describes the planned one-time browser sign-in, not
+                today's paste-an-API-key setup. Do not ship to production
+                before that auth rework lands. */}
+            <p className="font-mono text-[11.5px] leading-none tracking-[0.02em] text-text-quaternary">
+              One line in your MCP config, then sign in once.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Full-bleed, cropped by the fold. No border, no shadow — the panel is
+          the page's one lit object and it needs no frame to say so. */}
+      <div id="readout" className="mt-20 px-0">
+        <div className="mx-auto max-w-[1680px] px-[var(--page-inset)]">
+          <CaptureReadout />
+        </div>
+      </div>
     </section>
   );
 }

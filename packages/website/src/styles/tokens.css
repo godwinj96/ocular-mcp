@@ -3,22 +3,76 @@
 @tailwind utilities;
 
 /*
- * Design tokens per research & planning/06-brand-identity.md §6 (Round 2 —
- * neutral grayscale, no navy hue cast). Mirrors tailwind.config.ts so
- * non-Tailwind contexts (inline SVG grain, canvas) reference the same values.
+ * Design tokens — "Instrument" concept (research & planning/moodboards/
+ * 2026-09-02-ocular-visual-identity.html): cold precision, value-shift depth
+ * only, no shadow / gradient / texture.
+ *
+ * Round 4 expansion. The single-value border token (#232326) is retired in
+ * favour of a three-weight rule system: one border colour across a whole page
+ * reads as a framework default, three graded ones read as a drawn line
+ * system. Under a no-decoration doctrine the rules ARE the design, so they
+ * get the same care a shadow scale would get elsewhere.
+ *
+ * Text is likewise a closed ladder of four values plus one inactive. Nine
+ * improvised greys read as a mockup; four exact ones read as a system. The
+ * hero subhead moved from #86868c (5.4:1) to #a1a1a8 (7.8:1) — it is the
+ * second most important element on the page and was reading muddy.
  */
 :root {
-  --surface-base: #0a0a0b;
-  --surface-elevated: #131315;
-  --surface-raised: #1c1c1f;
+  --surface-base: #09090b;
+  --surface-elevated: #121214;
+  --surface-raised: #1a1a1d;
 
-  --text-primary: #f2f2f0;
-  --text-secondary: #8f8f94;
+  --text-primary: #f4f4f2;
+  --text-secondary: #a1a1a8;
+  --text-tertiary: #86868c;
+  /* Fails AA for body copy by design — scoped to >=11px non-essential
+     metadata and decorative dim spans whose meaning survives without them. */
+  --text-quaternary: #6c6c72;
+  --text-inactive: #3a3a40;
 
-  --border-default: #2a2a2e;
+  /* Full-bleed band separators, nav underline, spec-strip rules. */
+  --rule-structural: #202024;
+  /* List-row dividers, panel-internal dividers, feature-row tops. */
+  --rule-divider: #17171a;
+  /* Registration ticks, divider hover, panel frame. */
+  --rule-mark: #2c2c31;
 
   --accent: #8c7dff;
+  --accent-hover: #9d90ff;
+  --accent-active: #7e6ef0;
   --accent-glow: #5eead4;
+
+  /* The only non-pill radius on the site. Mixed radii is the loudest
+     template tell available, so there are exactly two values. */
+  --radius: 6px;
+
+  /* One easing for the entire site, and two durations. Measured off
+     linear.app, which runs essentially everything on this single curve at
+     0.1s / 0.16s — the discipline is itself the premium signal, and a page
+     carrying a dozen easings reads cheap no matter how good each one is.
+     The readout sequence is the sole exception, and being the only exception
+     is what makes it read as signature rather than as more of the same. */
+  --ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --dur-fast: 100ms;
+  --dur: 160ms;
+
+  --page-inset: clamp(24px, 5vw, 88px);
+}
+
+/* A crisp 0.5px hairline reads sharper — and more expensive — than a 1px one.
+   The crispness is the tell. 1dppx displays keep the 1px fallback. */
+@media (min-resolution: 2dppx) {
+  .rule-hairline {
+    border-width: 0.5px;
+  }
+}
+
+/* One focus ring for the whole site, in the system's "instrument is reading
+   this" colour, so the signifier means the same thing everywhere it appears. */
+:where(a, button, [role='button'], input, select, textarea):focus-visible {
+  outline: 1px solid var(--accent-glow);
+  outline-offset: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {

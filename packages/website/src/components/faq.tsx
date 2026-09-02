@@ -24,7 +24,9 @@ const FAQS = [
 export function Faq() {
   return (
     <section className="mx-auto max-w-[1400px] px-6 py-16 md:py-24">
-      <h2 className="mb-10 text-display-md font-bold text-text-primary">FAQ</h2>
+      <h2 className="mb-10 text-[clamp(1.5rem,1.3rem+0.8vw,1.875rem)] font-semibold leading-[1.2] tracking-[-0.02em] text-text-primary">
+        FAQ
+      </h2>
       <dl className="max-w-measure space-y-8">
         {FAQS.map((item, index) => (
           <ScrollReveal key={item.q} index={index}>

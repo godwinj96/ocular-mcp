@@ -1,17 +1,17 @@
 import { Outlet } from '@tanstack/react-router';
-import { DotField } from '../components/dot-field.js';
-import { ScrollProgress } from '../components/scroll-progress.js';
 import { Nav } from '../components/nav.js';
 
-// Shared shell for every route — the ambient WebGL background, scroll
-// progress bar, and floating nav pill are brand chrome, not homepage-
-// specific content, so they live at the router root rather than being
-// duplicated per page.
+// The ambient WebGL dot-field and the scroll-progress bar are both gone.
+//
+// The Instrument concept names the first explicitly ("Dot-field → static
+// lattice or removed"), and its own behavioural note is the reason: this
+// audience penalises a marketing page heavier than the product it sells, so
+// shipping a WebGL background on a page selling a lightweight tool is a
+// direct contradiction. The progress bar was non-informative decoration on a
+// six-section page.
 export function RootLayout() {
   return (
     <div className="min-h-screen overflow-x-hidden">
-      <DotField />
-      <ScrollProgress />
       <Nav />
       <main>
         <Outlet />
