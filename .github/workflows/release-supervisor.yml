@@ -1,0 +1,126 @@
+name: Release supervisor binaries
+
+# Cross-compiles the Go supervisor (packages/local-worker/supervisor) for
+# every platform useocular's binary-resolver.ts supports, publishes them as
+# GitHub Release assets, and commits the resulting SHA-256 checksums back
+# into supervisor-checksums.json — the file binary-resolver.ts trusts as the
+# pinned integrity source at download time. See
+# docs/rules/13-local-worker-and-distribution.md §10.
+#
+# Trigger: push a tag matching supervisor-v* (e.g. supervisor-v0.1.0) once
+# the Go source is ready to ship. The version in the tag must match the
+# "version" field in supervisor-checksums.json.
+
+on:
+  push:
+    tags:
+      - 'supervisor-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - key: win32-x64
+            goos: windows
+            goarch: amd64
+            ext: .exe
+            ldflags: '-H windowsgui' # see docs/rules/13 §4 — a plain build flashes a console window
+          - key: darwin-x64
+            goos: darwin
+            goarch: amd64
+            ext: ''
+            ldflags: ''
+          - key: darwin-arm64
+            goos: darwin
+            goarch: arm64
+            ext: ''
+            ldflags: ''
+          - key: linux-x64
+            goos: linux
+            goarch: amd64
+            ext: ''
+            ldflags: ''
+    runs-on: ubuntu-latest
+    outputs: {}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          # No external dependencies (go.mod has no require block), so there's
+          # no go.sum for actions/setup-go's module-cache key to hash — a
+          # cache-dependency-path pointing at a nonexistent file fails the
+          # step outright. Nothing to cache either way.
+          cache: false
+      - name: Build
+        working-directory: packages/local-worker/supervisor
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0' # pure Go — no cgo, so a single ubuntu runner can cross-compile every target
+        run: |
+          set -euo pipefail
+          out="ocular-supervisor${{ matrix.ext }}"
+          if [ -n "${{ matrix.ldflags }}" ]; then
+            go build -ldflags="${{ matrix.ldflags }}" -o "$out" .
+          else
+            go build -o "$out" .
+          fi
+          asset="${{ matrix.key }}-ocular-supervisor${{ matrix.ext }}"
+          mv "$out" "$asset"
+          sha256sum "$asset" > "$asset.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: supervisor-${{ matrix.key }}
+          path: packages/local-worker/supervisor/${{ matrix.key }}-ocular-supervisor*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Assemble checksum manifest
+        id: manifest
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#supervisor-v}"
+          node - <<'EOF'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const version = process.env.VERSION;
+          const dir = 'artifacts';
+          const manifestPath = 'packages/local-worker/supervisor-checksums.json';
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+          manifest.version = version;
+          for (const key of Object.keys(manifest.binaries)) {
+            const shaFile = fs.readdirSync(dir).find((f) => f.startsWith(`${key}-`) && f.endsWith('.sha256'));
+            if (!shaFile) throw new Error(`Missing checksum artifact for ${key}`);
+            const hash = fs.readFileSync(path.join(dir, shaFile), 'utf8').trim().split(/\s+/)[0];
+            manifest.binaries[key] = hash;
+          }
+          fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+          EOF
+        env:
+          VERSION: ${{ github.ref_name }}
+      - name: Commit updated checksums
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packages/local-worker/supervisor-checksums.json
+          git commit -m "chore(local-worker): pin supervisor checksums for ${GITHUB_REF_NAME}" || echo "No changes to commit"
+          git push origin HEAD:main
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: artifacts/*-ocular-supervisor*
+          fail_on_unmatched_files: true
