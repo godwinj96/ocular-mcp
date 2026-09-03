@@ -710,3 +710,148 @@ Rather than forging `accounts.subscription_status` directly in prod Postgres (ra
 1. **KPI tracking (Session 26 handoff #2) and cost tracking (#3) — still not started.** They were blocked on having a live MCP connection, which now exists. But **the newly registered server's tools only become callable after a Claude Code session restart**, so the first real dogfood capture and any instrumentation work has to begin in a fresh session.
 2. ~~The website redeploy is still pending~~ — **done.** Both Vercel projects are git-connected to `main`, so every push auto-deploys both; the Session 27 DEVLOG push carried the website build that picked up `VITE_DASHBOARD_URL`. Verified against the live bundle, not assumed: `https://www.useocular.dev/assets/index-*.js` contains `dashboard.useocular.dev` and zero occurrences of `localhost:3001`. **Useful distinction worth keeping:** a git-triggered deploy builds from the _committed_ tree, so the still-unshipped Phase 5 redesign is never at risk from a normal push — that risk applies only to `npx vercel deploy` from the CLI, which packages the local working directory as-is. Prefer pushing over CLI deploys while the redesign sits uncommitted.
 3. **The full redesign remains the open item Session 26 left it as.** The founder's verdict on the dashboard's billing cards this session was "look terrible btw, that full redesign is really needed" — consistent with, not additional to, the standing "the site still looks like crap" verdict. Dashboard and website both need it.
+
+---
+
+### 2026-09-02/03 — Session 28: dogfooding KPIs, two Ocular bugs found by using it, website rounds 4–5
+
+Resumed on Session 27's handoff items. **Six commits, none pushed** — read "Open TODOs" #2 before pushing anything.
+
+```
+c7707be docs(dogfooding): KPI definitions, probe tooling, and first measured baseline
+63c3d2d feat(local-worker): phase timing on local renders + dogfooding findings
+7d6bb3c feat(website): round-4 redesign grounded in moodboard + measured references
+4b3618a fix(local-worker): honor viewport input and make full_page actually full page
+07f77e8 feat(website): round 5 — demo-heavy below-fold, perpetual signature loop
+```
+
+#### KPI / cost tracking (Session 27 handoff #1) — partially done
+
+`docs/dogfooding/` is new and is where findings live now, not DEVLOG: `README.md`, `kpis.md`,
+`2026-09-02-first-baseline.md` (carries a superseded-in-part banner), and
+`2026-09-02-phase-breakdown-and-engine.md`. `packages/local-worker/scripts/kpi-probe.mjs` drives the
+worker over real MCP stdio and reports latency, image/a11y byte split, and a role histogram.
+`OCULAR_TRACE_PHASES=1` now emits per-phase timings to **stderr only** (stdout would corrupt MCP
+stdio framing), and `meta.durationMs` is populated — it was hardcoded `0`.
+
+**The headline finding corrects Session 27's own baseline.** The render is ~1s (screenshot 55–65% of
+it, a11y tree ~2%). The 11.5s figure was the _subscription check_: `get_quota` measures 5.9s because
+Neon sits in `us-east-1` and Upstash in `eu-central-1`, so the local path makes two intercontinental
+round trips before screenshotting a server on localhost. **This makes the auth rework a performance
+fix, not only a UX one** — it is the single largest latency item in the product.
+
+Measured, against my own wrong prediction (I said rounding would win): coordinate rounding saves
+**6.5%**, pruning unnamed generics **12.7%**, collapsing single-child wrappers **0.0%**.
+
+Engine question settled: `--headless=new` produces zero visible windows, so invisibility does not
+require `chrome-headless-shell`. headless-shell is SwiftShader-pinned; new-headless runs D3D11,
+though on this machine it only reached Windows' software adapter, and `--use-angle=gl` broke WebGL
+entirely. Not acted on — recorded for the decision.
+
+#### Two real Ocular bugs, both found by using Ocular on our own site (`4b3618a`)
+
+Both silently returned a viewport-sized, default-width capture, which is why desktop layouts could
+not be verified through the product.
+
+1. **`full_page` was a no-op.** It clipped to `Page.getLayoutMetrics().cssContentSize`, which since
+   Chrome M111 reports the _visual viewport_, not the document — so the clip rect equalled the
+   viewport. Puppeteer moved off that field for the same reason. Now reads the document's own
+   scroll dimensions.
+2. **`viewport` was accepted and ignored.** It is in `view-page.schema.ts`, but nothing on the local
+   path ever called `Emulation.setDeviceMetricsOverride`. Now applied _before_ navigate, so media
+   queries and on-mount measurement resolve at the right size.
+
+**To answer the question that prompted this: Ocular can scroll.** The CDP wheel dispatcher exists and
+`motion-capture.ts` already drives it. These were two unrelated defects, not a missing capability.
+
+**Verified only by typecheck.** The running MCP server was still the pre-fix build for the rest of
+the session (it returned an 800px capture when asked for 1440), so **the first job next session is to
+restart, then confirm `full_page: true` returns a tall image and `viewport: {w:1440,h:900}` is
+honoured.** chrome-devtools was used for desktop checks in the meantime.
+
+#### Website rounds 4 and 5 (`7d6bb3c`, `07f77e8`)
+
+Round 4 (hero) was approved: _"actually looks like something from an actual serious SaaS."_ Round 5
+rebuilt everything below it. Both rounds used the `ui-design-intelligence` and `product-intelligence`
+agents together — **rounds 1–3, done without them, produced no meaningful change and were rejected.**
+That is now a persisted global memory rule: always use both agents for UI work, and never design from
+recalled taste.
+
+Reference sites were measured live via CDP, not recalled. Linear's section H2 is 48px/1.0/weight ~510
+over a 24px deck; Vercel's is 56px. Ours capped at **30px over a 15.5px deck**. Our H1 was already
+correct at 64px, so the H2:H1 ratio was **0.47 where Linear's is 0.75** — a rank and a half low, which
+is why the below-fold read as an appendix to the hero. Linear's section header is also a _two-column
+split sharing a top edge_, not a stack; ours stacked and left half a 1240px measure empty. That, not
+padding, was the actual source of the "whitespace is wrong" note.
+
+Structure now: bridge statement → four looping demos (capture / motion / reach / read-only) → pricing
+→ FAQ → closer. Four full-bleed rules between chapters rather than seven between sections; demos
+overhang the text measure by 80px per side.
+
+**Motion.** The signature readout ran once on mount and died — _"that's a transition, not an
+animation."_ It now runs a perpetual **7400ms** cycle: sweep → acquire → read → release → rest, 2000ms
+of motion to 5400ms of stillness. The rest phase is load-bearing; without it the loop reads as churn.
+The blur resolve deliberately does **not** loop (re-blurring every cycle would strobe, and Ocular does
+not gradually focus). Four below-fold demos loop on pure CSS keyframes with per-child
+`animation-delay`, gated by one IntersectionObserver so nothing animates offscreen.
+
+Deleted: `bento-grid`, `why-reliable` (its "most bots get caught in the first second" line is a
+technique-based moat claim CLAUDE.md forbids), `scroll-reveal`, `motion-cta`, `wireframe-icons`,
+`how-it-works`, `hairline-row`, `lib/motion-tokens`. Dropped `framer-motion` and `ogl`.
+**Bundle 131KB → 81KB gzip.**
+
+**A process correction worth keeping.** I overrode two of the product agent's recommendations on my own
+judgment — dropped copy naming Cursor because client support "wasn't verified", and dismissed a
+proposed hero artifact as "fabricated". The founder overruled both: broad MCP-client support _is_ the
+product, so copy naming clients does not wait on per-client CI, and a proposed artifact is a brief to
+build, not a claim. Both are now persisted memory rules. Multi-client copy is in the FAQ and setup page.
+
+---
+
+### Open TODOs — pick up here
+
+**Blocking / do first**
+
+1. **Restart the MCP server and verify `4b3618a`.** Confirm `full_page: true` returns a full-height
+   image and `viewport: {w,h}` is honoured. Everything visual downstream depends on this.
+2. **Nothing is pushed — 6 commits ahead of `origin/main`.** Both Vercel projects auto-deploy from
+   `main`, and **the website copy describes an OAuth sign-in that does not exist yet** (`hero.tsx`,
+   `cta-footer.tsx`, `setup-page.tsx` — each carries an in-code deploy-gate comment). Pushing ships
+   copy promising "no API key" while the product still requires one. Either land the auth rework
+   first, or revert that copy to the key flow before pushing. **This is a deliberate gate, not an
+   oversight.**
+
+**The redesign — what's actually left**
+
+3. **The dashboard has not been touched at all.** It is the same pre-redesign UI the founder called
+   "terrible" during the live checkout test. It needs what the website just got: the round-5 token
+   system, the type ladder, no bounding-box cards. Use both design agents.
+4. Round-5 demos are built but only checked at 1440 and 800. **Verify 375 / 768 / 1024 / 1920**, and
+   verify the loops under `prefers-reduced-motion` — each keyframe's `100%` is meant to be its
+   complete resting state, not its empty one.
+
+**Auth / accounts — the thread that keeps resurfacing**
+
+5. **Retire the API-key flow (founder-flagged, Session 27).** Users must never handle a key; it
+   violates the "set it and forget it" promise. OAuth device flow via WorkOS AuthKit.
+   `setup-page.tsx` is already written for the two-step version and `MCP_CONFIG_SNIPPET` no longer
+   contains `OCULAR_API_KEY` — the page is ahead of the product, deliberately.
+6. **This is also the top performance fix** (see the 5.9s `get_quota` finding above), not only UX.
+   Consider co-locating Neon and Upstash, or caching the subscription check harder on the local path.
+7. **RBAC — superadmin/user at minimum** (founder-flagged, Session 27). Schema migration plus
+   `verify-jwt.ts`, `verify-static-key.ts`, and the local-worker subscription check. Originally
+   raised to exempt the founder's own account from billing for testing; the schema cannot express it.
+8. Founder's own API key stays tracked backlog, in `packages/local-worker/.env` (gitignored,
+   confirmed via `git check-ignore` → `.gitignore:23`).
+
+**Still unresolved from Session 27**
+
+9. **Cloud renders time out entirely** — needs `packages/worker` running; never tested this session.
+10. **Possible quota charging on failed renders.** The design agent observed quota at 126/150 after a
+    run of failures. Unconfirmed, but if real it contradicts `docs/rules/11-billing-and-quota.md` §1
+    ("an error costs nothing") and is a billing-correctness bug. Check `settle-quota.ts` against the
+    error-code table.
+11. **Founder decisions still open:** whether to prune unnamed generic a11y nodes (12.7% saving, but
+    pruning risks dropping real content — see `docs/dogfooding/`), and whether to move the a11y tree
+    to a compact YAML-ish format.
+12. GitNexus index is stale (last indexed `6d52969`). Run `node .gitnexus/run.cjs analyze`.
