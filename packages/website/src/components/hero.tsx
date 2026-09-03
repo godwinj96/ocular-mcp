@@ -36,11 +36,13 @@ export function Hero() {
               hierarchy mechanism. Emphasis caps at 600 — 700 at this size is
               the marketing register the concept exists to avoid. */}
           <h1 className="mt-6 max-w-[17ch] text-[clamp(2.25rem,1.5rem+2.6vw,4rem)] font-normal leading-[1.0] tracking-[-0.022em] [text-wrap:balance]">
-            {/* Non-breaking space binds "UI" to the phrase it belongs with,
-                so the line can only ever break after "writes". Without it the
-                balancer strands "UI" alone at the head of line 2. */}
-            <span className="text-text-quaternary">Your agent writes</span>
-            <span className="font-semibold text-text-primary">{' '}UI it can&rsquo;t see.</span>
+            {/* The non-breaking space goes BETWEEN "UI" and "it", binding them
+                together so the only place the line can break is after
+                "writes". It was previously placed before "UI", which bound
+                "UI" to "writes" and forced the break on the wrong side —
+                stranding a lit, semibold "UI" alone at the end of line 1. */}
+            <span className="text-text-quaternary">Your agent writes</span>{' '}
+            <span className="font-semibold text-text-primary">UI{' '}it can&rsquo;t see.</span>
           </h1>
 
           {/* One row, two ends, shared baseline — Linear aligns its hero link

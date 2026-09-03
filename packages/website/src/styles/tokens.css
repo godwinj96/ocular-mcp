@@ -57,7 +57,42 @@
   --dur-fast: 100ms;
   --dur: 160ms;
 
+  /* Below-fold section rhythm. Four steps, not one, because uniform padding
+     is what makes a long page read as a stack of stripes. Paired
+     asymmetrically per section so S1+S2 group as one chapter and S3+S4 as
+     another, with the large breaks falling between chapters rather than
+     between every section. */
+  --sec-air-xl: clamp(96px, 11vw, 176px);
+  --sec-air-lg: clamp(72px, 9vw, 136px);
+  --sec-air-md: clamp(56px, 7vw, 104px);
+  --sec-air-sm: clamp(44px, 5.5vw, 80px);
+
+  /* The site's second and final easing, scoped to the instrument loops.
+     --ease is symmetric and correct for a state flipping between two values;
+     a drawing stroke is a length ARRIVING and has to decelerate, or it reads
+     as a skeleton filling rather than an instrument acquiring — which is
+     exactly the note the founder gave on round 4. This curve was already in
+     capture-readout.tsx as an inline literal (twice), so naming it takes the
+     site from three curves to two rather than adding a third. Retraction
+     replays it with animation-direction: reverse; there is deliberately no
+     --ease-retract. */
+  --ease-draw: cubic-bezier(0.33, 1, 0.68, 1);
+
   --page-inset: clamp(24px, 5vw, 88px);
+}
+
+/* Demo loops idle until scrolled into view — offscreen animation is battery
+   cost with no viewer, on a page selling a low-footprint product. One
+   IntersectionObserver (see hooks/use-in-view.ts) adds .is-live. */
+.demo-loop *,
+.demo-loop *::before,
+.demo-loop *::after {
+  animation-play-state: paused;
+}
+.demo-loop.is-live *,
+.demo-loop.is-live *::before,
+.demo-loop.is-live *::after {
+  animation-play-state: running;
 }
 
 /* A crisp 0.5px hairline reads sharper — and more expensive — than a 1px one.
@@ -83,5 +118,226 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Demo loops.
+ *
+ * Every loop below shares one shape: a short acquire, a LONG hold, a release,
+ * and a rest. The hold is not padding — it is the whole effect. Motion that
+ * runs continuously reads as churn; motion that performs a discrete operation
+ * and then waits reads as an instrument doing its job, which is the
+ * "understated elegance" note this round is answering.
+ *
+ * Staggering is done with per-child `animation-delay`. A delay offsets the
+ * first iteration and every iteration after it, so one keyframe rule plus an
+ * index-derived delay gives a permanently phase-shifted cascade with zero JS
+ * and zero React re-render.
+ *
+ * Each rule's 100% frame is its RESTING state, never its empty one: the
+ * prefers-reduced-motion block above forces animation-iteration-count to 1,
+ * so the last frame is what a reduced-motion visitor is left looking at. It
+ * must be complete and legible.
+ * ------------------------------------------------------------------------- */
+
+/* S1 · tree rows land one at a time, hold 3.4s, dim back. */
+@keyframes row-cycle {
+  0% {
+    opacity: 0.08;
+  }
+  3.2% {
+    opacity: 1;
+  }
+  79.5% {
+    opacity: 1;
+  }
+  85.6%,
+  100% {
+    opacity: 0.08;
+  }
+}
+
+/* S1 · the box in the frame lifts as its row lands, then settles back. */
+@keyframes box-pulse {
+  0%,
+  1.5% {
+    opacity: 0.9;
+  }
+  4.5% {
+    opacity: 1;
+  }
+  11% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0.9;
+  }
+}
+
+/* S2 · contact-sheet cells populate in reading order. The grid plate itself
+   never animates, so there is no layout shift and the empty plate reads as an
+   instrument waiting rather than as a skeleton loading. */
+@keyframes cell-cycle {
+  0% {
+    opacity: 0.08;
+  }
+  2.4% {
+    opacity: 1;
+  }
+  83.4% {
+    opacity: 1;
+  }
+  88.9%,
+  100% {
+    opacity: 0.08;
+  }
+}
+
+/* S3 row A · localhost ticks accumulate and never resolve to a limit. */
+@keyframes tick-in {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.4);
+  }
+  5% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  90% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+/* S3 row B · the metered track fills to 12 of 40, holds, then clears. */
+@keyframes slot-fill {
+  0% {
+    background-color: var(--text-inactive);
+  }
+  2.5% {
+    background-color: var(--accent);
+  }
+  93.75% {
+    background-color: var(--accent);
+  }
+  100% {
+    background-color: var(--accent);
+  }
+}
+
+/* S4 · the read cursor steps down the available operations and STOPS DEAD on
+   the rule. The animation's own inability to cross the line is the claim —
+   there is no easing out of the halt and no overshoot, because a bounce would
+   imply it tried. */
+@keyframes boundary-cursor {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  3% {
+    opacity: 0.5;
+  }
+  13.36% {
+    transform: translateY(0);
+  }
+  17.94%,
+  26.72% {
+    transform: translateY(var(--row-h));
+  }
+  31.3%,
+  40.08% {
+    transform: translateY(calc(var(--row-h) * 2));
+  }
+  44.66%,
+  71.37% {
+    transform: translateY(calc(var(--row-h) * 3));
+    opacity: 0.5;
+  }
+  75.95%,
+  100% {
+    transform: translateY(calc(var(--row-h) * 3));
+    opacity: 0;
+  }
+}
+
+/* S4 · the row under the cursor lifts; everything else sits back. */
+@keyframes boundary-row {
+  0%,
+  10% {
+    color: var(--text-secondary);
+  }
+  13% {
+    color: var(--text-primary);
+  }
+  22% {
+    color: var(--text-secondary);
+  }
+  100% {
+    color: var(--text-secondary);
+  }
+}
+
+/* Hero readout · the scan line, at constant velocity. A scanner that eases is
+   decoration; one that runs linearly is a mechanism. */
+@keyframes readout-sweep {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  1% {
+    opacity: 1;
+  }
+  14.86% {
+    transform: translateY(var(--sweep-travel));
+    opacity: 1;
+  }
+  15.68%,
+  100% {
+    transform: translateY(var(--sweep-travel));
+    opacity: 0;
+  }
+}
+
+/* Hero readout · a box acquires its target, holds, and lets go. The dash
+   length differs per box, so the keyframe reads it from --p rather than
+   hardcoding one. Percentages are of the 7400ms cycle:
+   1120ms draw start · 1380 drawn · 5580 retract start · 5960 released. */
+@keyframes readout-box {
+  0%,
+  15.14% {
+    stroke-dashoffset: var(--p);
+  }
+  18.65%,
+  75.4% {
+    stroke-dashoffset: 0;
+  }
+  80.5%,
+  100% {
+    stroke-dashoffset: var(--p);
+  }
+}
+
+/* Hero readout · the label lands after its box finishes drawing and leaves
+   before the box retracts, so the two never move at the same instant. */
+@keyframes readout-label {
+  0%,
+  18.65% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  21.1%,
+  72.97% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  75.4%,
+  100% {
+    opacity: 0;
+    transform: translateY(-3px);
   }
 }

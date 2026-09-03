@@ -43,6 +43,20 @@ export default {
       },
       maxWidth: {
         measure: '68ch',
+        // Section deck at 22px — Bringhurst's measure ceiling applied at the
+        // deck's own size, not the body's.
+        deck: '40ch',
+        // Demos overhang the 1240px text measure by 80px per side. Measured
+        // off linear.app, whose demo panels run 1469px inside a 1335px
+        // container: the demo being wider than the prose is what stops a long
+        // page reading as a column of stacked cards.
+        demo: '1400px',
+      },
+      spacing: {
+        'sec-xl': 'var(--sec-air-xl)',
+        'sec-lg': 'var(--sec-air-lg)',
+        'sec-md': 'var(--sec-air-md)',
+        'sec-sm': 'var(--sec-air-sm)',
       },
       borderRadius: {
         DEFAULT: '6px',
@@ -51,6 +65,9 @@ export default {
       transitionTimingFunction: {
         DEFAULT: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
         base: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+        // Instrument loops only — see tokens.css for why a decelerating curve
+        // is structurally required for a stroke that draws.
+        draw: 'var(--ease-draw)',
       },
       transitionDuration: {
         fast: '100ms',
