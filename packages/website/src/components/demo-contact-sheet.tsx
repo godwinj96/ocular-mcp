@@ -24,7 +24,8 @@ export function DemoContactSheet() {
 
   return (
     <section
-      className="pb-sec-xl pt-sec-md"
+      id="motion"
+      className="pt-sec-minor"
       style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
     >
       <div className="mx-auto max-w-[1240px]">
@@ -37,7 +38,7 @@ export function DemoContactSheet() {
 
       <div
         ref={ref}
-        className={`demo-loop mx-auto mt-[112px] max-w-demo ${inView ? 'is-live' : ''}`}
+        className={`demo-loop mx-auto mt-demo-gap max-w-demo ${inView ? 'is-live' : ''}`}
       >
         {/* The plate shows through the 1px gaps. That IS the grid. */}
         <div

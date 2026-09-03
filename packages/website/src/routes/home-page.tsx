@@ -4,6 +4,7 @@ import { DemoTreeReadout } from '../components/demo-tree-readout.js';
 import { DemoContactSheet } from '../components/demo-contact-sheet.js';
 import { DemoReachMeter } from '../components/demo-reach-meter.js';
 import { DemoBoundary } from '../components/demo-boundary.js';
+import { HowItWorks } from '../components/how-it-works.js';
 import { Pricing } from '../components/pricing.js';
 import { Faq } from '../components/faq.js';
 import { CtaFooter } from '../components/cta-footer.js';
@@ -18,10 +19,31 @@ import { CtaFooter } from '../components/cta-footer.js';
 // hasn't been sold yet doesn't care about the safety story and one who has
 // cares a great deal.
 //
-// S1+S2 group as one chapter and S3+S4 as another; the four full-bleed rules
-// fall between chapters rather than between every section. That asymmetry is
-// deliberate — uniform padding is what makes a long page read as a stack of
-// stripes rather than as a document.
+// S1+S2 group as one chapter and S3+S4 as another, and the boundary spacing
+// says so: a major gap opens a chapter, a minor gap separates the two
+// sections inside one. Round 5 tried to express this by giving each section
+// its own pad-top and pad-bottom, which produced seven different perceived
+// gaps between 124px and 312px — the founder read that as sloppiness, not as
+// rhythm. Each boundary now owns exactly one token (see tokens.css); every
+// section below carries a padding-top only.
+//
+//   Hero      → Bridge    major
+//   Bridge    → Tree      major   (chapter 1 opens)
+//   Tree      → Contact   minor
+//   Contact   → Reach     major   (chapter 2 opens)
+//   Reach     → Boundary  minor
+//   Boundary  → HowWorks major   (the close opens)
+//   HowWorks  → Pricing   minor
+//   Pricing   → FAQ       minor
+//   FAQ       → Closer    major
+//
+// How-it-works opens the close chapter rather than sitting earlier, because
+// "how much work is this to adopt" is not an objection a stranger has before
+// they want the thing — it is the one immediately after wanting it and
+// immediately before price. Putting it earlier would front-load chores ahead
+// of desire and split the S1-S4 demo run the chapter spacing exists to hold
+// together. It also gives the close a three-beat shape: it's easy to adopt,
+// here's the price, here are the uncomfortable questions.
 export function HomePage() {
   return (
     <>
@@ -31,6 +53,7 @@ export function HomePage() {
       <DemoContactSheet />
       <DemoReachMeter />
       <DemoBoundary />
+      <HowItWorks />
       <Pricing />
       <Faq />
       <CtaFooter />

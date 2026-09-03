@@ -75,7 +75,8 @@ export function DemoTreeReadout() {
 
   return (
     <section
-      className="pb-sec-md pt-sec-lg"
+      id="capture"
+      className="pt-sec-major"
       style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
     >
       <div className="mx-auto max-w-[1240px]">
@@ -89,7 +90,7 @@ export function DemoTreeReadout() {
       {/* Demos overhang the text measure by 80px per side. */}
       <div
         ref={ref}
-        className={`demo-loop mx-auto mt-[112px] max-w-demo ${inView ? 'is-live' : ''}`}
+        className={`demo-loop mx-auto mt-demo-gap max-w-demo ${inView ? 'is-live' : ''}`}
       >
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-[7fr_5fr] lg:gap-0">
           {/* Left — the picture. */}

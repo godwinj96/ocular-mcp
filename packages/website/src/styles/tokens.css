@@ -57,15 +57,31 @@
   --dur-fast: 100ms;
   --dur: 160ms;
 
-  /* Below-fold section rhythm. Four steps, not one, because uniform padding
-     is what makes a long page read as a stack of stripes. Paired
-     asymmetrically per section so S1+S2 group as one chapter and S3+S4 as
-     another, with the large breaks falling between chapters rather than
-     between every section. */
-  --sec-air-xl: clamp(96px, 11vw, 176px);
-  --sec-air-lg: clamp(72px, 9vw, 136px);
-  --sec-air-md: clamp(56px, 7vw, 104px);
-  --sec-air-sm: clamp(44px, 5.5vw, 80px);
+  /* Below-fold section rhythm.
+     Round 5 assigned every section its own pad-top and pad-bottom from a
+     four-step scale, but what a reader perceives at a boundary is the SUM of
+     one section's bottom and the next one's top -- and that sum was never
+     checked. It came out between 124px and 312px with no pattern, which reads
+     as sloppiness rather than as rhythm.
+     So the token is now the GAP ITSELF, and each boundary owns exactly one
+     value: every section carries only a padding-top, no padding-bottom. Two
+     values, not four -- major for a chapter break, minor for a break inside a
+     chapter. Two distinct gaps read as structure; seven near-random ones do
+     not.
+     Round 1 of this fix used 272/168 — a 1.6x ratio, which is the worst place
+     to sit: too close to read as two deliberate values, too far apart to read
+     as one. Founder's verdict on the built page was that it looked WORSE. The
+     ratio is now exactly 2:1 at every width, and the absolute values come
+     down, because 272px of dead air at a boundary reads as a hole rather than
+     as generosity. */
+  --sec-gap-major: clamp(104px, 12vw, 224px);
+  --sec-gap-minor: clamp(52px, 6vw, 112px);
+
+  /* The gap between a section header and its demo. Must stay well under
+     --sec-gap-minor at EVERY width: this was a hard-coded 112px while section
+     air was clamped, so at 375px the space inside a section (112px) exceeded
+     the space between sections (44px), inverting the grouping. */
+  --demo-gap: clamp(32px, 3.5vw, 64px);
 
   /* The site's second and final easing, scoped to the instrument loops.
      --ease is symmetric and correct for a state flipping between two values;
@@ -108,6 +124,17 @@
 :where(a, button, [role='button'], input, select, textarea):focus-visible {
   outline: 1px solid var(--accent-glow);
   outline-offset: 3px;
+}
+
+/* Anchor targets clear the 72px fixed bar plus a little air, so a jumped-to
+   section lands under the rule rather than behind it. Smooth scrolling is
+   opted into here and switched back off in the reduced-motion block below. */
+html {
+  scroll-behavior: smooth;
+}
+
+section[id] {
+  scroll-margin-top: 96px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -339,5 +366,57 @@
   100% {
     opacity: 0;
     transform: translateY(-3px);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * How it works · the numbered rule.
+ *
+ * One-shot, not a loop: a process that runs on repeat would contradict the
+ * section's own claim that setup happens once. `animation-fill-mode: both`
+ * plus a single iteration, and every 100% frame IS the complete resting
+ * state — so the global prefers-reduced-motion block (which collapses
+ * duration and forces iteration-count: 1) lands a reduced-motion visitor on
+ * a fully drawn rule, a closed bracket and five legible steps rather than on
+ * an empty column. Do not write a retract here.
+ */
+.hiw-rule {
+  transform-origin: top;
+  animation: hiw-extend 900ms var(--ease) both;
+}
+
+/* The bracket closes after the rule has passed all three of its rows, so the
+   loop reads as a conclusion drawn about the steps rather than as decoration
+   arriving alongside them. */
+.hiw-bracket {
+  transform-origin: top;
+  animation: hiw-extend 520ms var(--ease) 760ms both;
+}
+
+.hiw-step {
+  animation: hiw-step-in 420ms var(--ease) calc(120ms * var(--i)) both;
+}
+
+.hiw-loop-note {
+  animation: hiw-step-in 420ms var(--ease) 1180ms both;
+}
+
+@keyframes hiw-extend {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes hiw-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

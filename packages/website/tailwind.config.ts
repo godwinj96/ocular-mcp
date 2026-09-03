@@ -53,10 +53,10 @@ export default {
         demo: '1400px',
       },
       spacing: {
-        'sec-xl': 'var(--sec-air-xl)',
-        'sec-lg': 'var(--sec-air-lg)',
-        'sec-md': 'var(--sec-air-md)',
-        'sec-sm': 'var(--sec-air-sm)',
+        // Section boundaries own one value each -- see tokens.css.
+        'sec-major': 'var(--sec-gap-major)',
+        'sec-minor': 'var(--sec-gap-minor)',
+        'demo-gap': 'var(--demo-gap)',
       },
       borderRadius: {
         DEFAULT: '6px',

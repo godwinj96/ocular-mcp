@@ -15,7 +15,7 @@ export function BridgeStatement() {
     <>
       <BleedRule />
       <section
-        className="py-sec-lg"
+        className="pt-sec-major"
         style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
       >
         <div className="mx-auto max-w-[1240px]">

@@ -18,7 +18,7 @@ export function CtaFooter() {
     <>
       <BleedRule />
       <section
-        className="pb-sec-lg pt-sec-xl"
+        className="pb-sec-major pt-sec-major"
         style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
       >
         <div className="mx-auto max-w-[1240px]">

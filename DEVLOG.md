@@ -859,7 +859,11 @@ build, not a claim. Both are now persisted memory rules. Multi-client copy is in
 11. **Founder decisions still open:** whether to prune unnamed generic a11y nodes (12.7% saving, but
     pruning risks dropping real content — see `docs/dogfooding/`), and whether to move the a11y tree
     to a compact YAML-ish format.
-12. GitNexus index is stale (last indexed `6d52969`). Run `node .gitnexus/run.cjs analyze`.
+12. ~~GitNexus index is stale.~~ **Done (Session 29).** Full rebuild was forced — the index
+    schema, the analysis capabilities, and the analyzer runner identity had all changed since
+    `6d52969`. Graph went from 1,845/3,470/119 to **2,858 nodes / 5,381 edges / 153 flows**.
+    The tool rewrote its own block in `CLAUDE.md`; note the new rule that `risk: UNKNOWN` from
+    `impact` means _the walk could not answer_, not _safe to change_.
 
 ---
 
@@ -870,6 +874,10 @@ the fact that the whole page has a strong visual identity now."** Five things to
 implemented — this section is the brief.
 
 #### A. Section padding is the main thing hurting it
+
+> **RESOLVED, Session 29.** See the Session 29 entry. The token is now the gap itself
+> (`--sec-gap-major` / `--sec-gap-minor`), each boundary owns one value, and every section
+> carries a padding-top only. Measured at 1444px: 203/202/130/203/130/203/130/203.
 
 > _"The only problem is the weird paddings everywhere; all the sections seem not to have proper top
 > and bottom padding/margins and it's fucking up the beauty of the good whitespace work."_
@@ -958,6 +966,9 @@ Keep the constant-velocity scan pass and the long rest phase — those weren't c
 this demo is meant to contain **a real page with actual copy and elements**, per B.
 
 #### E. Nav
+
+> **RESOLVED, Session 29**, except the "How it works" link, which lands with section C so we
+> don't ship a dead anchor.
 
 > _"Why are there no nav links? There should be nav links so users don't have to scroll to reach every
 > section like pricing, how it works etc. Also, make the logo in the navbar larger — it's too small

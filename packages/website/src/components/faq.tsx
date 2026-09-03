@@ -41,7 +41,8 @@ const FAQS = [
 export function Faq() {
   return (
     <section
-      className="pb-sec-lg pt-sec-sm"
+      id="faq"
+      className="pt-sec-minor"
       style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
     >
       <div className="mx-auto max-w-[1240px]">

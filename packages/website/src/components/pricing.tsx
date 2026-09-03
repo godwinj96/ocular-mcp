@@ -48,7 +48,7 @@ export function Pricing() {
       <BleedRule />
       <section
         id="pricing"
-        className="pb-sec-sm pt-sec-lg"
+        className="pt-sec-major"
         style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
       >
         <div className="mx-auto max-w-[1240px]">
@@ -58,7 +58,7 @@ export function Pricing() {
             deck="Your own dev server is unmetered on every plan — it's your machine doing the work, so there's nothing for us to meter. The daily allowance is for the open web, where each render costs a real amount of money."
           />
 
-          <div className="mt-[112px] grid grid-cols-1 gap-12 md:grid-cols-2 md:gap-0">
+          <div className="mt-demo-gap grid grid-cols-1 gap-12 md:grid-cols-2 md:gap-0">
             {PLANS.map((plan, i) => (
               <div
                 key={plan.label}

@@ -52,7 +52,7 @@ export function SetupPage() {
   return (
     <div className="pt-[136px]">
       <section
-        className="pb-sec-md"
+        className="pb-sec-major"
         style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
       >
         <div className="mx-auto max-w-[1240px]">

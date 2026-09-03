@@ -27,7 +27,8 @@ export function DemoBoundary() {
 
   return (
     <section
-      className="pb-sec-xl pt-sec-md"
+      id="boundary"
+      className="pt-sec-minor"
       style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
     >
       <div className="mx-auto max-w-[1240px]">
@@ -39,7 +40,7 @@ export function DemoBoundary() {
 
         <div
           ref={ref}
-          className={`demo-loop relative mt-[112px] max-w-[44ch] ${inView ? 'is-live' : ''}`}
+          className={`demo-loop relative mt-demo-gap max-w-[44ch] ${inView ? 'is-live' : ''}`}
           style={{ ['--row-h' as string]: ROW_H }}
         >
           {/* The cursor. Absolutely positioned so it can travel independently
