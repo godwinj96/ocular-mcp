@@ -1,0 +1,293 @@
+/* ---------------------------------------------------------------------------
+ * Specimen pages — the fictional product pages rendered inside demo frames.
+ *
+ * Deliberately NOT built from the site's design tokens. A specimen has to
+ * read as a different page being observed; if it borrowed our palette, type
+ * and radius it would read as our own design system in light mode and the
+ * frame boundary would dissolve. Its values are therefore local and literal.
+ *
+ * The founder ruled on the resulting rule tension: the site's no-shadow,
+ * no-gradient, single-radius rules govern OUR chrome. A specimen is quoted
+ * material and is allowed a card shadow, a light ground and mixed radii.
+ *
+ * One hard constraint survives: --accent-glow (the teal) is the instrument's
+ * "I am reading this" colour and appears NOWHERE in here, or the overlay
+ * boxes stop reading as ours.
+ * ------------------------------------------------------------------------ */
+
+.specimen-frame {
+  overflow: hidden;
+}
+
+/* The scale factor itself is measured (hooks/use-fit-scale.ts) — see that
+   file for why the pure-CSS container-query version silently does nothing. */
+.specimen-scale {
+  transform-origin: top left;
+  will-change: transform;
+}
+
+.specimen {
+  --spec-ground: #f2f2f4;
+  --spec-card: #ffffff;
+  --spec-ink: #101014;
+  --spec-ink-2: #6b6b73;
+  --spec-ink-3: #9a9aa2;
+  --spec-line: #e2e2e6;
+  /* Warm ink. Neither our violet nor — critically — our teal. */
+  --spec-accent: #b6503a;
+
+  display: flex;
+  flex-direction: column;
+  background: var(--spec-ground);
+  color: var(--spec-ink);
+  /* A plain UI stack. Mono is the instrument's voice; a specimen that speaks
+     mono stops sounding like someone else's page. */
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  letter-spacing: -0.006em;
+}
+
+.specimen-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 56px;
+  height: 76px;
+  background: var(--spec-card);
+  border-bottom: 1px solid var(--spec-line);
+}
+
+.specimen-wordmark {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.specimen-steps {
+  display: flex;
+  gap: 34px;
+  font-size: 16px;
+  color: var(--spec-ink-3);
+}
+
+.specimen-step-on {
+  color: var(--spec-accent);
+  font-weight: 600;
+}
+
+.specimen-help {
+  font-size: 15px;
+  color: var(--spec-ink-2);
+}
+
+.specimen-body {
+  display: grid;
+  grid-template-columns: 1fr 470px;
+  gap: 64px;
+  padding: 48px 56px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Sized up deliberately: this is one of the four strings a viewer is meant to
+   be able to read at demo scale. */
+.specimen-h1 {
+  width: fit-content;
+  font-size: 54px;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  margin: 0;
+}
+
+.specimen-sub {
+  margin: 14px 0 0;
+  font-size: 17px;
+  color: var(--spec-ink-2);
+}
+
+.specimen-block {
+  margin-top: 34px;
+}
+
+.specimen-h2 {
+  width: fit-content;
+  margin: 0 0 12px;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+}
+
+.specimen-field {
+  background: var(--spec-card);
+  border: 1px solid var(--spec-line);
+  border-radius: 4px;
+  padding: 13px 15px;
+  margin-top: 9px;
+  font-size: 16px;
+  color: var(--spec-ink-2);
+}
+
+.specimen-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+
+.specimen-grid-3 {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1.2fr;
+  gap: 9px;
+}
+
+.specimen-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.specimen-brand-dot {
+  width: 30px;
+  height: 20px;
+  border-radius: 3px;
+  background: var(--spec-accent);
+  flex: none;
+}
+
+.specimen-muted {
+  color: var(--spec-ink-3);
+  margin-left: auto;
+}
+
+.specimen-micro {
+  margin: 11px 0 0;
+  font-size: 13px;
+  color: var(--spec-ink-3);
+}
+
+.specimen-center {
+  text-align: center;
+}
+
+.specimen-canvas {
+  display: block;
+  width: 100%;
+  height: 168px;
+  border-radius: 8px;
+  background: #e7e9ea;
+  border: 1px solid var(--spec-line);
+}
+
+.specimen-aside {
+  background: var(--spec-card);
+  border: 1px solid var(--spec-line);
+  border-radius: 8px;
+  padding: 30px;
+  align-self: start;
+  box-shadow: 0 1px 2px rgb(16 16 20 / 6%), 0 12px 28px -12px rgb(16 16 20 / 12%);
+}
+
+.specimen-summary-title {
+  font-size: 24px;
+  letter-spacing: -0.024em;
+  margin-bottom: 20px;
+}
+
+.specimen-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--spec-line);
+}
+
+.specimen-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--spec-line);
+}
+
+.specimen-thumb {
+  width: 46px;
+  height: 46px;
+  border-radius: 6px;
+  background: #dfe1e4;
+  flex: none;
+}
+
+.specimen-item-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.specimen-item-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.specimen-item-text .specimen-muted {
+  margin-left: 0;
+  font-size: 14px;
+}
+
+.specimen-price {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.specimen-totals {
+  margin: 18px 0 0;
+}
+
+.specimen-totals > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 16px;
+  color: var(--spec-ink-2);
+}
+
+.specimen-totals dt,
+.specimen-totals dd {
+  margin: 0;
+}
+
+.specimen-total-line {
+  margin: 14px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--spec-line);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.026em;
+}
+
+.specimen-cta {
+  display: block;
+  width: 100%;
+  margin-top: 20px;
+  padding: 17px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--spec-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  cursor: default;
+}
+
+/* Deliberately the last thing on the page: at the frame's 16/10 crop this
+   falls past 900px, so the element tree's below-fold rows are describing
+   something that genuinely exists and is genuinely cropped. */
+.specimen-returns {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 16px;
+  color: var(--spec-ink-2);
+}

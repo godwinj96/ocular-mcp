@@ -13,6 +13,7 @@ import '@fontsource/geist-sans/latin-700.css';
 import '@fontsource/geist-mono/latin-400.css';
 import '@fontsource/geist-mono/latin-500.css';
 import './styles/tokens.css';
+import './styles/specimen.css';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

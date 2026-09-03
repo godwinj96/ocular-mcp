@@ -1,5 +1,7 @@
 import { SectionHeader } from './section-header.js';
 import { useInView } from '../hooks/use-in-view.js';
+import { NorthsoundCheckout } from './specimen/northsound-checkout.js';
+import { SpecimenFrame } from './specimen/specimen-frame.js';
 
 // S1 · Two readings of the same frame.
 //
@@ -34,40 +36,49 @@ const ROWS: readonly TreeRow[] = [
     indent: 1,
     role: 'h1',
     name: '"Checkout"',
-    coords: '24,118  480×34',
+    coords: '56,124   215×54',
     position: 'in-view',
     region: 0,
   },
   {
     indent: 1,
-    role: 'button',
-    name: '"Place order"',
-    coords: '24,266  168×40',
+    role: 'canvas',
+    name: '[no accessible name]',
+    coords: '56,290   794×168',
     position: 'in-view',
     region: 1,
   },
   {
     indent: 1,
-    role: 'canvas',
-    name: '[no accessible name]',
-    coords: '24,352 1160×290',
+    role: 'button',
+    name: '"Place order"',
+    coords: '945,653  408×62',
     position: 'in-view',
     region: 2,
   },
-  { indent: 0, role: 'section', name: '"Order summary"', coords: '', position: 'below-fold' },
+  {
+    indent: 0,
+    role: 'section',
+    name: '"Returns & exchanges"',
+    coords: '56,1024  173×28',
+    position: 'below-fold',
+  },
   {
     indent: 1,
     role: 'p',
-    name: '"3 items · $184.00"',
-    coords: '24,1042 312×20',
+    name: '"Free returns within 30 days…"',
+    coords: '56,1063  535×46',
     position: 'below-fold',
   },
 ];
 
+// Percentages of the 1440x900 specimen, derived from where the real elements
+// actually land, not drawn by eye. The whole point of rendering the specimen
+// as DOM rather than pasting a screenshot is that these stay checkable.
 const REGIONS = [
-  { x: 6, y: 18, w: 52, h: 13 },
-  { x: 6, y: 45, w: 27, h: 10 },
-  { x: 6, y: 62, w: 88, h: 29 },
+  { x: 3.9, y: 13.8, w: 14.9, h: 6.0 },
+  { x: 3.9, y: 32.2, w: 55.1, h: 18.7 },
+  { x: 65.6, y: 72.6, w: 28.3, h: 6.9 },
 ] as const;
 
 export function DemoTreeReadout() {
@@ -98,14 +109,14 @@ export function DemoTreeReadout() {
             <p className="mb-4 font-mono text-[11px] leading-none tracking-[0.02em] text-text-quaternary">
               localhost:3000 · 1440 × 900
             </p>
-            <div className="relative aspect-[16/10] overflow-hidden rounded border border-rule-mark bg-surface-elevated">
-              <div className="absolute inset-0 p-[6%]">
-                <div className="h-[7%] w-[34%] rounded-sm bg-surface-raised" />
-                <div className="mt-[5%] h-[13%] w-[52%] rounded-sm bg-text-primary" />
-                <div className="mt-[4%] h-[5%] w-[64%] rounded-sm bg-surface-raised" />
-                <div className="mt-[5%] h-[10%] w-[27%] rounded-full bg-accent" />
-                <div className="mt-[7%] h-[29%] w-[88%] rounded-sm border border-rule-structural" />
-              </div>
+            <div className="relative aspect-[16/10] overflow-hidden rounded border border-rule-mark bg-white">
+              {/* The specimen page, laid out at 1440x900 and fitted by the
+                  compositor. It replaces five grey bars: a viewer has nothing
+                  to recognise in a skeleton, so the demo could not carry the
+                  section on its own — which was the founder's note. */}
+              <SpecimenFrame>
+                <NorthsoundCheckout />
+              </SpecimenFrame>
 
               <svg
                 aria-hidden="true"
