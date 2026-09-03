@@ -823,10 +823,15 @@ build, not a claim. Both are now persisted memory rules. Multi-client copy is in
 
 **The redesign — what's actually left**
 
-3. **The dashboard has not been touched at all.** It is the same pre-redesign UI the founder called
+0. **Founder review of the live round-5 page is logged in the "Session 28 addendum" at the bottom of
+   this file — read it before touching the website.** Five items: section padding (the main one, with
+   measured gap values), demos being disconnected from their copy (needs both design agents and real
+   research), a new how-it-works timeline, a motion change to the hero readout, and nav links + a
+   larger logo.
+1. **The dashboard has not been touched at all.** It is the same pre-redesign UI the founder called
    "terrible" during the live checkout test. It needs what the website just got: the round-5 token
    system, the type ladder, no bounding-box cards. Use both design agents.
-4. Round-5 demos are built but only checked at 1440 and 800. **Verify 375 / 768 / 1024 / 1920**, and
+2. Round-5 demos are built but only checked at 1440 and 800. **Verify 375 / 768 / 1024 / 1920**, and
    verify the loops under `prefers-reduced-motion` — each keyframe's `100%` is meant to be its
    complete resting state, not its empty one.
 
@@ -855,3 +860,109 @@ build, not a claim. Both are now persisted memory rules. Multi-client copy is in
     pruning risks dropping real content — see `docs/dogfooding/`), and whether to move the a11y tree
     to a compact YAML-ish format.
 12. GitNexus index is stale (last indexed `6d52969`). Run `node .gitnexus/run.cjs analyze`.
+
+---
+
+### Session 28 addendum — founder review of the live round-5 page
+
+Founder reviewed the built page. Verdict: **"Much more coherent. Infinitely better copy… I do love
+the fact that the whole page has a strong visual identity now."** Five things to fix, none
+implemented — this section is the brief.
+
+#### A. Section padding is the main thing hurting it
+
+> _"The only problem is the weird paddings everywhere; all the sections seem not to have proper top
+> and bottom padding/margins and it's fucking up the beauty of the good whitespace work."_
+
+**Not a build bug — already ruled out.** `--sec-air-*` vars and the `.pt-sec-*` / `.pb-sec-*`
+utilities are all present in `dist/assets/*.css`. The values themselves are wrong.
+
+The round-5 spec assigned each section an asymmetric pad-top/pad-bottom, but **what a reader
+perceives is the SUM of one section's bottom and the next one's top**, and that sum was never
+checked. Measured at ≥1240px, where the clamps max out:
+
+| Boundary                     | Gap                     |
+| ---------------------------- | ----------------------- |
+| Bridge → Tree readout        | 272px                   |
+| Tree readout → Contact sheet | 208px                   |
+| Contact sheet → Reach meter  | 312px                   |
+| Reach meter → Boundary       | 208px                   |
+| Boundary → Pricing           | 312px                   |
+| **Pricing → FAQ**            | **124px** ← the outlier |
+| FAQ → Closer                 | 312px                   |
+
+124 → 312 is a 2.5× spread with no pattern a reader can perceive as intent, so it reads as
+inconsistency rather than as rhythm. **Pricing → FAQ is the worst offender** (`pb-sec-sm` 80 +
+`pt-sec-sm` 44): pricing's two trailing paragraphs sit almost directly on the first FAQ row.
+
+Two more concrete faults:
+
+1. **The header→demo gap is a hard-coded `mt-[112px]` in all four demo sections** while section air
+   is clamped. At 375px, `--sec-air-sm` is 44px but the internal gap is still 112px — the space
+   _inside_ a section exceeds the space _between_ sections, which inverts the grouping. It must be a
+   clamp that scales with the section steps.
+2. **`Hero` has no bottom padding at all.** The readout panel's bottom edge runs straight into the
+   bridge statement's `pt`. Intentional for the fold crop at 900px tall, wrong on a scrolled page.
+
+**Fix approach:** stop assigning top and bottom independently. Define the _gap between sections_ as
+the token and let each boundary own one value, or normalise so the chapter breaks (S2→S3, S4→S5,
+FAQ→closer) are one value and the within-chapter breaks are another. Two distinct gaps read as
+structure; seven near-random ones read as sloppiness.
+
+#### B. Demos are disconnected from their copy — the biggest content problem
+
+> _"The demos seem a little disconnected from the section copy… it's not quite easy to tell what one
+> is looking at. Someone should be able to skim through the page, have their eyes land on the demo,
+> and get the gist of the section just by watching the demo animation for a few seconds."_
+
+**Root cause the founder named: every demo on the page is a skeleton.** Grey bars standing in for
+content give a viewer nothing to recognise, so the demo can't carry meaning on its own.
+
+Two directions, both from the founder, not mutually exclusive:
+
+1. **Put real content in the demo windows.** Design actual good-looking pages and render them inside
+   the frames, with the bounding-box/scan animation over the top. The founder's own suggestion for
+   the cheaper path: _"probably taking some screenshots of some actual (good looking) websites would
+   be much easier and then add the animation overlay."_
+   **Decision needed before building:** screenshots of real third-party sites put other companies'
+   branding on our marketing page. Safer equivalents that keep the "real content" benefit —
+   build 2–3 genuinely well-designed fake product pages and screenshot those, or use our own
+   dashboard/site. Worth a founder call, since it changes the work substantially.
+2. **Tie the copy to the animation.** Elements of the animation should reference things named in the
+   copy in an immediately identifiable way, so the two explain each other instead of sitting side by
+   side.
+
+> _"This part is extremely important and I actually want you to use both agents to do research on how
+> other good websites achieve this effect and use their animations and copy effectively to achieve
+> their objectives."_
+
+So: **`ui-design-intelligence` + `product-intelligence`, research first, measured against real
+reference sites — not from memory.** Same method that made rounds 4–5 work.
+
+#### C. Add a "How it works" section
+
+Correct steps, presented as a **visually compelling timeline**. Research this too — the founder asked
+for it explicitly. Note that round 5 deleted the old `how-it-works.tsx` (it was four icon rows of
+capability copy, not a process); this is a new section with real sequence, not a restoration.
+
+#### D. Hero readout — a specific motion note
+
+> _"For the first demo (the one butting into the hero), you can actually have the bounding boxes fade
+> in and scale down to fit the elements in the demo window (a real page with actual copy and
+> elements) after the scan line has made its pass from top to bottom."_
+
+So the acquire phase changes from _draw via `stroke-dashoffset`_ to _fade in oversized, then scale
+down onto the element_. Note this supersedes part of the round-5 storyboard: the `readout-box`
+keyframes and the `--ease-draw` token exist specifically for the draw behaviour, so both get revisited.
+Keep the constant-velocity scan pass and the long rest phase — those weren't criticised. Also note
+this demo is meant to contain **a real page with actual copy and elements**, per B.
+
+#### E. Nav
+
+> _"Why are there no nav links? There should be nav links so users don't have to scroll to reach every
+> section like pricing, how it works etc. Also, make the logo in the navbar larger — it's too small
+> and it's currently looking like an afterthought."_
+
+Round 4 stripped the nav to logo + CTA. That was wrong for a page this long. Needs section links
+(pricing, how it works, FAQ, …) and a larger logo. Sections already carry ids in places
+(`#pricing`, `#top`, `#readout`); the rest need them.
