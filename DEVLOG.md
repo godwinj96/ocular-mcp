@@ -823,11 +823,16 @@ build, not a claim. Both are now persisted memory rules. Multi-client copy is in
 
 **The redesign — what's actually left**
 
-0. **Founder review of the live round-5 page is logged in the "Session 28 addendum" at the bottom of
-   this file — read it before touching the website.** Five items: section padding (the main one, with
-   measured gap values), demos being disconnected from their copy (needs both design agents and real
-   research), a new how-it-works timeline, a motion change to the hero readout, and nav links + a
-   larger logo.
+0. **Session 28 addendum: A, C, D, E are DONE (Session 29 — read that entry first). B is HALF
+   done.** The remaining half of B: the **contact sheet, reach meter and boundary demos are still
+   skeletons.** The research recommends a second specimen (a `Palewater` analytics dashboard with a
+   right-hand filter drawer — the drawer sliding in IS the motion under test, and the existing
+   8-frame ease-out sample already assumes one), and says the **reach meter needs no window at all**
+   — a meter with a hard end versus one without is already legible, so don't over-fix it. For the
+   boundary demo the cheap win is renaming `AVAILABLE` to the language a reader would actually
+   issue (`look at localhost:3000`), so the list reads as a menu of things they'd ask for.
+   Do not add red, a padlock, or a strikethrough there — a signifier implying a control implies the
+   control exists.
 1. **The dashboard has not been touched at all.** It is the same pre-redesign UI the founder called
    "terrible" during the live checkout test. It needs what the website just got: the round-5 token
    system, the type ladder, no bounding-box cards. Use both design agents.
@@ -864,6 +869,133 @@ build, not a claim. Both are now persisted memory rules. Multi-client copy is in
     `6d52969`. Graph went from 1,845/3,470/119 to **2,858 nodes / 5,381 edges / 153 flows**.
     The tool rewrote its own block in `CLAUDE.md`; note the new rule that `risk: UNKNOWN` from
     `impact` means _the walk could not answer_, not _safe to change_.
+
+---
+
+## Session 29 — 2026-09-03/04 · founder review round 6: padding, nav, how-it-works, first specimen
+
+Answering the Session 28 addendum. **A, C, E done. B half done. D done.** Three commits:
+`2b2dad9`, `6905ded`, `300ab5f`.
+
+### A — section padding · resolved, on the second attempt
+
+The first attempt made each boundary own one value (`--sec-gap-major` / `--sec-gap-minor`,
+padding-top only, no padding-bottom anywhere) and picked **272/168 — a 1.6x ratio**. Founder's
+verdict on the built page: it looked **worse**. He was right, and the reason is worth keeping:
+1.6x is the worst available ratio, too close to read as two deliberate values and too far to read
+as one. It is now **exactly 2:1 at every width** (`major` 104→224, `minor` 52→112), with lower
+absolutes — 272px at a boundary reads as a hole, not as generosity.
+
+Measured live at 1444px: `174 / 174 / 87 / 174 / 87 / 174 / 87 / 174`.
+
+`--demo-gap` (`clamp(32px, 3.5vw, 64px)`) replaces the hard-coded `mt-[112px]` and stays well
+under the minor gap at every width — at 375px the old value put 112px _inside_ a section against
+44px _between_ sections, inverting the grouping.
+
+> **The process lesson, which cost a round trip.** The first attempt was reported to the founder
+> on DOM measurements alone. The numbers were correct and the result was still wrong. **Look at
+> the rendered page before reporting a visual fix.**
+
+### B — real content in the demos · half done
+
+`packages/website/src/components/specimen/` now holds **Northsound**, a fictional storefront
+checkout, rendered as **DOM at a notional 1440x900** and fitted by `hooks/use-fit-scale.ts`.
+Wired into the hero readout and the tree readout. **The contact sheet, reach meter and boundary
+demos are still skeletons** — see open TODOs.
+
+Decisions worth not relitigating:
+
+- **Fictional brand, not screenshots of real sites** (founder's call). Precedent: Stripe mocks
+  payments with invented brands carrying real product names and odd prices (Powdur, "Pure set",
+  $65.00). Research across linear.app, stripe.com, warp.dev and chromatic.com found **not one
+  marketing demo on any of them using a skeleton** — the clearest finding in the report.
+- **DOM, not a screenshot.** Overlay coordinates and the tree's coordinate strings derive from
+  real geometry and stay checkable when the specimen is edited; it also costs no image weight.
+  Every coordinate in `demo-tree-readout.tsx` was measured in a browser.
+- **The specimen shares nothing with our chrome** — light ground, terracotta accent, plain UI
+  type stack with no mono, 8px/4px radii, a card shadow. Founder ruled on the rule tension: the
+  no-shadow / no-gradient rules govern **our** design, and a specimen is quoted material.
+  `--accent-glow` (the instrument teal) appears nowhere inside a frame, or the boxes stop reading
+  as ours.
+- The tree's four named strings are literally rendered in the specimen, the canvas really has no
+  accessible name, and the two below-fold rows sit past y=900 — exactly where the 16/10 frame
+  crops. **The annotations are now true of the picture.**
+
+> **Trap, already paid for once.** `transform: scale(calc(100cqw / 1440))` looks like the clean
+> pure-CSS fit and silently does nothing: a length over a number is a length, `scale()` needs a
+> number, so the declaration is dropped and the specimen renders 1:1 and crops. That is exactly
+> what shipped on first build. `use-fit-scale.ts` measures instead.
+
+### C — how-it-works · done
+
+New `how-it-works.tsx`: five beats split 2 + 3, steps 03–05 bracketed as a loop, on a numbered
+vertical hairline whose segments extend as the section enters view. **+0.65KB gzip, no new
+dependency.** Placed between the boundary demo and pricing.
+
+Researched, not chosen from memory: across **seventeen** developer-tool sites (linear, stripe,
+vercel, supabase, planetscale, raycast, resend, railway, modal, liveblocks, knock, chromatic,
+prisma, cal, sentry, inngest, browserbase) **not one ships a numbered vertical stepper on its home
+page, and not one uses `animation-timeline` or `scroll-timeline` at all.** The finding argued for
+restraint — a sticky scroll-scrubber would have spent back the 131KB→81KB gzip the round-4 rewrite
+won by dropping framer-motion and ogl.
+
+**Step 02 is written as the OAuth sign-in, not today's key paste.** Founder, explicitly: _"the page
+is supposed to describe the complete product not where we are right now."_ The marketing site
+always describes the finished product; a current blocker gates the **push**, not the copy. Do not
+raise this as a question again.
+
+### D — hero acquire motion · done
+
+Stroke-dashoffset draw → **fade in oversized, then scale down onto the element.** The argument is
+not aesthetic: a stroke that draws is _authoring_ ("we made this box"); a box that converges is
+_finding_ something already there. Ocular measures what exists.
+
+Founder ruled on the ambiguity in his note: each box acquires **as the scan line crosses its own
+bottom edge** (218 / 560 / 875ms, derived from region geometry), not after the full pass — which
+makes the sweep causal rather than ceremonial.
+
+- **The overlay is now positioned divs, not SVG.** The SVG used a square user space
+  (`viewBox="0 0 100 100"` + `preserveAspectRatio="none"`) stretched over a 16/10 frame, so a
+  uniform `scale()` would render visibly wider than taller — fatal for a gesture that means
+  "converging on an element". `perimeter()` and the dash machinery are deleted.
+- **`--ease-draw` is renamed `--ease-acquire`.** Same curve; the old name described a behaviour the
+  site no longer has.
+- 1.12 and **no overshoot** — a bounce would contradict the boundary demo's own no-easing-out rule,
+  i.e. the page would argue with itself.
+- Vignette 0.74 → 0.42 with a wider clear centre: values tuned against a dark mock read as fog over
+  a white page.
+
+### E — nav · done
+
+Logo 20px → 36px (it was losing the bar to the CTA pill). Five section links, **mono 14px** at the
+founder's request — which also puts them in the same voice as the eyebrows and in-demo metadata
+instead of competing with body copy. Active section marked with the accent rule. Section ids plus
+`scroll-margin-top` so anchors land under the fixed bar.
+
+### Ocular could not verify its own website
+
+`view_page` against localhost fails with **"No active Ocular subscription"**. Cause:
+`SubscriptionValidator` proves validity by calling `get_quota` on the **cloud** mcp-server, which is
+not hosted, and `OCULAR_CLOUD_MCP_URL` points at a local dev server that is not running — so it
+fails closed even for a purely local capture.
+
+**Founder's instruction: the local worker is the path, and `ecc chrome-devtools` covers renders in
+the meantime. Do not stand up cloud infrastructure to unblock a screenshot.** All verification this
+session was chrome-devtools.
+
+Worth flagging as design, not just missing infra: **a local capture of localhost requires the cloud
+to be reachable.** The offline-grace window cannot help a machine that has never had a confirmed
+check. See open TODO 9.
+
+### GitNexus
+
+Index rebuilt — the index schema, the analysis capabilities and the analyzer runner identity had
+all changed since `6d52969`, forcing a full re-analyze. **1,845/3,470/119 → 2,858 nodes / 5,381
+edges / 153 flows.** The tool rewrote its own block in `CLAUDE.md`; note the new rule that
+`risk: UNKNOWN` from `impact` means _the walk could not answer_, **not** _safe to change_.
+
+Founder instruction recorded: **always use GitNexus tools over grep / Explore for codebase
+traversal** — a token and latency cost issue, not a preference.
 
 ---
 
