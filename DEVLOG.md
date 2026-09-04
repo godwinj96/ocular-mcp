@@ -823,7 +823,16 @@ build, not a claim. Both are now persisted memory rules. Multi-client copy is in
 
 **The redesign — what's actually left**
 
-0. **Session 28 addendum: A, C, D, E are DONE (Session 29 — read that entry first). B is HALF
+0. **Round 6 was reviewed and mostly rejected — read the "Session 29 addendum" before
+   touching the website.** Padding is still wrong (and the ratio framing was the wrong
+   framing), the hero and first demo cannot share a specimen, the overlay colour fails on a
+   light ground, the motion demo's tracked axis collides with its frame sequence, the
+   how-it-works copy mis-frames Ocular as the agent, and the nav logo is the opaque asset.
+   Plus: purple to silver grey, nav links broken on /setup, and an open question on
+   deploying the cloud mcp-server to Vercel.
+
+1. **Session 28 addendum: A, C, D, E were addressed in Session 29 but A, B, C and D all came
+   back with corrections (see item 0). B is HALF
    done.** The remaining half of B: the **contact sheet, reach meter and boundary demos are still
    skeletons.** The research recommends a second specimen (a `Palewater` analytics dashboard with a
    right-hand filter drawer — the drawer sliding in IS the motion under test, and the existing
@@ -836,7 +845,7 @@ build, not a claim. Both are now persisted memory rules. Multi-client copy is in
 1. **The dashboard has not been touched at all.** It is the same pre-redesign UI the founder called
    "terrible" during the live checkout test. It needs what the website just got: the round-5 token
    system, the type ladder, no bounding-box cards. Use both design agents.
-2. Round-5 demos are built but only checked at 1440 and 800. **Verify 375 / 768 / 1024 / 1920**, and
+1. Round-5 demos are built but only checked at 1440 and 800. **Verify 375 / 768 / 1024 / 1920**, and
    verify the loops under `prefers-reduced-motion` — each keyframe's `100%` is meant to be its
    complete resting state, not its empty one.
 
@@ -996,6 +1005,162 @@ edges / 153 flows.** The tool rewrote its own block in `CLAUDE.md`; note the new
 
 Founder instruction recorded: **always use GitNexus tools over grep / Explore for codebase
 traversal** — a token and latency cost issue, not a preference.
+
+### Session 29 addendum — founder review of round 6. READ THIS BEFORE TOUCHING THE WEBSITE.
+
+Nothing below is implemented. This is the brief for the next session. Founder asked for it to be
+recorded and left, so a fresh context window can pick it up.
+
+---
+
+#### A. Padding is STILL wrong — and my framing of it was wrong too
+
+> _"It's still bad. If you take screenshots you'll see that the tiny mono heading that sits at the
+> top of each section is constantly very close to the element above it. I don't even know what
+> you're talking about or describing here with ratios. Just to be extremely clear, I mean vertical
+> padding and margins between the various vertically stacked sections and various vertically
+> stacked component groups within the sections."_
+
+**Stop talking about ratios.** Two sessions have now been spent on a 2:1 token relationship that
+does not address what he is actually seeing. The complaint is concrete and local: **the 11px mono
+eyebrow at the top of each section sits too close to whatever is above it.**
+
+Measured at 1444px, gap from the previous section's bottom edge to the eyebrow's top:
+
+| Section      | Gap      |
+| ------------ | -------- |
+| capture      | 173px    |
+| **motion**   | **87px** |
+| reach        | 173px    |
+| **boundary** | **87px** |
+| how-it-works | 173px    |
+| pricing      | 173px    |
+
+**The 87px ones are the fault, and the reason is a type-mass problem the token scheme cannot see.**
+An 11px uppercase mono eyebrow has almost no visual mass, so it needs MORE air above it than a 48px
+heading would, not less. At 375px the same gap is 52px. Above it in both cases sits a large demo
+frame — a heavy element against a nearly weightless one, 52–87px apart.
+
+**Three things to fix, in order:**
+
+1. **Sections have no bottom padding at all any more.** Round 6 moved every boundary onto the next
+   section's `padding-top`, which is structurally sound but means a section ending in a demo frame
+   or a trailing paragraph has zero buffer of its own — the eyebrow begins immediately at the
+   boundary. Either give the eyebrow its own top offset inside `SectionHeader`, or restore a small
+   bottom pad and re-derive the totals. Do not just scale the tokens up; that reopens the "272px
+   is a hole" problem from the other direction.
+2. **The within-chapter gap is the one that fails.** `--sec-gap-minor` currently 52→112px. It is
+   too small for a demo-above / eyebrow-below boundary regardless of how it relates to `major`.
+3. **Component groups INSIDE sections were never audited.** Only section boundaries were. He is
+   explicitly asking for both. Audit at minimum: header→demo (`--demo-gap`), demo→trailing
+   paragraph (reach meter and boundary both have one), the pricing column internals, the gap above
+   `Choose a plan`, and the FAQ row rhythm.
+
+**Method note for whoever picks this up: screenshot every boundary at 1440 AND 375 before and
+after.** Both previous attempts reported measured numbers that were correct and looked wrong.
+
+---
+
+#### B + D. Demos — four separate faults
+
+1. **The hero and the first demo cannot share a specimen page.**
+
+   > _"you can't recycle the same page from the hero area to the first demonstration. You'll have
+   > to make another design for the first demo section."_
+
+   `NorthsoundCheckout` currently renders in BOTH `capture-readout.tsx` and
+   `demo-tree-readout.tsx`. The tree readout needs its own specimen. Note this invalidates the
+   research note that recognition-across-sections is free coupling — the founder's call overrides
+   it. If the new page changes the tree's named strings, **re-measure the coordinates** — they are
+   real geometry, not decoration.
+
+2. **The hero demo needs to be far more dramatic.**
+
+   > _"Add bounding boxes on every element to show that Ocular can give the agent the ability to
+   > scan the page and identify every element on it with accuracy."_
+
+   Currently three boxes. It should be **every element** — a full acquisition sweep that lands
+   dozens of boxes. This is a different visual entirely and probably wants the boxes derived
+   programmatically from the specimen's DOM rather than hand-listed in `REGIONS`, which would also
+   keep them honest for free.
+
+3. **The overlay colour is wrong on a white page.**
+
+   > _"the color used for the scan line and the bounding boxes looks terrible on this white
+   > background. Bad contrast ratio, it was initially chosen for a black background."_
+
+   Correct — `--accent-glow` (teal) was picked against `--surface-base` near-black. Now that
+   specimens are light-ground it fails. Needs a colour that holds contrast on BOTH the light
+   specimen and the dark chrome, or a per-context variant. Ties into the palette change below.
+
+4. **The motion demo is unreadable, and he diagnosed why.**
+
+   > _"it is supposed to actually be describing a motion from right to left. It was hard to
+   > distinguish because the motion to be tracked was along the x axis and the frames are sequenced
+   > horizontally as well."_
+
+   The tracked motion shares an axis with the frame sequence, so the eye cannot separate them.
+   **Fix: design a page with a large VERTICAL animation to track** — a real page, e.g. a landing
+   page — and **use Ocular itself to take the shots**, in a **5×2 contact sheet** (note: currently
+   8 frames as 2×4/4-col; he is asking for 10). Vertical motion against a horizontal frame
+   sequence separates the two axes.
+
+   **Dependency:** "use Ocular" requires Ocular to actually run, which currently requires the cloud
+   path — see the Vercel question below. Sequence that first.
+
+---
+
+#### C. How-it-works copy — two real errors
+
+1. **Don't say "browser".** His replacement, close to verbatim:
+
+   > _"Your agent connects, Ocular wakes in the background. Ocular wakes when your session starts
+   > as a lightweight listener in the background waiting to deliver your request before it even
+   > comes. No cold starts, no long wait times."_
+
+2. **Steps 04 and 05 mis-frame the product.**
+
+   > _"the framing of 'it checks its own work' makes it seem like Ocular is the agent, that's not
+   > true or even how the product works at all. Same issue with the last step."_
+
+   Correct and important — it is a positioning error, not a wording nit. **Ocular is not the agent
+   and does not decide anything.** The agent asks; Ocular renders and returns. Steps 04 ("It
+   decides when to look") and 05 ("It sees what it built, changes it, and looks again") both read
+   as Ocular doing the building and the deciding. Rewrite both so the agent is the subject and
+   Ocular is what it calls. Check the rest of the page for the same slippage while in there.
+
+---
+
+#### E. Logo — wrong asset
+
+> _"are you using the png? because the background is opaque so it has an ugly rectangular
+> silhouette as you scroll past light sections of the page."_
+
+Confirmed in screenshots — there is a visible white rectangle behind the wordmark. `nav.tsx`
+imports `../assets/logo.svg`. **Use `Ocular Assets/446824.png`** (repo root), which is transparent.
+Copy it into `packages/website/src/assets/` and update the import. Check the footer and favicon for
+the same asset while in there.
+
+---
+
+#### New items from this review
+
+- **Primary colour: purple → silver grey.** _"I think we should switch the primary color from that
+  purple to a silver grey."_ Touches `--accent` / `--accent-hover` / `--accent-active` in
+  `tokens.css`, both CTA buttons, the nav active rule, and the specimen's own contrast assumptions.
+  Do it together with B3 (overlay colour) — they interact, and a grey primary changes what reads as
+  the instrument's signal colour.
+
+- **Nav links are broken on `/setup`.** They are bare hash anchors (`#pricing`) that only resolve on
+  the home page. Make them route-aware (`/#pricing`) so they navigate home and then scroll.
+
+- **Can the cloud mcp-server deploy to Vercel?** _"can't we deploy the cloud mcp server to vercel?"_
+  Open question to answer next session. It would unblock a lot at once: DEVLOG open item 9 (cloud
+  renders never tested), the subscription check that currently fails closed for purely local
+  captures (Session 29 entry above), and B4's "use Ocular to take the shots". Worth checking
+  whether `packages/mcp-server` fits Vercel's runtime — long-lived browser sessions and the warm
+  pool are the obvious risks, and the answer may be that only the auth/quota surface belongs there
+  while rendering needs a real host.
 
 ---
 
