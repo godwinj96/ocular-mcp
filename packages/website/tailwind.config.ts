@@ -66,8 +66,8 @@ export default {
         DEFAULT: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
         base: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
         // Instrument loops only — see tokens.css for why a decelerating curve
-        // is structurally required for a stroke that draws.
-        draw: 'var(--ease-draw)',
+        // is structurally required for a value that ARRIVES.
+        acquire: 'var(--ease-acquire)',
       },
       transitionDuration: {
         fast: '100ms',

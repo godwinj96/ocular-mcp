@@ -91,8 +91,13 @@
      capture-readout.tsx as an inline literal (twice), so naming it takes the
      site from three curves to two rather than adding a third. Retraction
      replays it with animation-direction: reverse; there is deliberately no
-     --ease-retract. */
-  --ease-draw: cubic-bezier(0.33, 1, 0.68, 1);
+     --ease-retract.
+
+     Renamed from --ease-draw when the hero stopped drawing its boxes and
+     started converging them onto their targets: an ease-out-cubic is still
+     exactly right for a value ARRIVING, but the old name described a
+     behaviour the site no longer has. */
+  --ease-acquire: cubic-bezier(0.33, 1, 0.68, 1);
 
   --page-inset: clamp(24px, 5vw, 88px);
 }
@@ -330,22 +335,45 @@ section[id] {
   }
 }
 
-/* Hero readout · a box acquires its target, holds, and lets go. The dash
-   length differs per box, so the keyframe reads it from --p rather than
-   hardcoding one. Percentages are of the 7400ms cycle:
-   1120ms draw start · 1380 drawn · 5580 retract start · 5960 released. */
-@keyframes readout-box {
+/* Hero readout · a box acquires its target, holds, and lets go.
+   Percentages are of the 7400ms cycle, written for the FIRST box (which
+   acquires at 218ms, when the scan line crosses its bottom edge); the other
+   two ride the same keyframe on an animation-delay, so the cascade is
+   permanently phase-shifted from one rule.
+
+   The gesture is a fade-in oversized followed by a scale down onto the
+   element. 1.12 and not more: past roughly 1.2 the box leaves its element's
+   neighbourhood and the viewer loses the connection between start and end
+   state; below about 1.08 the gesture isn't legible at this frame size.
+   No overshoot and no spring — scale monotonically to 1 and stop. A bounce
+   reads as a UI toy and would contradict the boundary demo's own rule about
+   halting without easing out, i.e. the page would be arguing with itself.
+
+   Release dilates to only 1.06, because a smaller dilation reads as letting
+   go where replaying the acquire in reverse would read as a rewind.
+
+   The 100% frame here is deliberately the empty state, unlike the other
+   loops: this loop's rest phase genuinely has no boxes in it. Reduced motion
+   is handled in capture-readout.tsx, which drops the animation entirely and
+   renders the boxes at rest — see the reduceMotion branch there. */
+@keyframes readout-acquire {
   0%,
-  15.14% {
-    stroke-dashoffset: var(--p);
+  2.95% {
+    opacity: 0;
+    transform: scale(1.12);
   }
-  18.65%,
-  75.4% {
-    stroke-dashoffset: 0;
+  4.84% {
+    opacity: 1;
   }
-  80.5%,
+  7%,
+  72.97% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  75.95%,
   100% {
-    stroke-dashoffset: var(--p);
+    opacity: 0;
+    transform: scale(1.06);
   }
 }
 
@@ -353,11 +381,11 @@ section[id] {
    before the box retracts, so the two never move at the same instant. */
 @keyframes readout-label {
   0%,
-  18.65% {
+  7% {
     opacity: 0;
     transform: translateY(3px);
   }
-  21.1%,
+  9.2%,
   72.97% {
     opacity: 1;
     transform: translateY(0);

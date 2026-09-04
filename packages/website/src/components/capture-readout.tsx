@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { NorthsoundCheckout } from './specimen/northsound-checkout.js';
+import { SpecimenFrame } from './specimen/specimen-frame.js';
 import { usePrefersReducedMotion } from '../hooks/use-reduced-motion.js';
 
 // The page's one signature moment.
@@ -35,20 +37,25 @@ interface Region {
   label: string;
 }
 
-// Each box frames a real element in the mock below. A readout that doesn't
-// line up with what it points at is just decoration.
+// Each box frames a real element in the specimen below, measured in a browser
+// rather than drawn by eye — a readout that doesn't line up with what it
+// points at is just decoration.
 const REGIONS: readonly Region[] = [
-  { x: 6, y: 18, w: 52, h: 13, label: 'heading' },
-  { x: 6, y: 45, w: 27, h: 10, label: 'button' },
-  { x: 6, y: 62, w: 88, h: 29, label: 'canvas' },
+  { x: 3.9, y: 13.8, w: 14.9, h: 6.0, label: 'h1' },
+  { x: 3.9, y: 32.2, w: 55.1, h: 18.7, label: 'canvas' },
+  { x: 65.6, y: 72.6, w: 28.3, h: 6.9, label: 'button' },
 ];
+
+/** When the scan line crosses a box's BOTTOM edge, in ms into the cycle. */
+function acquireAt(r: Region): number {
+  return ((r.y + r.h) / 100) * SWEEP_MS;
+}
 
 const RESOLVE_START_MS = 520;
 const RESOLVE_MS = 900;
 
 const CYCLE_MS = 7400;
 const SWEEP_MS = 1100;
-const BOX_STAGGER_MS = 190;
 const STROKE_DRAW_MS = 260;
 
 /** Cycle-relative milestones. Kept as named constants rather than tokens: these
@@ -63,11 +70,6 @@ const T_REST = 5960;
 const READ_ROW_MS = 900;
 
 type Phase = 'scanning' | 'acquiring' | 'reading' | 'idle';
-
-/** Perimeter in the SVG's 0-100 user space, used as the dash length. */
-function perimeter(r: Region): number {
-  return 2 * (r.w + r.h);
-}
 
 export function CaptureReadout() {
   const reduceMotion = usePrefersReducedMotion();
@@ -178,29 +180,30 @@ export function CaptureReadout() {
         <div className="relative aspect-[16/10]">
           <div
             ref={resolveLayer}
-            className="absolute inset-0 p-[6%] transition-[filter,opacity] ease-base"
+            className="absolute inset-0 transition-[filter,opacity] ease-base"
             style={{
               filter: resolved ? 'blur(0px) saturate(1)' : 'blur(12px) saturate(0.2)',
               opacity: resolved ? 1 : 0.55,
               transitionDuration: `${RESOLVE_MS}ms`,
             }}
           >
-            <div className="h-[7%] w-[34%] rounded-sm bg-surface-raised" />
-            <div className="mt-[5%] h-[13%] w-[52%] rounded-sm bg-text-primary" />
-            <div className="mt-[4%] h-[5%] w-[64%] rounded-sm bg-surface-raised" />
-            <div className="mt-[5%] h-[10%] w-[27%] rounded-full bg-accent" />
-            {/* The blank canvas the readout reports on. */}
-            <div className="mt-[7%] h-[29%] w-[88%] rounded-sm border border-rule-structural" />
+            <SpecimenFrame>
+              <NorthsoundCheckout />
+            </SpecimenFrame>
           </div>
 
           {/* Vignette arrives WITH the resolve. A static vignette is texture;
-              one that lands on the resolve is an optical event. */}
+              one that lands on the resolve is an optical event.
+              Pulled back from 0.74 to 0.42 and its clear centre widened once
+              the frame held a LIGHT specimen: values tuned against a dark
+              mock read as fog over a white page, and a page that looks fogged
+              stops reading as a real page, which is the entire point of it. */}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 transition-opacity ease-base"
             style={{
               background:
-                'radial-gradient(120% 90% at 50% 0%, transparent 38%, rgba(9,9,11,0.74) 100%)',
+                'radial-gradient(125% 95% at 50% 0%, transparent 52%, rgba(9,9,11,0.42) 100%)',
               opacity: resolved ? 1 : 0,
               transitionDuration: `${RESOLVE_MS}ms`,
             }}
@@ -228,74 +231,66 @@ export function CaptureReadout() {
             </div>
           )}
 
-          <svg
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 h-full w-full"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-          >
-            {REGIONS.map((r, i) => {
-              const p = perimeter(r);
-              // The box draws, holds, and retracts, once per cycle. Animating
-              // opacity here would be decoration appearing; animating
-              // stroke-dashoffset is an instrument acquiring a target, and
-              // that distinction is the single biggest reason round 4's
-              // version read as a skeleton.
-              const draw = reduceMotion
-                ? undefined
-                : {
-                    animation: `readout-box ${CYCLE_MS}ms var(--ease-draw) infinite`,
-                    animationDelay: `${i * BOX_STAGGER_MS}ms`,
-                  };
-              const lit = readRow === i;
-              return (
-                <g key={r.label}>
-                  {/* Under-stroke carries the glow. A wide low-opacity stroke
-                      is not a shadow, so it stays inside the concept's rules. */}
-                  <rect
-                    x={r.x}
-                    y={r.y}
-                    width={r.w}
-                    height={r.h}
-                    fill="none"
-                    stroke="var(--accent-glow)"
-                    strokeWidth="3"
-                    vectorEffect="non-scaling-stroke"
-                    style={{
-                      ['--p' as string]: p,
-                      strokeDasharray: p,
-                      strokeDashoffset: reduceMotion ? 0 : undefined,
-                      opacity: lit ? 0.2 : 0.12,
-                      transition: `opacity ${STROKE_DRAW_MS}ms var(--ease)`,
-                      ...draw,
-                    }}
-                  />
-                  <rect
-                    x={r.x}
-                    y={r.y}
-                    width={r.w}
-                    height={r.h}
-                    fill="none"
-                    stroke="var(--accent-glow)"
-                    strokeWidth="1"
-                    vectorEffect="non-scaling-stroke"
-                    style={{
-                      ['--p' as string]: p,
-                      strokeDasharray: p,
-                      strokeDashoffset: reduceMotion ? 0 : undefined,
-                      opacity: lit ? 1 : 0.9,
-                      transition: `opacity ${STROKE_DRAW_MS}ms var(--ease)`,
-                      ...draw,
-                    }}
-                  />
-                </g>
-              );
-            })}
-          </svg>
+          {/* The boxes are positioned divs, NOT an SVG.
+              The SVG used viewBox="0 0 100 100" with preserveAspectRatio
+              "none" over a 16/10 frame, so its user space was square while
+              its rendering was not. A uniform scale() in that space comes out
+              visibly wider than taller — fatal for a gesture whose whole
+              meaning is a box converging on an element. As divs the scale is
+              uniform for free, transform-origin: center is trivial, and the
+              old duplication (boxes in stretched SVG space, labels in
+              unstretched CSS space, kept in sync by hand) disappears.
 
-          {/* Labels sit outside the stretched SVG so their typography stays
-              square. */}
-          {REGIONS.map((r, i) => (
+              The motion is a fade-in oversized then a scale down onto the
+              element, replacing the stroke-dashoffset draw. The verbs differ:
+              a stroke that draws is AUTHORING — "we made this box" — while a
+              box that converges is FINDING something already there. Ocular
+              measures what exists, so convergence is the correct verb.
+
+              Each box acquires as the scan line crosses its own bottom edge,
+              so the sweep is causal rather than ceremonial: the line finds the
+              element, the box lands on it. */}
+          {REGIONS.map((r, i) => {
+            const lit = readRow === i;
+            const acquire = reduceMotion
+              ? undefined
+              : {
+                  animation: `readout-acquire ${CYCLE_MS}ms var(--ease-acquire) infinite`,
+                  animationDelay: `${acquireAt(r) - acquireAt(REGIONS[0]!)}ms`,
+                };
+            return (
+              <div
+                key={r.label}
+                aria-hidden="true"
+                className="pointer-events-none absolute"
+                style={{
+                  left: `${r.x}%`,
+                  top: `${r.y}%`,
+                  width: `${r.w}%`,
+                  height: `${r.h}%`,
+                  opacity: reduceMotion ? 1 : 0,
+                  willChange: 'transform, opacity',
+                  ...acquire,
+                }}
+              >
+                {/* The glow is a wide low-opacity border, not a shadow, so it
+                    stays inside the concept's rules. */}
+                <span
+                  className="absolute -inset-px block border-[3px] border-accent-glow transition-opacity ease-base"
+                  style={{ opacity: lit ? 0.2 : 0.12, transitionDuration: `${STROKE_DRAW_MS}ms` }}
+                />
+                <span
+                  className="absolute inset-0 block border border-accent-glow transition-opacity ease-base"
+                  style={{ opacity: lit ? 1 : 0.9, transitionDuration: `${STROKE_DRAW_MS}ms` }}
+                />
+              </div>
+            );
+          })}
+
+          {/* Labels are separate from the boxes so they do not inherit the
+              acquire scale — a label that scaled with its box would blur its
+              own type on the way in. They ride the same per-box delay. */}
+          {REGIONS.map((r) => (
             <span
               key={r.label}
               className="pointer-events-none absolute font-mono text-[10px] font-medium leading-none tracking-[0.06em] text-accent-glow"
@@ -306,7 +301,9 @@ export function CaptureReadout() {
                 animation: reduceMotion
                   ? undefined
                   : `readout-label ${CYCLE_MS}ms var(--ease) infinite`,
-                animationDelay: reduceMotion ? undefined : `${i * BOX_STAGGER_MS}ms`,
+                animationDelay: reduceMotion
+                  ? undefined
+                  : `${acquireAt(r) - acquireAt(REGIONS[0]!)}ms`,
               }}
             >
               {r.label}
