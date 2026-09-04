@@ -1065,14 +1065,25 @@ last as the turn.
   `risk: UNKNOWN` from `impact` all session and had to be confirmed by text search. They are
   committed now, so the next `analyze` picks them up.
 
-### THE PUSH IS STILL GATED — unchanged since Session 28, now 20 commits deep
+### THE PUSH GATE — LIFTED BY THE FOUNDER, 2026-09-05
 
 `OCULAR_API_KEY` is still required (`packages/local-worker/src/config.ts:29`,
 `http/cloud-client.ts:24`) while `cta-footer.tsx` says _"There's no API key to copy, and none
 to leak"_ and `setup-page.tsx` says _"That's the whole config. No key in it."_ Both Vercel
 projects auto-deploy from `main`. **The copy is correct — the site describes the finished
-product, and the push is what gets gated, not the words.** Either land the auth rework or
-revert that copy before pushing.
+product, and the push is what gets gated, not the words.**
+
+**The founder was shown all of the above and said "push".** Twenty commits went to `main`
+on 2026-09-05, so both Vercel projects have deployed and the live site now promises a
+sign-in flow the shipped product does not yet have. This was a deliberate, informed call,
+not an oversight — recorded here so nobody "fixes" the copy back to the key flow on the
+assumption it slipped through.
+
+**What this makes urgent.** The auth rework is now the thing standing between the live copy
+and the truth, which moves it from "Phase 2 backlog" to the top of the list. Until it lands,
+anyone reading `cta-footer.tsx` or `setup-page.tsx` against the running product will find
+they disagree. See the Session 27 note on the AuthKit device-code flow for the intended
+shape.
 
 ## Session 30 — 2026-09-04 · the stale-Tailwind root cause, round-7 website work
 
