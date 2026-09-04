@@ -37,7 +37,16 @@ const VERIFICATION_MAX_TILES = 12;
 const ANALYSIS_MAX_DURATION_MS = 2000;
 const ANALYSIS_MAX_FRAMES = 48;
 
-const SCROLL_SCRUBBED_STEPS = 10;
+// Frames, not intervals. The loop below walks i = 0..SAMPLES-1 inclusive,
+// so this is exactly how many tiles a scroll-scrubbed sheet comes back with.
+// It was previously a step count and produced SAMPLES+1 frames -- 11 for a
+// nominal 10, which is prime and therefore untileable without empty cells.
+//
+// This is the DEFAULT, not the only value: `input.samples` overrides it per
+// call (see the shared schema). It stays 10 because lowering the default
+// would quietly make every existing caller's capture lossier to suit one
+// caller that wanted a shorter sheet.
+const SCROLL_SCRUBBED_SAMPLES = 10;
 const SCROLL_SETTLE_MS = 60;
 const SCROLL_TRIGGER_SETTLE_MS = 300;
 
@@ -57,6 +66,9 @@ const DIFF_GRID_BLOCKS = 12;
 
 const TILE_CELL_W = 240;
 const TILE_CELL_H = 180;
+// Widest sheet we will emit. 6 x 240px = 1440px, still inside the ~1568px
+// long edge past which a model gains no accuracy and only spends tokens.
+const MAX_TILE_COLS = 6;
 
 // Max-block diff, not a whole-frame average. Found via live testing (a real
 // bug, not a hypothetical): a small moving element (e.g. a 100px box in a
@@ -143,14 +155,15 @@ async function sampleTimeBased(
   return frames;
 }
 
-async function sampleScrollScrubbed(page: Page, steps: number): Promise<RawFrame[]> {
+async function sampleScrollScrubbed(page: Page, samples: number): Promise<RawFrame[]> {
   const { maxScrollY } = await getScrollMetrics(page);
   const frames: RawFrame[] = [];
   const start = Date.now();
   let currentY = 0;
 
-  for (let i = 0; i <= steps; i++) {
-    const targetY = Math.round((maxScrollY * i) / steps);
+  const lastIndex = Math.max(1, samples - 1);
+  for (let i = 0; i < samples; i++) {
+    const targetY = Math.round((maxScrollY * i) / lastIndex);
     await wheelScrollTo(page, targetY, currentY);
     currentY = targetY;
     await page.waitForTimeout(SCROLL_SETTLE_MS);
@@ -219,9 +232,65 @@ function tileLabelSvg(
   return Buffer.from(svg);
 }
 
+// Grid shape. `ceil(sqrt(n))` alone leaves ragged holes: ten frames land in a
+// 4x3 grid with two empty cells, which reads as a broken image rather than as
+// a sheet, and spends tile budget on nothing. So we prefer a factorisation
+// that fills EVERY cell, taking the exact factor pair closest to square — a
+// 12-frame sheet stays 4x3, a 10-frame one becomes 5x2. Pairs wider than
+// MAX_TILE_COLS are rejected so a prime-ish count can't degenerate into a
+// single 7-wide strip that blows past the model's ~1568px long-edge cap; a
+// count with no usable exact pair (7, 11) falls back to the near-square shape
+// and accepts the blanks.
+function gridShape(frameCount: number): { cols: number; rows: number } {
+  const n = Math.max(1, frameCount);
+  let best: { cols: number; rows: number } | null = null;
+  for (let rows = 1; rows * rows <= n; rows++) {
+    if (n % rows !== 0) continue;
+    const cols = n / rows;
+    if (cols > MAX_TILE_COLS) continue;
+    if (!best || cols / rows < best.cols / best.rows) best = { cols, rows };
+  }
+  if (best) return best;
+  const near = Math.max(1, Math.ceil(Math.sqrt(n)));
+  return { cols: near, rows: Math.max(1, Math.ceil(n / near)) };
+}
+
+// Separator lines on the internal cell boundaries.
+//
+// Without them adjacent frames of the same page bleed into one another —
+// consecutive samples of an animation are by definition near-identical at the
+// edges, so the seam between two tiles is invisible and the sheet reads as one
+// smeared image rather than as N discrete moments. That is a correctness
+// problem for the tool, not a cosmetic one: a model counting frames, or
+// reasoning about what changed between two of them, first has to be able to
+// tell where one ends.
+//
+// Mid-grey at 2px, deliberately: the tiles are screenshots of arbitrary pages,
+// so the line has to hold against both a white page (5.2:1) and a near-black
+// one (3.7:1). A black hairline disappears on dark UIs and a white one
+// disappears on light ones.
+const GRID_LINE_COLOR = '#6b6b6b';
+const GRID_LINE_W = 2;
+
+function gridLinesSvg(cols: number, rows: number, width: number, height: number): Buffer {
+  const lines: string[] = [];
+  for (let c = 1; c < cols; c++) {
+    lines.push(
+      `<rect x="${c * TILE_CELL_W - GRID_LINE_W / 2}" y="0" width="${GRID_LINE_W}" height="${height}" fill="${GRID_LINE_COLOR}"/>`,
+    );
+  }
+  for (let r = 1; r < rows; r++) {
+    lines.push(
+      `<rect x="0" y="${r * TILE_CELL_H - GRID_LINE_W / 2}" width="${width}" height="${GRID_LINE_W}" fill="${GRID_LINE_COLOR}"/>`,
+    );
+  }
+  return Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${lines.join('')}</svg>`,
+  );
+}
+
 async function tileFrames(frames: RawFrame[]): Promise<{ buffer: Buffer; w: number; h: number }> {
-  const cols = Math.max(1, Math.ceil(Math.sqrt(frames.length)));
-  const rows = Math.max(1, Math.ceil(frames.length / cols));
+  const { cols, rows } = gridShape(frames.length);
 
   const cells = await Promise.all(
     frames.map((f) =>
@@ -242,10 +311,15 @@ async function tileFrames(frames: RawFrame[]): Promise<{ buffer: Buffer; w: numb
     top: Math.floor(i / cols) * TILE_CELL_H,
   }));
 
+  const gridComposite =
+    cols > 1 || rows > 1
+      ? [{ input: gridLinesSvg(cols, rows, width, height), left: 0, top: 0 }]
+      : [];
+
   const buffer = await sharp({
     create: { width, height, channels: 3, background: { r: 255, g: 255, b: 255 } },
   })
-    .composite([...cellComposite, ...labelComposite])
+    .composite([...cellComposite, ...gridComposite, ...labelComposite])
     .png()
     .toBuffer();
 
@@ -254,7 +328,7 @@ async function tileFrames(frames: RawFrame[]): Promise<{ buffer: Buffer; w: numb
 
 async function sample(page: Page, input: MotionCaptureInput): Promise<RawFrame[]> {
   if (input.scrollSampling === 'scroll-scrubbed') {
-    return sampleScrollScrubbed(page, SCROLL_SCRUBBED_STEPS);
+    return sampleScrollScrubbed(page, input.samples ?? SCROLL_SCRUBBED_SAMPLES);
   }
   if (input.scrollSampling === 'scroll-triggered') {
     const durationMs =

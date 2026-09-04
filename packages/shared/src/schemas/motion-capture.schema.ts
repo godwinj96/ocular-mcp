@@ -34,6 +34,35 @@ export const motionCaptureInputSchema = z.object({
   fps: z.number().int().min(1).max(60).default(24),
   /** verification mode only — perceptual-diff threshold that triggers a sampled frame. */
   diffThreshold: z.number().min(0).max(1).default(0.05),
+  /**
+   * scroll-scrubbed only — how many frames to sample across the scroll range.
+   * Omitted, the extractor's own default (10) applies.
+   *
+   * This exists because scroll-scrubbed sampling had no rate knob at all,
+   * while time-based sampling has `fps`. A caller who wants a coarser, cheaper
+   * sheet — or a denser one — previously had no way to ask, so the only way to
+   * change the tile count was to edit a constant, which silently changes it
+   * for every caller. The floor of 2 is the smallest count that can show
+   * motion; the ceiling matches the tiler's own 12.
+   *
+   * Fewer samples is genuinely lossier: undersampling invents artifacts (see
+   * docs/rules/05-worker-and-browser-pipeline.md §4b). This knob makes that a
+   * caller's explicit choice rather than a global default nobody sees.
+   */
+  samples: z.number().int().min(2).max(12).optional(),
+  /**
+   * Same contract as view_page. Without it a capture renders at the browser's
+   * own 800x600 default, which for any desktop layout is a different layout
+   * than the one being verified — the tool would answer a question about a
+   * page nobody is looking at. The MCP handler already applies this before
+   * navigating; only the schema field was missing.
+   */
+  viewport: z
+    .object({
+      w: z.number().int().min(200).max(3840),
+      h: z.number().int().min(200).max(2160),
+    })
+    .optional(),
   fresh: z.boolean().default(false),
 });
 
