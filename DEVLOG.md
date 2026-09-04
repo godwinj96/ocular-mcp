@@ -1101,12 +1101,21 @@ after.** Both previous attempts reported measured numbers that were correct and 
 
    The tracked motion shares an axis with the frame sequence, so the eye cannot separate them.
    **Fix: design a page with a large VERTICAL animation to track** — a real page, e.g. a landing
-   page — and **use Ocular itself to take the shots**, in a **5×2 contact sheet** (note: currently
-   8 frames as 2×4/4-col; he is asking for 10). Vertical motion against a horizontal frame
-   sequence separates the two axes.
+   page — serve it on localhost, and **capture it with Ocular's own local worker**, in a **5×2
+   contact sheet** (note: currently 8 frames as 2×4/4-col; he is asking for 10). Vertical motion
+   against a horizontal frame sequence separates the two axes.
 
-   **Dependency:** "use Ocular" requires Ocular to actually run, which currently requires the cloud
-   path — see the Vercel question below. Sequence that first.
+   **To be precise about "use Ocular" (founder clarified):** this means **`motion_capture` against
+   the localhost page you build**, not the cloud path, and **not** a hand-drawn mock — the frames
+   in the contact sheet should be genuine Ocular output of a page that genuinely animates. This is
+   dogfooding, and it is the point of the exercise.
+
+   **Dependency, corrected:** this is NOT blocked on Vercel. Local capture worked fine in earlier
+   sessions. It failed in Session 29 only because `SubscriptionValidator` proves validity by
+   calling `get_quota` on `OCULAR_CLOUD_MCP_URL`, which is `http://localhost:3000/mcp` — the local
+   dev mcp-server, which simply was not running. **Start `packages/mcp-server` locally and the
+   local worker works.** The Vercel question below is a separate, larger thread; do not sequence
+   this behind it.
 
 ---
 
@@ -1155,9 +1164,10 @@ the same asset while in there.
   the home page. Make them route-aware (`/#pricing`) so they navigate home and then scroll.
 
 - **Can the cloud mcp-server deploy to Vercel?** _"can't we deploy the cloud mcp server to vercel?"_
-  Open question to answer next session. It would unblock a lot at once: DEVLOG open item 9 (cloud
-  renders never tested), the subscription check that currently fails closed for purely local
-  captures (Session 29 entry above), and B4's "use Ocular to take the shots". Worth checking
+  Open question to answer next session. It would unblock DEVLOG open item 9 (cloud renders never
+  tested) and remove the standing awkwardness that a purely local capture depends on a reachable
+  cloud (Session 29 entry above). **It does NOT block B4** — see the corrected dependency there.
+  Worth checking
   whether `packages/mcp-server` fits Vercel's runtime — long-lived browser sessions and the warm
   pool are the obvious risks, and the answer may be that only the auth/quota surface belongs there
   while rendering needs a real host.
