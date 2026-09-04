@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Fieldnote — Issue 14</title>
+
+    <!--
+      SPECIMEN. This is not part of the Ocular site's design system.
+
+      It exists to be CAPTURED: the motion section's contact sheet is genuine
+      `motion_capture` output taken against this page on localhost, not a
+      hand-drawn mock of what a contact sheet would look like. Regenerate with
+      Ocular's local worker (see DEVLOG) if this page is edited — the sheet in
+      the site is a real capture and will drift from this file otherwise.
+
+      Third distinct look, deliberately: our own chrome is near-black neutral,
+      the Northsound specimen is cool white + terracotta with a UI sans, so
+      this one is warm cream + cobalt with a serif display face. A specimen has
+      to read as quoted material, and two specimens that resemble each other
+      read as one house style rather than as two different sites.
+
+      THE ANIMATION IS DESIGNED FOR THE SAMPLING AXIS. The founder's note on
+      the previous demo was that the tracked motion ran left-to-right while the
+      frames were also sequenced left-to-right, so the eye could not separate
+      the two. Everything below serves the fix:
+
+        1. The moving object is BOUNDED — the issue card has a visible top and
+           bottom edge and never spans the frame. An element whose leading edge
+           is a full-height line is indistinguishable from a grid gutter.
+        2. There is a FIXED DATUM. The masthead and the footer rail are
+           position:fixed, so they are pixel-identical in all ten frames and
+           the card's displacement is measurable against them. They are also
+           deliberately CHUNKY: at contact-sheet scale a 1px hairline vanishes,
+           so the datum has to be a band, not a line.
+        3. THE CARD IS IN EVERY FRAME. The first real capture of this page ran
+           at 320vh and put the card in only four of the ten cells — it entered
+           at #2 and had exited by #6, leaving half the sheet as empty cream.
+           The page is now 200vh, so the card sweeps ~11vh per frame and is
+           present in all ten. Ten populated cells beat a larger per-frame
+           displacement across a half-empty sheet.
+        4. SOMETHING IS MONOTONIC. The progress rail fills and the folio number
+           counts up, so frame order is inferable without reading a timestamp.
+
+        HORIZONTAL SAFE AREA. Contact-sheet cells are 240x180 (4:3) and frames
+        are fitted with `cover`, so a 1440x900 capture loses ~8.3% off EACH
+        side. The first capture clipped the headline to "he long way round /
+        he headland". Nothing meaningful may sit outside the central ~84%,
+        which is why the page gutter is 170px and not the 56px it started at.
+    -->
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      :root {
+        --paper: #f2ede3;
+        --paper-deep: #e7e0d2;
+        --ink: #141210;
+        --ink-soft: #5c554a;
+        --cobalt: #2b4de0;
+        --cobalt-deep: #1d36a8;
+        --serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+        --sans: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      }
+
+      html {
+        /* The extractor drives scrolling with real CDP wheel events. Smooth
+           scrolling would leave the page mid-glide when a frame is grabbed,
+           so every sample would catch a different point of an easing curve
+           rather than the scroll offset it asked for. */
+        scroll-behavior: auto;
+      }
+
+      body {
+        margin: 0;
+        /* 200vh -> 100vh of scroll -> ~11vh of travel between adjacent frames,
+           with the card on screen for all ten. See the note above. */
+        height: 200vh;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ---- Fixed datum. Identical in every frame. -------------------- */
+      .masthead {
+        position: fixed;
+        inset: 0 0 auto 0;
+        z-index: 3;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        padding: 30px 170px;
+        background: var(--paper);
+        border-bottom: 1px solid var(--ink);
+      }
+
+      .wordmark {
+        font-family: var(--serif);
+        font-size: 27px;
+        font-style: italic;
+        letter-spacing: -0.01em;
+      }
+
+      .masthead nav {
+        display: flex;
+        gap: 34px;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .footer-rail {
+        position: fixed;
+        inset: auto 0 0 0;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 22px 170px;
+        background: var(--paper);
+        border-top: 1px solid var(--ink);
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      /* Monotonic: fills left to right across the capture, so frame order is
+         readable without labels. */
+      .rail {
+        position: relative;
+        flex: 1;
+        height: 3px;
+        background: var(--paper-deep);
+      }
+      .rail span {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 0;
+        background: var(--cobalt);
+      }
+
+      .folio {
+        font-variant-numeric: tabular-nums;
+        min-width: 76px;
+        text-align: right;
+        color: var(--ink);
+      }
+
+      /* ---- Static page content: the second datum. -------------------- */
+      .lede {
+        position: absolute;
+        top: 150px;
+        left: 170px;
+        width: 46%;
+      }
+      .kicker {
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--cobalt);
+        margin: 0 0 18px;
+      }
+      .lede h1 {
+        font-family: var(--serif);
+        font-size: 64px;
+        line-height: 1.04;
+        letter-spacing: -0.02em;
+        margin: 0 0 22px;
+      }
+      .lede p {
+        font-size: 17px;
+        line-height: 1.6;
+        color: var(--ink-soft);
+        margin: 0;
+        max-width: 42ch;
+      }
+
+      .colophon {
+        position: absolute;
+        top: 150vh;
+        left: 170px;
+        width: 46%;
+        font-family: var(--serif);
+        font-size: 33px;
+        line-height: 1.3;
+      }
+
+      /* ---- The moving object. ---------------------------------------- */
+      /* Bounded: a card with a real top and bottom edge, 46vh tall, sitting in
+         the right half so it never becomes a full-width band. Cobalt on cream
+         is the highest-contrast pair on the page, which is what keeps it
+         legible once a frame is downscaled into a 240x180 contact-sheet cell. */
+      .issue-card {
+        position: absolute;
+        top: 88vh;
+        right: 170px;
+        width: 30%;
+        height: 28vh;
+        background: var(--cobalt);
+        color: var(--paper);
+        padding: 34px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        will-change: transform;
+      }
+
+      .issue-card .no {
+        font-family: var(--serif);
+        font-size: 92px;
+        line-height: 0.9;
+        margin: 0;
+      }
+      .issue-card .meta {
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        opacity: 0.82;
+      }
+      .issue-card h2 {
+        font-family: var(--serif);
+        font-size: 30px;
+        line-height: 1.2;
+        margin: 0;
+        font-weight: 400;
+      }
+
+      /* A second bounded object travelling with a phase offset. Two objects at
+         different speeds make the sheet read as a scene in motion rather than
+         as one sprite on a track. */
+      .plate {
+        position: absolute;
+        top: 128vh;
+        left: 170px;
+        width: 27%;
+        height: 25vh;
+        background: var(--ink);
+        will-change: transform;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="wordmark">Fieldnote</div>
+      <nav>
+        <span>Issues</span><span>Dispatches</span><span>Subscribe</span>
+      </nav>
+    </header>
+
+    <div class="lede">
+      <p class="kicker">Issue 14 · Winter</p>
+      <h1>The long way round the headland</h1>
+      <p>
+        Six days on foot along a coast that has been surveyed nine times and mapped
+        correctly once. Field notes, tide tables, and an argument with a lighthouse
+        keeper about the shape of the bay.
+      </p>
+    </div>
+
+    <article class="issue-card">
+      <p class="no">14</p>
+      <div>
+        <h2>The long way round the headland</h2>
+        <p class="meta" style="margin: 14px 0 0">Winter · 96 pages</p>
+      </div>
+    </article>
+
+    <div class="plate"></div>
+
+    <div class="colophon">Printed in Leith, twice a year, on paper that survives rain.</div>
+
+    <footer class="footer-rail">
+      <span>Fieldnote</span>
+      <div class="rail"><span id="fill"></span></div>
+      <span class="folio" id="folio">p. 001</span>
+    </footer>
+
+    <script>
+      // Scroll-driven, and deliberately NOT `animation-timeline: scroll()`:
+      // chrome-headless-shell's support for it is not something this capture
+      // should depend on, and a rAF-throttled scroll listener is what real
+      // pages in this category actually ship.
+      (function () {
+        var card = document.querySelector('.issue-card');
+        var plate = document.querySelector('.plate');
+        var fill = document.getElementById('fill');
+        var folio = document.getElementById('folio');
+        var ticking = false;
+
+        function draw() {
+          ticking = false;
+          var max = document.body.scrollHeight - window.innerHeight;
+          var p = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+
+          // The card rises FURTHER than the document scrolls it, so its
+          // displacement is unmistakably larger than the page's own. Negative
+          // -> travels up as the reader goes down.
+          // The card rides the document scroll (~100vh over the capture) with
+          // only a slight rotation settling out, so it stays inside the
+          // viewport for all ten samples. A counter-translate here is what
+          // made it exit the frame by cell #6 on the first attempt.
+          card.style.transform = 'rotate(' + (-1.8 + p * 1.8) + 'deg)';
+          // The plate parallaxes against it: two objects at two speeds read as
+          // a scene in motion rather than one sprite on a track.
+          plate.style.transform = 'translateY(' + -p * 22 + 'vh)';
+
+          fill.style.width = p * 100 + '%';
+          folio.textContent = 'p. ' + String(Math.round(1 + p * 95)).padStart(3, '0');
+        }
+
+        window.addEventListener(
+          'scroll',
+          function () {
+            if (!ticking) {
+              ticking = true;
+              requestAnimationFrame(draw);
+            }
+          },
+          { passive: true },
+        );
+        draw();
+      })();
+    </script>
+  </body>
+</html>

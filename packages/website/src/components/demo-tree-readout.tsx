@@ -1,7 +1,11 @@
+import { useRef } from 'react';
 import { SectionHeader } from './section-header.js';
 import { useInView } from '../hooks/use-in-view.js';
-import { NorthsoundCheckout } from './specimen/northsound-checkout.js';
+import { usePrefersReducedMotion } from '../hooks/use-reduced-motion.js';
+import { TesseraDashboard } from './specimen/tessera-dashboard.js';
 import { SpecimenFrame } from './specimen/specimen-frame.js';
+import { useTreeRows, FOLD_Y } from '../hooks/use-tree-rows.js';
+import { ReadoutOverlay, useReadoutCycle, reachedAt, CYCLE_MS } from './readout-overlay.js';
 
 // S1 · Two readings of the same frame.
 //
@@ -10,84 +14,56 @@ import { SpecimenFrame } from './specimen/specimen-frame.js';
 // picture alone is table stakes — what ships alongside it is a labelled tree
 // that knows what's in view and what's below the fold, and the two have holes
 // only the other can fill. The canvas is unreadable to the tree (it's just an
-// unnamed node); the three below-fold rows are invisible to the picture.
+// unnamed node); the below-fold rows are invisible to the picture.
 //
 // The composition is two columns separated by ONE vertical hairline. No outer
 // border, no background fill — the columns are the composition. That is the
 // founder's "no bounding boxes" note applied literally.
+//
+// ROUND 7 — the founder: "the 2nd demo isnt animated and the bounding boxes
+// aren't complete. Make it like the hero demo with the animated scanlines and
+// animated grouped bounding boxes." Both true. This section had no scan line
+// at all and a dim opacity throb (`box-pulse`) that left most boxes sitting at
+// rest at any given instant, so a complete set of boxes read as a partial one.
+// It now mounts the SAME instrument the hero does — one component, so the two
+// cannot drift — and the boxes carry their role labels here too.
+//
+// THE ONE THING THIS SECTION ADDS. The tree rows are timed against the same
+// scan line: a row lands as the line crosses the element it describes, and the
+// below-fold rows land AFTER the line has left the frame entirely, one at a
+// time. That is this section's whole claim rendered as motion rather than
+// asserted in a caption — the picture stops, and the tree keeps going.
 
-const CYCLE_MS = 6240;
-const ROW_STAGGER_MS = 260;
-
-interface TreeRow {
-  indent: 0 | 1;
-  role: string;
-  name: string;
-  coords: string;
-  /** Drives the colour of the position column, and it is the payload. */
-  position: 'in-view' | 'below-fold';
-  /** Index of the region box this row points at, if any. */
-  region?: number;
-}
-
-const ROWS: readonly TreeRow[] = [
-  { indent: 0, role: 'main', name: '', coords: '', position: 'in-view' },
-  {
-    indent: 1,
-    role: 'h1',
-    name: '"Checkout"',
-    coords: '56,124   215×54',
-    position: 'in-view',
-    region: 0,
-  },
-  {
-    indent: 1,
-    role: 'canvas',
-    name: '[no accessible name]',
-    coords: '56,290   794×168',
-    position: 'in-view',
-    region: 1,
-  },
-  {
-    indent: 1,
-    role: 'button',
-    name: '"Place order"',
-    coords: '945,653  408×62',
-    position: 'in-view',
-    region: 2,
-  },
-  {
-    indent: 0,
-    role: 'section',
-    name: '"Returns & exchanges"',
-    coords: '56,1024  173×28',
-    position: 'below-fold',
-  },
-  {
-    indent: 1,
-    role: 'p',
-    name: '"Free returns within 30 days…"',
-    coords: '56,1063  535×46',
-    position: 'below-fold',
-  },
-];
-
-// Percentages of the 1440x900 specimen, derived from where the real elements
-// actually land, not drawn by eye. The whole point of rendering the specimen
-// as DOM rather than pasting a screenshot is that these stay checkable.
-const REGIONS = [
-  { x: 3.9, y: 13.8, w: 14.9, h: 6.0 },
-  { x: 3.9, y: 32.2, w: 55.1, h: 18.7 },
-  { x: 65.6, y: 72.6, w: 28.3, h: 6.9 },
-] as const;
+/** Rows past the fold land after the sweep exits, in sequence rather than as
+ *  one simultaneous pop — the tree is still reporting after the picture ended. */
+const BELOW_FOLD_STAGGER_MS = 320;
 
 export function DemoTreeReadout() {
   const { ref, inView } = useInView<HTMLDivElement>();
+  const reduceMotion = usePrefersReducedMotion();
+  const frameRef = useRef<HTMLDivElement>(null);
+  const rows = useTreeRows(frameRef);
+  const { t } = useReadoutCycle(reduceMotion);
+
+  // The rows and the overlay boxes are both MEASURED from the specimen's own
+  // DOM (hooks/use-tree-rows.ts, hooks/use-element-boxes.ts) rather than typed
+  // out here. Hand-written coordinates were correct on the day they were taken
+  // and became fiction the moment the specimen moved — and keeping them in
+  // sync by hand is exactly what made swapping this section's specimen
+  // expensive enough that it ended up sharing the hero's.
+  let belowFoldSeen = 0;
+  const rowDelays = rows.map((row) => {
+    if (row.position === 'below-fold') {
+      belowFoldSeen += 1;
+      return reachedAt(100) + belowFoldSeen * BELOW_FOLD_STAGGER_MS;
+    }
+    return reachedAt((row.y / FOLD_Y) * 100);
+  });
 
   return (
     <section
       id="capture"
-      className="pt-sec-major"
+      className="pb-sec-tail pt-sec"
       style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
     >
       <div className="mx-auto max-w-[1240px]">
@@ -99,68 +75,48 @@ export function DemoTreeReadout() {
       </div>
 
       {/* Demos overhang the text measure by 80px per side. */}
-      <div
-        ref={ref}
-        className={`demo-loop mx-auto mt-demo-gap max-w-demo ${inView ? 'is-live' : ''}`}
-      >
+      <div ref={ref} className={`demo-loop mx-auto mt-group max-w-demo ${inView ? 'is-live' : ''}`}>
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-[7fr_5fr] lg:gap-0">
           {/* Left — the picture. */}
           <div className="lg:pr-10">
-            <p className="mb-4 font-mono text-[11px] leading-none tracking-[0.02em] text-text-quaternary">
+            <p className="mb-stack-1 font-mono text-[11px] leading-none tracking-[0.02em] text-text-quaternary">
               localhost:3000 · 1440 × 900
             </p>
-            <div className="relative aspect-[16/10] overflow-hidden rounded border border-rule-mark bg-white">
+            <div
+              ref={frameRef}
+              className="relative aspect-[16/10] overflow-hidden rounded border border-rule-mark bg-white"
+            >
               {/* The specimen page, laid out at 1440x900 and fitted by the
                   compositor. It replaces five grey bars: a viewer has nothing
                   to recognise in a skeleton, so the demo could not carry the
                   section on its own — which was the founder's note. */}
+              {/* A SECOND specimen, not the hero's. The founder's call: "you
+                  can't recycle the same page from the hero area to the first
+                  demonstration." A dashboard also supplies this section's two
+                  claims honestly — a chart canvas a tree genuinely cannot
+                  describe, and a table that genuinely runs past the fold. */}
               <SpecimenFrame>
-                <NorthsoundCheckout />
+                <TesseraDashboard />
               </SpecimenFrame>
 
-              <svg
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 h-full w-full"
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-              >
-                {REGIONS.map((r, i) => (
-                  <rect
-                    key={i}
-                    x={r.x}
-                    y={r.y}
-                    width={r.w}
-                    height={r.h}
-                    fill="none"
-                    stroke="var(--accent-glow)"
-                    strokeWidth="1"
-                    vectorEffect="non-scaling-stroke"
-                    style={{
-                      opacity: 0.9,
-                      animation: `box-pulse ${CYCLE_MS}ms linear infinite`,
-                      // +1 because row 0 ("main") points at no region.
-                      animationDelay: `${(i + 1) * ROW_STAGGER_MS}ms`,
-                    }}
-                  />
-                ))}
-              </svg>
+              <ReadoutOverlay frameRef={frameRef} t={t} reduceMotion={reduceMotion} />
             </div>
           </div>
 
           {/* Right — the tree. One hairline divides them and nothing else. */}
           <div className="lg:border-l lg:border-rule-divider lg:pl-10">
-            <p className="mb-4 font-mono text-[11px] leading-none tracking-[0.02em] text-text-quaternary">
-              element tree · 6 nodes
+            <p className="mb-stack-1 font-mono text-[11px] leading-none tracking-[0.02em] text-text-quaternary">
+              element tree · {rows.length} nodes
             </p>
             <div className="font-mono text-[12.5px] leading-[1.6]">
-              {ROWS.map((row, i) => (
+              {rows.map((row, i) => (
                 <div
                   key={`${row.role}-${i}`}
                   className="flex items-baseline gap-3 whitespace-nowrap"
                   style={{
-                    opacity: 0.08,
-                    animation: `row-cycle ${CYCLE_MS}ms linear infinite`,
-                    animationDelay: `${i * ROW_STAGGER_MS}ms`,
+                    opacity: reduceMotion ? 1 : 0.08,
+                    animation: reduceMotion ? undefined : `row-cycle ${CYCLE_MS}ms linear infinite`,
+                    animationDelay: reduceMotion ? undefined : `${rowDelays[i]}ms`,
                   }}
                 >
                   <span className={`text-text-secondary ${row.indent ? 'pl-4' : ''}`}>
@@ -169,16 +125,14 @@ export function DemoTreeReadout() {
                   <span className="min-w-0 flex-1 truncate text-text-primary">{row.name}</span>
                   <span className="hidden text-text-quaternary sm:inline">{row.coords}</span>
                   <span
-                    className={
-                      row.position === 'in-view' ? 'text-accent-glow' : 'text-text-inactive'
-                    }
+                    className={row.position === 'in-view' ? 'text-signal' : 'text-text-inactive'}
                   >
                     {row.position}
                   </span>
                 </div>
               ))}
             </div>
-            <p className="mt-6 font-mono text-[11px] leading-none tracking-[0.02em] text-text-quaternary">
+            <p className="mt-stack-2 font-mono text-[11px] leading-none tracking-[0.02em] text-text-quaternary">
               the picture stops at the fold · the tree doesn&rsquo;t
             </p>
           </div>

@@ -10,9 +10,11 @@
  * no-gradient, single-radius rules govern OUR chrome. A specimen is quoted
  * material and is allowed a card shadow, a light ground and mixed radii.
  *
- * One hard constraint survives: --accent-glow (the teal) is the instrument's
- * "I am reading this" colour and appears NOWHERE in here, or the overlay
- * boxes stop reading as ours.
+ * One hard constraint survives: the instrument's "I am reading this" colour
+ * appears NOWHERE in here, or the overlay boxes stop reading as ours. That
+ * is now a two-value ladder — --signal on our dark chrome, --signal-ink on a
+ * light specimen ground like this one — and BOTH are barred from a specimen's
+ * own design. The overlay is drawn on top of the specimen, never inside it.
  * ------------------------------------------------------------------------ */
 
 .specimen-frame {
@@ -290,4 +292,116 @@
   max-width: 62ch;
   font-size: 16px;
   color: var(--spec-ink-2);
+}
+
+/* ---------------------------------------------------------------------------
+ * Specimen B — Tessera, a fictional analytics dashboard.
+ *
+ * Overrides the palette vars rather than redefining components: a cool slate
+ * ground and a blue accent against Northsound's warm neutral and terracotta,
+ * so the two read as two different sites rather than as one house style. The
+ * instrument's signal colours (--signal / --signal-ink) remain barred from
+ * both, per the note at the top of this file.
+ * ------------------------------------------------------------------------- */
+.specimen-b {
+  --spec-ground: #eef1f6;
+  --spec-card: #ffffff;
+  --spec-ink: #0f172a;
+  --spec-ink-2: #56607a;
+  --spec-ink-3: #97a0b5;
+  --spec-line: #dde3ed;
+  --spec-accent: #2f5fa8;
+}
+
+.spec-b-body {
+  padding: 44px 56px 0;
+}
+
+.spec-b-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 30px 0 40px;
+}
+
+.spec-b-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 20px 22px;
+  background: var(--spec-card);
+  border: 1px solid var(--spec-line);
+  border-radius: 8px;
+}
+
+.spec-b-kpi-label {
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--spec-ink-3);
+}
+
+.spec-b-kpi-value {
+  font-size: 38px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--spec-ink);
+}
+
+.spec-b-kpi-delta {
+  font-size: 13px;
+  color: var(--spec-accent);
+}
+
+/* The chart is a real canvas, painted on mount by tessera-dashboard.tsx.
+   It used to be empty, on the reasoning that a tree can say nothing about what
+   a canvas contains so its contents were immaterial. That was wrong twice: an
+   empty bordered rectangle reads as a dashboard that failed to load, and it
+   made the section's claim trivial — there is no loss to demonstrate when
+   there is nothing in the box. The background stays because a canvas is
+   transparent by default and the bars need a card to sit on. */
+.spec-b-chart {
+  display: block;
+  width: 100%;
+  /* Sized so the "Slowest regions" table starts past y=900 — the line where a
+     16/10 frame at 1440 stops. That is not an arbitrary layout choice: this
+     section's claim is that the picture stops at the fold and the tree does
+     not, so the specimen has to actually HAVE something past the fold, and
+     the fold has to fall between the chart and the table. */
+  height: 330px;
+  margin: 16px 0 110px;
+  background: var(--spec-card);
+  border: 1px solid var(--spec-line);
+  border-radius: 8px;
+}
+
+.spec-b-table {
+  width: 100%;
+  margin-top: 16px;
+  border-collapse: collapse;
+  font-size: 16px;
+  color: var(--spec-ink);
+}
+
+.spec-b-table th {
+  padding: 12px 0;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--spec-ink-3);
+  border-bottom: 1px solid var(--spec-line);
+}
+
+.spec-b-table td {
+  padding: 15px 0;
+  border-bottom: 1px solid var(--spec-line);
+  font-variant-numeric: tabular-nums;
+}
+
+.spec-b-num {
+  text-align: right;
 }

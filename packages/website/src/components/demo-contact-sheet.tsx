@@ -1,23 +1,49 @@
 import { SectionHeader } from './section-header.js';
 import { useInView } from '../hooks/use-in-view.js';
+import contactSheet from '../assets/motion-contact-sheet-1x5.webp';
 
-// S2 · It sees things move.
+// S2 · Your agent sees it move.
 //
-// The frames sample an ease-out drawer, and the sample positions are the real
-// ones: 100, 86, 68, 47, 28, 13, 4, 0 percent. Because the curve decelerates,
-// the frames visibly bunch toward the end — a developer reads that asymmetry
-// instantly, and it is the entire argument for why a sheet of frames beats a
-// description of the motion.
+// THIS IMAGE IS REAL TOOL OUTPUT. It is not a drawing of a contact sheet: it
+// is the exact WebP `motion_capture` returned, captured by the local worker
+// against public/specimens/fieldnote.html on localhost, tile labels and all.
+// Regenerate with `npx tsx scripts/capture-motion-specimen.mjs` whenever that
+// specimen changes, or the demo and the page it claims to depict diverge.
 //
-// The grid's only lines are its 1px gaps, showing through from the plate
-// behind the cells. No cell borders, no outer border.
+// The previous version of this section was eight hand-built DOM cells
+// animating a drawer, and it failed for two reasons the founder identified:
+//
+//   1. THE AXES COLLIDED. The tracked motion ran right-to-left while the
+//      frames were also sequenced left-to-right, so the eye could not
+//      separate the animation from the grid. The specimen now animates
+//      VERTICALLY against a horizontally-sequenced sheet.
+//   2. HALF OF IT WASN'T RENDERING. The cells' static content bars used
+//      `bg-text-inactive` and `bg-rule-mark`, neither of which existed in the
+//      dev server's stale Tailwind build — so the fixed datum that made the
+//      moving element measurable was invisible during review. See tokens.css.
+//
+// Showing the real artefact also removes a standing honesty problem: a
+// hand-drawn approximation of the output is a claim about the product that
+// nothing verifies. This one is checkable — the labels in the image are the
+// extractor's own, and the scroll offsets in them are real.
+//
+// The stagger loop is deliberately gone. Lighting ten cells one at a time
+// added a SECOND temporal axis on top of the frames' own, which is what made
+// the old demo feel sequenced while the frames themselves weren't doing that
+// work — and it made a finished artefact read as a skeleton still loading,
+// contradicting the caption directly beneath it. One fade of the whole plate.
 
-const CYCLE_MS = 5800;
-const CELL_STAGGER_MS = 180;
-
-/** Drawer offset per frame, in percent — an ease-out sample, not a linear one. */
-const FRAMES = [100, 86, 68, 47, 28, 13, 4, 0] as const;
-const TIMESTAMPS = [0, 40, 80, 120, 160, 200, 240, 280] as const;
+// Five tiles in a single row, the founder's call: "lets make it 5x1 for
+// simplicity's sake." A 5x2 sheet asks the eye to wrap, and wrapping a
+// sequence re-introduces exactly the second reading axis the note below says
+// this section removed.
+//
+// The image is a capture at `samples: 5`, a real argument to the real tool --
+// NOT the extractor's default lowered to suit this page. Halving
+// SCROLL_SCRUBBED_SAMPLES would have made every caller's scroll capture
+// lossier to fix a website layout; the schema carries a per-call knob instead.
+// Regenerate with `npx tsx scripts/capture-motion-specimen.mjs`.
+const TILE_COUNT = 5;
 
 export function DemoContactSheet() {
   const { ref, inView } = useInView<HTMLDivElement>();
@@ -25,61 +51,37 @@ export function DemoContactSheet() {
   return (
     <section
       id="motion"
-      className="pt-sec-minor"
+      className="pb-sec-tail pt-sec"
       style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
     >
       <div className="mx-auto max-w-[1240px]">
         <SectionHeader
           eyebrow="Motion"
-          heading="It sees things move"
-          deck="Animation, transitions, and scroll-driven UI come back as a sheet of frames — the whole sequence in a single image, so your agent can see the motion without paying for a video."
+          heading="Your agent sees it move"
+          deck="Animation, transitions, and scroll-driven UI come back as a sheet of frames. The whole sequence in a single image, so your agent can see the motion without paying for a video."
         />
       </div>
 
-      <div
-        ref={ref}
-        className={`demo-loop mx-auto mt-demo-gap max-w-demo ${inView ? 'is-live' : ''}`}
-      >
-        {/* The plate shows through the 1px gaps. That IS the grid. */}
+      <div ref={ref} className="mx-auto mt-group max-w-demo">
         <div
-          className="grid grid-cols-2 overflow-hidden rounded sm:grid-cols-4"
-          style={{ gap: '1px', backgroundColor: 'var(--rule-divider)' }}
+          className="overflow-hidden rounded transition-opacity duration-500 ease-base"
+          style={{ opacity: inView ? 1 : 0 }}
         >
-          {FRAMES.map((offset, i) => (
-            <div
-              key={i}
-              className="relative aspect-[16/10] bg-surface-elevated"
-              style={{
-                opacity: 0.08,
-                animation: `cell-cycle ${CYCLE_MS}ms linear infinite`,
-                animationDelay: `${i * CELL_STAGGER_MS}ms`,
-              }}
-            >
-              <span className="absolute left-2.5 top-2 z-10 font-mono text-[10px] leading-none tracking-[0.02em] text-text-quaternary">
-                {TIMESTAMPS[i]}ms
-              </span>
-              {/* Page ground. */}
-              <div className="absolute inset-0 overflow-hidden p-[9%] pt-[22%]">
-                <div className="h-[6%] w-[46%] rounded-sm bg-surface-raised" />
-                <div className="mt-[7%] h-[6%] w-[62%] rounded-sm bg-surface-raised" />
-                <div className="mt-[7%] h-[6%] w-[38%] rounded-sm bg-surface-raised" />
-              </div>
-              {/* The drawer under test. */}
-              <div
-                className="absolute bottom-0 right-0 top-0 w-[46%] border-l border-rule-mark bg-surface-raised"
-                style={{ transform: `translateX(${offset}%)` }}
-              >
-                <div className="p-[12%]">
-                  <div className="h-[7px] w-[60%] rounded-sm bg-text-inactive" />
-                  <div className="mt-[10px] h-[5px] w-[80%] rounded-sm bg-rule-mark" />
-                  <div className="mt-[7px] h-[5px] w-[52%] rounded-sm bg-rule-mark" />
-                </div>
-              </div>
-            </div>
-          ))}
+          <img
+            src={contactSheet}
+            // The alt text carries the claim for anyone who can't see the
+            // image, which is exactly the population the product exists to
+            // serve on the other side of the wire.
+            alt={`Contact sheet of ${TILE_COUNT} frames captured by Ocular from a scrolling page. A blue issue card climbs from the bottom of the frame to the top across the sequence; each tile is labelled with its capture time and scroll offset.`}
+            width={1200}
+            height={180}
+            loading="lazy"
+            decoding="async"
+            className="block w-full"
+          />
         </div>
-        <p className="mt-6 font-mono text-[11px] leading-none tracking-[0.02em] text-text-quaternary">
-          8 frames · one image · one request
+        <p className="mt-stack-2 font-mono text-[11px] leading-none tracking-[0.02em] text-text-quaternary">
+          {TILE_COUNT} frames · one image · one request · captured by Ocular
         </p>
       </div>
     </section>
