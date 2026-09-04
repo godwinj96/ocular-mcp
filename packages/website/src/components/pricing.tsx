@@ -48,17 +48,17 @@ export function Pricing() {
       <BleedRule />
       <section
         id="pricing"
-        className="pt-sec-major"
+        className="pb-sec-tail pt-sec"
         style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
       >
         <div className="mx-auto max-w-[1240px]">
           <SectionHeader
             eyebrow="Pricing"
             heading="From $2.50 a month"
-            deck="Your own dev server is unmetered on every plan — it's your machine doing the work, so there's nothing for us to meter. The daily allowance is for the open web, where each render costs a real amount of money."
+            deck="Your own dev server is unmetered on every plan: it's your machine doing the work, so there's nothing for us to meter. The daily allowance is for the open web, where each render costs a real amount of money."
           />
 
-          <div className="mt-demo-gap grid grid-cols-1 gap-12 md:grid-cols-2 md:gap-0">
+          <div className="mt-group grid grid-cols-1 gap-12 md:grid-cols-2 md:gap-0">
             {PLANS.map((plan, i) => (
               <div
                 key={plan.label}
@@ -67,7 +67,12 @@ export function Pricing() {
                 <p className="font-mono text-[13px] uppercase leading-none tracking-[0.08em] text-text-quaternary">
                   {plan.label}
                 </p>
-                <p className="mt-6 font-mono text-[40px] font-medium leading-none tracking-[-0.02em] text-text-primary">
+                {/* Silver, not white. The founder's call, overriding the
+                    design agent, which declined this on contrast grounds:
+                    18.07:1 -> 11.83:1 on the number the page most needs read.
+                    Both clear AA comfortably, and a price is the most
+                    brand-loaded figure on the page, so it carries --accent. */}
+                <p className="mt-stack-2 font-mono text-[40px] font-medium leading-none tracking-[-0.02em] text-accent">
                   {/* toFixed(2), or 2.5 renders as "$2.5" — a price missing
                       its cents reads as a typo on the one number the page
                       most needs to look deliberate. */}
@@ -76,10 +81,10 @@ export function Pricing() {
                     /mo
                   </span>
                 </p>
-                <p className="mt-3 font-mono text-[11.5px] leading-none tracking-[0.02em] text-text-quaternary">
+                <p className="mt-stack-1 font-mono text-[11.5px] leading-none tracking-[0.02em] text-text-quaternary">
                   or ${plan.annual}/year
                 </p>
-                <div className="mt-8 divide-y divide-rule-divider border-t border-rule-divider">
+                <div className="mt-stack-3 divide-y divide-rule-divider border-t border-rule-divider">
                   {plan.lines.map((line) => (
                     <p key={line} className="py-3.5 text-[15px] leading-[1.5] text-text-secondary">
                       {line}
@@ -90,10 +95,10 @@ export function Pricing() {
             ))}
           </div>
 
-          <div className="mt-12">
+          <div className="mt-group">
             <a
               href={DASHBOARD_URL}
-              className="inline-flex h-[42px] items-center rounded-full bg-accent px-[22px] text-[13.5px] font-semibold tracking-[-0.005em] text-surface-base transition-[background-color,transform] duration-fast hover:-translate-y-px hover:bg-accent-hover active:translate-y-0 active:bg-accent-active"
+              className="inline-flex h-[42px] items-center rounded-full bg-accent px-[22px] font-brand text-[13.5px] font-semibold tracking-normal text-surface-base transition-[background-color,transform] duration-fast hover:-translate-y-px hover:bg-accent-hover active:translate-y-0 active:bg-accent-active"
             >
               Choose a plan
             </a>
@@ -101,13 +106,13 @@ export function Pricing() {
 
           {/* The charge policy, stated plainly. Matches
               docs/rules/11-billing-and-quota.md §1 exactly. */}
-          <p className="mt-10 font-mono text-[11.5px] leading-[1.7] tracking-[0.02em] text-text-quaternary">
-            A clean render costs one. A render that comes back empty after every approach has been
-            tried costs half. An error costs nothing.
+          <p className="mt-group font-mono text-[11.5px] leading-[1.7] tracking-[0.02em] text-text-quaternary">
+            A clean render costs one request. A render that comes back empty after every approach
+            has been tried costs half. An error costs nothing.
           </p>
-          <p className="mt-6 max-w-[64ch] text-[15px] leading-[1.6] text-text-tertiary [text-wrap:pretty]">
+          <p className="mt-stack-3 max-w-[64ch] text-[15px] leading-[1.6] text-text-tertiary [text-wrap:pretty]">
             Basic clears most of the open web, not all of it. If your work is mostly against sites
-            with serious bot defences, that&rsquo;s what Pro is for — and if it&rsquo;s mostly your
+            with serious bot defences, that&rsquo;s what Pro is for. And if it&rsquo;s mostly your
             own dev server, Basic&rsquo;s cap will never come up.
           </p>
         </div>

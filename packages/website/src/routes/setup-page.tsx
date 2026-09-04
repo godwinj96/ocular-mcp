@@ -52,7 +52,7 @@ export function SetupPage() {
   return (
     <div className="pt-[136px]">
       <section
-        className="pb-sec-major"
+        className="pb-sec"
         style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
       >
         <div className="mx-auto max-w-[1240px]">
@@ -64,7 +64,7 @@ export function SetupPage() {
             <span className="font-semibold text-text-primary"> One of them is a paste.</span>
           </h1>
           <p className="mt-7 max-w-[46ch] text-[clamp(1.0625rem,0.88rem+0.68vw,1.375rem)] leading-[1.4] tracking-[-0.012em] text-text-secondary [text-wrap:pretty]">
-            Works with any MCP client — Claude Code, Cursor, Windsurf, Cline, Zed, Claude Desktop.
+            Works with any MCP client: Claude Code, Cursor, Windsurf, Cline, Zed, Claude Desktop.
             There&rsquo;s nothing client-specific in the config.
           </p>
         </div>
@@ -116,7 +116,7 @@ export function SetupPage() {
               </div>
               <div className="flex items-baseline justify-between gap-6 py-2">
                 <span className="text-text-primary">every capture after</span>
-                <span className="text-accent-glow">connected</span>
+                <span className="text-signal">connected</span>
               </div>
             </div>
           </div>
@@ -135,7 +135,7 @@ export function SetupPage() {
           </h2>
           <p className="mt-7 max-w-[46ch] text-[17px] leading-[1.6] text-text-secondary [text-wrap:pretty]">
             Your agent decides when to look. You don&rsquo;t call a tool, and you don&rsquo;t paste
-            a screenshot — you tell it what you&rsquo;re building and it checks its own work.
+            a screenshot. You tell it what you&rsquo;re building and it checks its own work.
           </p>
           <div className="mt-9 max-w-[52ch] border-y border-rule-divider py-6 font-mono text-[13px] leading-[1.8] text-text-secondary">
             &ldquo;the plan cards break at 1280 — fix it and make sure it actually renders&rdquo;

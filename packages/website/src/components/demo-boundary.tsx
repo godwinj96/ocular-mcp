@@ -28,7 +28,7 @@ export function DemoBoundary() {
   return (
     <section
       id="boundary"
-      className="pt-sec-minor"
+      className="pb-sec-tail pt-sec"
       style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
     >
       <div className="mx-auto max-w-[1240px]">
@@ -40,14 +40,14 @@ export function DemoBoundary() {
 
         <div
           ref={ref}
-          className={`demo-loop relative mt-demo-gap max-w-[44ch] ${inView ? 'is-live' : ''}`}
+          className={`demo-loop relative mt-group max-w-[44ch] ${inView ? 'is-live' : ''}`}
           style={{ ['--row-h' as string]: ROW_H }}
         >
           {/* The cursor. Absolutely positioned so it can travel independently
               of the rows it reads. */}
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-accent-glow"
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-signal"
             style={{
               opacity: 0,
               marginTop: '2.05em',
@@ -67,7 +67,7 @@ export function DemoBoundary() {
                 >
                   {label}
                 </span>
-                <span className="shrink-0 text-accent-glow">available</span>
+                <span className="shrink-0 text-signal">available</span>
               </div>
             ))}
 
@@ -86,12 +86,12 @@ export function DemoBoundary() {
         {/* The limit that read-only does NOT remove. Volunteering this is
             worth more to this audience than any claim that could replace it,
             and CLAUDE.md forbids the claim it would otherwise invite. */}
-        <p className="mt-10 max-w-[66ch] text-[15px] leading-[1.6] text-text-tertiary [text-wrap:pretty]">
-          What that removes is the risk of your agent doing something on a page. It doesn&rsquo;t
-          make the page&rsquo;s contents safe: whatever Ocular captures lands in your agent&rsquo;s
-          context, same as anything else it reads from the web, and a page can carry text written to
-          steer an agent that reads it. Read-only is a real guarantee about actions, and only about
-          actions.
+        <p className="mt-group max-w-[66ch] text-[15px] leading-[1.6] text-text-tertiary [text-wrap:pretty]">
+          What that removes is the risk of your agent doing something on a page. Read-only
+          doesn&rsquo;t make the page&rsquo;s contents safe: whatever Ocular captures lands in your
+          agent&rsquo;s context, same as anything else it reads from the web, and a page can carry
+          text written to steer an agent that reads it. Read-only is a real guarantee about actions,
+          and only about actions.
         </p>
       </div>
     </section>

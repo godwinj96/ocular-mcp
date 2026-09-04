@@ -37,20 +37,30 @@ export function DemoReachMeter() {
       <BleedRule />
       <section
         id="reach"
-        className="pt-sec-major"
+        className="pb-sec-tail pt-sec"
         style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
       >
         <div className="mx-auto max-w-[1240px]">
+          {/* The old deck stated two facts and no relationship between them,
+              which is why this section made the two-paths point without ever
+              saying why both TOGETHER matters. The third sentence is the
+              missing claim: your agent cannot predict which side it will need,
+              so a tool covering one hands the work back to you.
+
+              The caching benefit stops at SPEED on purpose. PRD §9 open
+              decision 1 (cache hits: half-charge or free?) is undecided, and
+              any wording implying a hit is free or discounted commits a
+              pricing decision nobody has made yet. */}
           <SectionHeader
             eyebrow="Two paths"
-            heading="Your machine, and the open web"
-            deck="Captures of your own dev server run locally and aren't metered. Public pages go out through Ocular instead, against a daily allowance you can see."
+            heading="Both, from one connection"
+            deck="Your dev server renders on your machine and isn't metered. Public pages go out through Ocular against a daily allowance you can see. Your agent doesn't have to know in advance which one it will need, and a public page rendered recently comes straight back."
           />
         </div>
 
         <div
           ref={ref}
-          className={`demo-loop mx-auto mt-demo-gap max-w-demo ${inView ? 'is-live' : ''}`}
+          className={`demo-loop mx-auto mt-group max-w-demo ${inView ? 'is-live' : ''}`}
         >
           <div className="divide-y divide-rule-divider border-y border-rule-divider">
             {/* Row A — unmetered, and visibly without an end. */}
@@ -106,10 +116,10 @@ export function DemoReachMeter() {
           {/* The honesty beat. Base tier clears most of the open web, not all
               of it — CLAUDE.md's base-tier-honesty guardrail, stated where a
               reader forms the expectation rather than buried in the FAQ. */}
-          <p className="mt-9 max-w-[66ch] text-[15px] leading-[1.6] text-text-tertiary [text-wrap:pretty]">
+          <p className="mt-group max-w-[66ch] text-[15px] leading-[1.6] text-text-tertiary [text-wrap:pretty]">
             Most of the open web comes back fine. Some sites work hard to keep automated browsers
             out, and against those a request can still fail. When it does you get a clear failure
-            with a reason rather than a hang — and the allowance isn&rsquo;t spent on nothing.
+            with a reason rather than a hang, and the allowance isn&rsquo;t spent on nothing.
           </p>
         </div>
       </section>

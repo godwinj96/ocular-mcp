@@ -1,4 +1,5 @@
 import { SectionHeader } from './section-header.js';
+import { BrandName } from './brand-name.js';
 import { useInView } from '../hooks/use-in-view.js';
 
 // Round 5 deleted the previous how-it-works.tsx — four icon rows of
@@ -16,6 +17,16 @@ import { useInView } from '../hooks/use-in-view.js';
 // rewrite won by dropping framer-motion and ogl, on a page whose whole
 // premise is not being heavier than the lightweight product it sells.
 //
+// VOICE RULE, load-bearing — Ocular is not the agent and decides nothing.
+// Ocular is never the subject of a verb of decision, intention, judgement or
+// authorship. It may be the subject of verbs of mechanism: renders, returns,
+// captures, comes up, waits, comes back, fails, costs. The AGENT is the
+// subject of: decides, asks, looks, checks, describes, builds, changes,
+// retries. Where either could be the subject, name Ocular rather than saying
+// "it" — the page uses "it" for the agent above the fold and was using it for
+// Ocular below, with nothing marking the switch. That collision is what made
+// steps 04 and 05 read as though Ocular were doing the building.
+//
 // A hairline is also the page's existing grammar — BleedRule, the FAQ's
 // divide-y rows, rule-hairline at 0.5px on 2dppx — so a rule that extends is
 // that grammar given a verb, not a new widget bolted on.
@@ -28,35 +39,43 @@ const SETUP = [
   {
     n: '02',
     label: 'Sign in once',
-    body: "One browser tab, one click, and it closes. You won't be asked again on this machine.",
+    body: "One tab, one click, and it closes. You won't be asked again on this machine.",
   },
 ] as const;
 
-// 03-05 are bracketed as a loop because that is the actual product promise:
-// setup is finite, the loop is perpetual. The bracket says in one glance what
-// the copy would otherwise spend three sentences on.
+// The loop is bracketed because that is the actual product promise: setup is
+// finite, the loop is perpetual. The bracket says in one glance what the copy
+// would otherwise spend three sentences on.
+//
+// THESE THREE CARRY NO NUMBER, and that is the fix for a defect the round-8
+// copy audit found: the heading says "Two steps, then it's automatic" while
+// the stepper rendered 01 through 05. A reader counts five. Numbering the
+// automatic part identically to the part the reader performs contradicts the
+// heading in a single eyeful — on the one section whose entire claim is that
+// setup is trivial. They keep the marker slot so the rule still reads as one
+// continuous line with stops, but the glyph is a "then", not a count.
 const LOOP = [
   {
-    n: '03',
-    label: 'Your agent connects, and the browser wakes',
-    body: 'It warms when your session starts, not when your agent first asks to look. The wait is spent before you notice it.',
+    n: '→',
+    label: 'Your agent connects. Ocular wakes.',
+    body: 'Ocular comes up in the background the moment your session starts, and waits there. Nothing cold-starts when your agent first asks to look.',
   },
   {
-    n: '04',
-    label: 'It decides when to look',
-    body: "You don't call a tool and you don't paste a screenshot. You describe what you're building, and it checks its own work.",
+    n: '→',
+    label: 'Your agent decides when to look',
+    body: "You don't call a tool and you don't paste a screenshot. You describe what you're building, and your agent calls Ocular when it needs to see the result.",
   },
   {
-    n: '05',
-    label: 'The frame and the tree come back',
-    body: 'Rendered pixels, plus the element tree behind them. It sees what it built, changes it, and looks again.',
+    n: '→',
+    label: 'Your agent looks, then keeps building',
+    body: 'Rendered pixels come back, plus the element tree behind them. Your agent reads both, changes the code, and looks again.',
   },
 ] as const;
 
 function Step({ n, label, body, i }: { n: string; label: string; body: string; i: number }) {
   return (
     <li
-      className="hiw-step grid grid-cols-[34px_1fr] gap-5 pb-12 sm:grid-cols-[46px_1fr] sm:gap-7"
+      className="hiw-step grid grid-cols-[34px_1fr] gap-5 pb-stack-3 sm:grid-cols-[46px_1fr] sm:gap-7"
       style={{ ['--i' as string]: i }}
     >
       {/* The number sits ON the rule and masks it — the rule passes behind,
@@ -69,7 +88,7 @@ function Step({ n, label, body, i }: { n: string; label: string; body: string; i
         <h3 className="text-[19px] font-medium leading-[1.35] tracking-[-0.014em] text-text-primary [text-wrap:balance]">
           {label}
         </h3>
-        <p className="mt-2.5 text-[16px] leading-[1.6] text-text-secondary [text-wrap:pretty]">
+        <p className="mt-stack-1 text-[16px] leading-[1.6] text-text-secondary [text-wrap:pretty]">
           {body}
         </p>
       </div>
@@ -83,17 +102,22 @@ export function HowItWorks() {
   return (
     <section
       id="how-it-works"
-      className="pt-sec-major"
+      className="pb-sec-tail pt-sec"
       style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
     >
       <div className="mx-auto max-w-[1240px]">
         <SectionHeader
           eyebrow="How it works"
           heading="Two steps, then it's automatic"
-          deck="One line in your config and one sign-in — after that your agent warms the browser when your session starts, looks whenever it needs to, and you never touch it again."
+          deck={
+            <>
+              One line in your config and one sign-in. After that <BrandName /> comes up with every
+              session, your agent looks whenever it needs to, and you never touch it again.
+            </>
+          }
         />
 
-        <div ref={ref} className={`demo-loop relative mt-demo-gap ${inView ? 'is-live' : ''}`}>
+        <div ref={ref} className={`demo-loop relative mt-group ${inView ? 'is-live' : ''}`}>
           {/* One rule for the whole sequence, behind the numbers. */}
           <span
             aria-hidden="true"
@@ -114,12 +138,12 @@ export function HowItWorks() {
               aria-hidden="true"
               className="hiw-bracket absolute -left-1 bottom-6 top-1 w-[9px] rounded-l-[3px] border-y border-l border-rule-structural sm:-left-2 sm:w-3"
             />
-            <ol start={3} className="relative [&>li:last-child]:pb-0">
+            <ol className="relative [&>li:last-child]:pb-0">
               {LOOP.map((s, i) => (
-                <Step key={s.n} {...s} i={i + 2} />
+                <Step key={s.label} {...s} i={i + 2} />
               ))}
             </ol>
-            <p className="hiw-loop-note mt-7 pl-[54px] font-mono text-[12px] leading-none tracking-[0.02em] text-text-quaternary sm:pl-[74px]">
+            <p className="hiw-loop-note mt-stack-3 pl-[54px] font-mono text-[12px] leading-none tracking-[0.02em] text-text-quaternary sm:pl-[74px]">
               ↻ every session, without you
             </p>
           </div>

@@ -4,6 +4,7 @@ import { DemoTreeReadout } from '../components/demo-tree-readout.js';
 import { DemoContactSheet } from '../components/demo-contact-sheet.js';
 import { DemoReachMeter } from '../components/demo-reach-meter.js';
 import { DemoBoundary } from '../components/demo-boundary.js';
+import { UseCases } from '../components/use-cases.js';
 import { HowItWorks } from '../components/how-it-works.js';
 import { Pricing } from '../components/pricing.js';
 import { Faq } from '../components/faq.js';
@@ -53,6 +54,7 @@ export function HomePage() {
       <DemoContactSheet />
       <DemoReachMeter />
       <DemoBoundary />
+      <UseCases />
       <HowItWorks />
       <Pricing />
       <Faq />
