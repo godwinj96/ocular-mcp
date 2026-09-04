@@ -92,6 +92,12 @@ The SSRF split must be **explicit and documented**, never a bypass flag — it w
 
 ## Positioning guardrails
 
+- **THE SCOPE TEST — the problem is AI vision across the web, not an agent proofreading its own output.** Localhost is the beachhead, not the boundary. Copy that narrows the claim to "your agent can't see the UI it just wrote" describes a strict subset of the product and quietly drops the half that makes this a vision layer rather than another localhost devtools hack. In the founder's words: _"'Your agent writes UI it cant see' says the problem being solved is AI vision/letting your agent see. 'Your agent writes UI. Seeing it shouldn't be a project' positions the problem as your agent not being able to see its own UI, which is a narrower subset of what the product is supposed to achieve. AI vision across the web."_
+
+  Apply it as a literal test to every headline, deck and section heading before writing it: **would this sentence still be true, and still be the point, if the page being looked at were one the agent did not write?** If not, it is too narrow — rewrite it wider. Two rounds of copy have been rejected on exactly this and nothing else, both times because the sentence was well written and aimed at the wrong-sized problem. Prose quality does not rescue a scope error, and a copywriting pass will not catch one.
+
+  Note the tension this sits in, and do not resolve it by narrowing: **Primary user** below says optimize the local loop first, and that is still correct for _engineering_ priority. It is not a licence to shrink the _claim_. Build localhost-first; sell vision-wide.
+
 - **Local-led, cloud as amplifier:** "sees your dev server _and_ the live web."
 - Say **"Ocular cannot act on your browser."** Never **"safe to use with sensitive data"** — read-only removes _action_ risk, not exfiltration or prompt-injection risk. Captured content still enters the calling agent's context.
 - **Base tier honesty:** rungs 0–1 clear most protected sites but not all. Sell base as "your dev server plus the open web" — never imply every site is reachable.
@@ -108,7 +114,7 @@ A developer using an AI coding agent who needs it to visually verify in-progress
 
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **ocular-mcp** (2858 symbols, 5381 relationships, 153 execution flows).
+This project is indexed by GitNexus as **ocular-mcp** (2876 symbols, 5433 relationships, 155 execution flows).
 
 > Index stale? Run `node .gitnexus/run.cjs analyze --index-only` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? Bootstrap with `npx`, `bunx`, or `pnpm dlx` — e.g. `bunx gitnexus@latest analyze` (npm 11 npx crash; #1939).
 

@@ -41,6 +41,11 @@ coverage/
 # to open from the repo root instead of a Claude-managed temp path.
 /test-output/
 
+# Design moodboards / concept decks (Claude Artifact source HTML) — working
+# reference material for design discussions, not shipped code. Same
+# "keep it local, don't commit it" rationale as /test-output/ above.
+/research & planning/moodboards/
+
 # Next.js auto-regenerates this on every dev/build run and explicitly
 # instructs "do not edit" — gitignoring avoids repeated lint friction over a
 # file nobody hand-writes (packages/dashboard).

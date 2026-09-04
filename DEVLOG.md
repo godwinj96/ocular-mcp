@@ -881,6 +881,562 @@ build, not a claim. Both are now persisted memory rules. Multi-client copy is in
 
 ---
 
+## Session 31 — 2026-09-04/05 · round-8: the shared readout, the brand pass, and a copywriting toolchain
+
+Answering the Session 30 addendum. **A, B, C, D done. E not started.**
+
+### The two bugs that mattered, both found by looking rather than reading
+
+1. **"The bounding boxes aren't complete" was real, and it was not a density choice.**
+   `use-element-boxes.ts` collapsed _any_ parent holding several text blocks into one box.
+   Tessera's `.spec-b-body` holds an h1, a sub-line, two h2s and a canvas as direct
+   children, so the whole body was promoted to a single rectangle and every heading inside
+   it vanished. The demo drew a box round the entire page and called it a reading.
+   The guard is now **leaf-cluster only**: a parent stands in for its children only when
+   every element child is itself a leaf. `.spec-b-kpi` (three spans, nothing else) still
+   collapses correctly; `.spec-b-body`, which also contains a grid and a table, is a
+   _section_ and no longer does. Measured: Tessera 7 → 10 boxes, Northsound 20 → 25, and
+   the hero's labels sharpen from runs of "group" into h1/h2/button/text. **The hero was
+   losing structure to the same fault the whole time — it just had enough boxes left that
+   nobody noticed.**
+
+2. **The inline wordmark stacked all six glyphs on top of each other.** Extracting logo.svg
+   into a component, I took only the `d` attributes and dropped each path's own
+   `translate()`. The bar rendered a 28px blob where a 118px wordmark belongs. Caught in
+   the browser, not in review. `wordmark.tsx` now carries a comment saying why those
+   transforms are load-bearing.
+
+### The 5×1 contact sheet — and why the extractor default did NOT change
+
+The addendum said shipping 5×1 meant setting `SCROLL_SCRUBBED_SAMPLES = 5` in both
+extractors. **That was the wrong call and it is not what shipped.** It would have halved
+scroll-sampling density for every caller of the tool to serve a website layout.
+
+`samples` is now an optional per-call input on `motionCaptureInputSchema` (2–12), and both
+extractors read `input.samples ?? SCROLL_SCRUBBED_SAMPLES`. **The constant stays 10.** The
+capture script passes `samples: 5`, so the sheet on the site is genuine output of a real
+supported call and the product keeps its fidelity. Scroll-scrubbed sampling had no rate
+knob at all while time-based sampling has `fps`; it arguably should have had one anyway.
+
+### One instrument, two demos
+
+`readout-overlay.tsx` now owns the sweep, the converging boxes and the labels; both
+`capture-readout` and `demo-tree-readout` mount it. A copy would have drifted on the first
+tuning pass. The tree readout previously had only `box-pulse` — a dim opacity throb with no
+scan line — which is why it read as inert, and why a complete set of boxes read as partial:
+each carried a 260ms stagger against a keyframe that sits near its resting opacity most of
+the cycle, so at any instant most of them looked absent.
+
+What that section gained: **tree rows are timed against the same scan line**, and below-fold
+rows land _after_ the line leaves the frame, 320ms apart. "The picture stops at the fold and
+the tree doesn't" is now performed rather than asserted in a caption.
+
+The Tessera canvas is painted now (latency histogram, p95 marker matching the KPI above it,
+palette read from the specimen's own custom properties, backing store sized from
+`clientWidth × dpr` because the fixed 1180×230 attributes were being stretched to ~1328×330).
+It shipped empty, which read as a dashboard that failed to load — and made the section's
+claim trivially true by having nothing to lose.
+
+### Brand: Outfit, silver, and the mark
+
+Two font findings, both measured, both live bugs rather than design questions:
+
+- **geist-sans 700 was loaded and used zero times** (`font-bold` appears nowhere in `src/`).
+  35,484 bytes shipped for nothing since round 2. Gone.
+- **geist-sans 500 was NOT loaded and is used thirteen times.** Per CSS font-matching a
+  requested 500 with no 500 face falls back to 400 — so every H2, every FAQ question, every
+  how-it-works heading and the bridge's dim clause **had been rendering at 400 for four
+  rounds**. `section-header.tsx`'s comment insisting "Weight is 500, do not 'fix' this"
+  described a rendering that had never once happened.
+
+Outfit 600 is the wordmark's face, confirmed by extracting glyph advances from the outlined
+paths and comparing six candidates (Outfit 600 total error 0.041; next best Outfit 500 at
+0.357, Jost 0.411, Poppins 1.347). Effective tracking ≈ +0.003em, i.e. **zero** — the CTA
+pills carried −0.005em, visibly tighter than the logo 40px away. Statics 400+600 are
+28,172 B, _smaller_ than the single variable file.
+
+Shipped in the brand face: four CTA pills, the hero deck, the section deck. The section deck
+was the one the design agent wanted staged — a 48px Geist H2 and a 23px Outfit deck share an
+exact optical top edge in `SectionHeader`'s split, cap-heights within 1.4%, which can read as
+a font-loading bug. Founder shipped it **with both halves of the mitigation**: the H2 now
+renders at a real 500 so the deck at 400 is plainly subordinate, and the deck's top padding
+goes 26 → 30px so the two faces no longer share an exact optical edge.
+
+Silver: the logo as inline SVG at `currentColor` (an `<img>` can never inherit a token), the
+price numerals, and the product name at first mention per section (`brand-name.tsx`). The
+mark placements come from a survey of ten developer-tool sites in which **zero repeat their
+own mark in the page body** — eight put it in the nav, eight put exactly one in the footer,
+four of those strip to the bare mark there. Ocular's one licence is that its mark is an eye,
+so it took the two placements where the glyph does a job: the footer signature (28px,
+silver) and **the capture readout's status indicator**, replacing a generic 1px dot with the
+one shape that already means "this is being looked at". Teal there, not silver — `--signal`
+owns _reading_, `--accent` owns identity, and the same glyph in two colours is the token
+system doing visible work rather than an inconsistency.
+
+### Positioning — the hero was rewritten, then reverted, and the revert is the lesson
+
+The positioning agent's rewrite ("Your agent writes UI." / "Seeing it shouldn't be a
+project.") shipped and was rejected. The founder:
+
+> _"'Your agent writes UI it cant see' says the problem being solved is AI vision/letting
+> your agent see. 'Your agent writes UI. Seeing it shouldn't be a project' positions the
+> problem as your agent not being able to see its own UI which is a narrower subset of what
+> the product is supposed to achieve. AI vision across the web."_
+
+He is right, and **this is the second consecutive round lost to scope rather than prose**.
+Both rejected versions were well written and aimed at a smaller problem than the product is.
+So it is now a rule in `CLAUDE.md`, first in the positioning guardrails, as a literal test:
+_would this sentence still be true, and still be the point, if the page being looked at were
+one the agent did not write?_ Plus the note that a copywriting pass cannot catch a scope
+error — which is exactly why two of them got through.
+
+The bridge statement was rewritten against the founder's three reasons to pay — simpler to
+set up, lower latency, works beyond localhost — after he rejected all four agent options.
+One deliberate departure from his wording: he said "the whole web", the copy says "the open
+web", because base-tier honesty forbids implying every site is reachable.
+
+### A copywriting toolchain, and what it did and did not catch
+
+Installed to project and global (MIT, read before wiring, scanned for injection and
+side-effects — clean): `copywriting`, `copy-editing`, `product-marketing`,
+`marketing-psychology` from `coreyhaines31/marketingskills`; `ogilvy`, `stop-slop`,
+`landing-page` from `boraoztunc/skills`.
+
+`.agents/product-marketing.md` is new and is the point of the exercise — locked positioning
+context every marketing skill reads, so nobody re-derives it and lands somewhere slightly
+different. It records the scope test, the words-to-avoid list, and that **no social proof
+exists and none may be invented**. It is explicitly downstream of `CLAUDE.md`: where they
+disagree, CLAUDE.md wins.
+
+The audit found three defects and one measurement:
+
+- **`how-it-works` contradicted itself in one eyeful**: "Two steps, then it's automatic"
+  over a stepper numbered 01–05. A reader counts five. The loop steps now carry `→` rather
+  than a sequence number, and the `<ol start={3}>` is gone.
+- **No risk reversal at the hero CTA** — the footer had "cancel any time", the hero didn't.
+- **FAQ 5 said "a few megabytes"** where the real figure is ~10–15MB, and framed
+  unobtrusiveness as a liability being defended rather than as the claim it is.
+- **An em-dash in 26% of sentences (1 per 3.9).** Cut to 1 per 14.8 by converting ten doing
+  no work and keeping five that were, including the read-only guarantee where the appositive
+  _is_ the argument. Note the distinction from `06-brand-identity.md` §4, which mandates real
+  em dashes over `--`: that rule is about the glyph, this was about frequency. Both hold.
+
+Three sweeps were **declined** because they push against the guardrails: Prove It wants
+testimonials and logos (barred, and none real exist), Heightened Emotion wants a register the
+ambient-pricing rule forbids, and Specificity wanted reach quantified. The better proof answer
+is already on the page and unlabelled — the contact sheet is genuine tool output and nothing
+says so.
+
+Also added: a new FAQ entry, "I already have something that takes screenshots. What does this
+add?" A survey of fourteen sites found thirteen never name the DIY alternative in their own
+voice, and the one that does uses a customer's mouth. A FAQ question is the same device — the
+reader's voice, not the site's. It ends by conceding the honest exception, which is what makes
+the rest credible.
+
+### New section: "In practice"
+
+The page proved four capabilities and never named a job. Built from a fourteen-site survey
+rather than from memory: ten of fourteen fill that slot with social proof (closed to us), a
+job list appears on only four and all are wide-surface platforms, narrow tools ship none, and
+where a narrow tool does name jobs **each job has an artifact attached** — which is why tabs
+work for Browserbase and Raycast and would fail here. So: five plain rows on hairlines,
+reusing `faq.tsx`'s existing grammar, no icons, no cards, no tabs, no fifth demo.
+Canvas/WebGL leads because it is the one case with no workaround at all; the open web lands
+last as the turn.
+
+### Still open
+
+- **E — the setup page's internal spacing** was never audited against `--group`/`--stack`.
+- The quota rail is 1.76:1. Unresolved.
+- **Nothing on the site answers "do I pay before I try?"** No trial, no free tier, no risk
+  reversal above the footer. A packaging decision, not a copy one; recorded in
+  `.agents/product-marketing.md` rather than papered over.
+- PRD §9 open decision 1 (cache hits: half-charge or free?) still blocks any caching claim
+  beyond speed.
+- `06-brand-identity.md` still carries its 2026-09-01 "Needs review" flag: it predates the
+  local-worker pivot and still says $1/mo. Its JTBD forces and tone-of-voice sections were
+  used here; its pricing and positioning framing deliberately were not.
+- `eslint-plugin-react-hooks` is not installed. Two hooks carry variable-length dependency
+  arrays, and their `eslint-disable` directives named a rule ESLint could not resolve, which
+  was failing the lint run outright. Replaced with plain comments; the plugin is still owed.
+- 9 pre-existing test failures (`cloud-cache`, `settle-quota`, Redis connectivity). Still
+  nobody has looked.
+- **GitNexus does not index untracked files.** `useElementBoxes` and `useTreeRows` returned
+  `risk: UNKNOWN` from `impact` all session and had to be confirmed by text search. They are
+  committed now, so the next `analyze` picks them up.
+
+### THE PUSH IS STILL GATED — unchanged since Session 28, now 20 commits deep
+
+`OCULAR_API_KEY` is still required (`packages/local-worker/src/config.ts:29`,
+`http/cloud-client.ts:24`) while `cta-footer.tsx` says _"There's no API key to copy, and none
+to leak"_ and `setup-page.tsx` says _"That's the whole config. No key in it."_ Both Vercel
+projects auto-deploy from `main`. **The copy is correct — the site describes the finished
+product, and the push is what gets gated, not the words.** Either land the auth rework or
+revert that copy before pushing.
+
+## Session 30 — 2026-09-04 · the stale-Tailwind root cause, round-7 website work
+
+Answering the Session 29 addendum. **The single most important finding is not on that
+list**, and it invalidates part of it.
+
+### THE ROOT CAUSE: Vite loads `tailwind.config.ts` once, at server start
+
+Any utility that needs a **new config key** silently never generates until the dev server
+is **restarted**. HMR does not pick it up, a hard reload does not, and touching
+`tailwind.config.ts` does not. There is no error — the class is simply absent and the
+element renders unstyled.
+
+Rounds 4 through 6 were all reviewed on a server that had been running since before those
+keys were added. What the founder was actually looking at:
+
+| class                                                 | intended        | what he saw                         |
+| ----------------------------------------------------- | --------------- | ----------------------------------- |
+| `pt-sec-major` / `pt-sec-minor`                       | 173px / 86px    | **`padding-top: 0`**                |
+| `mt-demo-gap`                                         | 50px            | `0`                                 |
+| `max-w-demo` / `max-w-deck`                           | 1400px / 40ch   | `none`                              |
+| `border-rule-*`                                       | `#2C2C31`       | **gray-200 — near-white hairlines** |
+| `bg-rule-structural/divider/mark`, `bg-text-inactive` | the rule system | **transparent**                     |
+
+`document.body.scrollHeight` measured **6500px stale vs 8318px clean**. 66 elements were
+rendering with no background at all.
+
+**So the two rounds spent on section padding were spent tuning tokens that were not being
+applied.** The eyebrow sat hard against the element above it because there was _no_
+section padding, not because 87px was too little. Casualties also included the
+how-it-works vertical rule (the section's entire mechanic, invisible), the contact
+sheet's static content bars (the fixed datum in all 8 cells, invisible) and the reach
+meter's 28-slot quota rail (the denominator, invisible).
+
+> **Reproduced twice, deliberately** — once on the inherited server, and again on my own
+> new `--sec-gap` classes, which also came back as `padding-top: 0` until I restarted.
+> **Restart the dev server after touching `tailwind.config.ts`. Always.**
+
+Both design agents found this independently. It is the reason two rounds of "the
+measurements are correct and it still looks wrong" happened.
+
+### Founder decisions this session
+
+- Proceed with the addendum as written, cache finding notwithstanding.
+- **Full spacing overhaul**, including collapsing major/minor — a change to a locked
+  round-6 decision.
+- **Keep the teal**, adding a dark variant, rather than going fully monochrome.
+- Contact sheet: **build both 5x2 and 1x5**, he picks.
+
+### Shipped
+
+**Spacing.** `--sec-gap-major` / `--sec-gap-minor` / `--demo-gap` retired. Now `--sec-tail`
+(48px, constant) plus `--sec-gap` (`clamp(80px, 8.3vw, 120px)`), plus `--group` and a
+closed `--stack-1/2/3` ladder for everything inside a section. major/minor collapsed
+because no pair of values satisfies both "big enough under a demo frame" and "not a hole"
+— at 2:1 the major becomes ~300px, worse than the 272px already rejected; capped at 200
+the pair is 1.35x, which `tokens.css` itself calls the worst place to sit. The four
+`BleedRule` hairlines carry the chapter distinction instead, which costs no page height
+and finally gives them a job. Verified **rendered**: 168px at a plain boundary, 193px at a
+chapter rule, 128px narrow. Page height 8612px against the 8611px predicted.
+
+**Colour.** Primary violet to silver (`#c7c7ce` / `#dedee4` / `#ababb4`; the +7 blue offset
+matches every other grey in the ladder). `--accent-glow` retired in favour of a
+ground-indexed pair: `--signal` `#5eead4` on our dark chrome, `--signal-ink` `#0b6b60` on
+a light specimen. The overlay labels went from **1.32:1 to 5.72:1** — they were not "low
+contrast", they were invisible. Nav scrim `0.55` to `0.90`, which is a hard prerequisite:
+over a white specimen the bar composites to `#717273`, where the silver pill is 2.87:1 and
+the nav links were **already** failing at 1.33:1.
+
+**Copy.** how-it-works deck and steps 02-05 rewritten, and a page-wide agency audit
+applied (nav label, contact-sheet heading, boundary paragraph, three FAQ entries, CTA
+footer). The rule is recorded in `how-it-works.tsx`: **Ocular is never the subject of a
+verb of decision, intention, judgement or authorship**; the agent decides, asks and
+builds, Ocular renders and returns. The root cause was that "it" meant the agent above the
+fold and Ocular below it, with nothing marking the switch.
+
+**Logo.** `logo.svg` carried an opaque `#0b0f17` background rect — that was the ugly
+rectangle. Deleted at source, so nav and footer are both fixed, still vector, still 7KB.
+No new asset needed.
+
+**Nav links.** Route-aware via a plain anchor plus `navigate()`. NOT TanStack `Link`: it
+spreads `aria-current="page"` **last**, so `to="/"` on five section links would mark all
+five as the current page and clobber the scroll-derived active state.
+
+**Hero sweep.** The three hand-listed `REGIONS` are gone. Boxes are measured from the
+specimen's own DOM (`hooks/use-element-boxes.ts`), which also means they cannot drift when
+the specimen is edited. The first attempt boxed every text-bearing element and produced
+~120 rectangles labelled "text"; the founder's correction — "it's not about bounding every
+single thing, it's about showing everything on the page was recognized" — is implemented
+as **text-block grouping**: innermost block-level elements that contain text, then
+collapsed to the parent wherever a parent holds two or more. About 20 boxes, each labelled
+with the role the a11y tree would report.
+
+**Second specimen.** `TesseraDashboard` — a fictional analytics dashboard, for the tree
+readout, so it no longer shares Northsound with the hero. A dashboard supplies this
+section's two claims honestly rather than by contrivance: a chart `canvas` a tree
+genuinely cannot describe, and a table that genuinely runs past the fold. Tree rows are
+**derived** (`hooks/use-tree-rows.ts`) from `data-tree-role` / `data-tree-name`, so the
+coordinates cannot become fiction the way hand-typed ones did.
+
+### A real bug found while deriving those coordinates
+
+`SpecimenFrame`'s scaled div had **no explicit width**, so the specimen reflowed to
+whatever the frame happened to be and the scale factor was then applied _on top of an
+already-fitted layout_. The "notional 1440x900" never happened. In the wide hero frame
+that rendered a zoomed, cropped fragment rather than a whole page, and it put every
+derived coordinate out by the same factor — the symptom that exposed it was the tree
+reporting a 230px chart as 469px tall. Fixed by pinning `width: DESIGN_WIDTH`.
+
+### Motion capture — dogfooded, and three product fixes fell out of it
+
+The Session 29 blocker was nothing but an unstarted process: `SubscriptionValidator` proves
+validity via `get_quota` against `OCULAR_CLOUD_MCP_URL` (`localhost:3000`), and
+`packages/mcp-server` was not running. Started it; `get_quota` and `view_page` against
+localhost both work. **No cloud infrastructure was needed.**
+
+`public/specimens/fieldnote.html` is a third specimen — a cream/cobalt editorial page with
+a large **vertical** scroll-driven animation, built to the axis fix: the tracked motion is
+vertical while the frames sequence horizontally, so the two can be separated. Captured
+with the local worker's own extractor via `scripts/capture-motion-specimen.mjs`. **The
+sheet on the site is the real WebP the tool returned**, labels and all — not a drawing of
+one.
+
+Three fixes to the product itself, all found by using it:
+
+1. **Grid shape.** `cols = ceil(sqrt(n))` left ragged holes — 10 frames landed in a 4x3
+   grid with two empty cells. Now picks the exact factor pair closest to square, so 12
+   stays 4x3 and 10 becomes **5x2**. `MAX_TILE_COLS = 6` keeps a prime-ish count from
+   degenerating into a strip past the ~1568px long-edge cap.
+2. **`scroll-scrubbed` emitted `steps + 1` frames** — a nominal 10 produced 11, which is
+   prime and therefore untileable without holes. The constant is now a sample count.
+3. **`motion_capture` had no `viewport`.** The MCP handler already applied `args.viewport`
+   for every capture tool; only the schema field was missing, so every motion capture
+   silently rendered at the browser's 800x600 default — a different layout from the
+   desktop one being verified.
+
+Then, on the founder's note that frame edges were hard to detect: **2px mid-grey separators
+on the internal cell boundaries**, in the tiler, so every sheet the product returns has
+them. Mid-grey deliberately — it has to hold against both a white page (5.2:1) and a dark
+UI (3.7:1); a black hairline vanishes on one and a white one on the other. Drawn under the
+labels so none is bisected.
+
+The first capture was itself a useful failure: at 320vh the card appeared in only 4 of 10
+cells and `fit: cover` clipped the headline (a 1440x900 frame loses ~8.3% off each side
+into a 4:3 cell). Both fixed in the specimen — 200vh, and a 170px gutter.
+
+### Open
+
+- ~~**5x2 vs 1x5 is the founder's call**~~ — **DECIDED: 5x1.** Both were captured and sent;
+  5x2 had a visible reset at the row wrap between #4 and #5. Not yet wired — see the
+  round-7 addendum below, which also notes that shipping it means setting
+  `SCROLL_SCRUBBED_SAMPLES = 5` in both extractors so the site keeps showing what the tool
+  actually returns.
+- **The quota rail is faint, not broken.** 1.76:1 against the page. It renders correctly
+  once the server is restarted; whether to lift it toward `--rule-mark` is open.
+- Pre-existing test failures: 9 in `cloud-cache.test.ts` / `settle-quota.test.ts`, all
+  Redis connectivity. **Verified pre-existing** — they reproduce identically with this
+  session's changes stashed. Untouched by this work.
+- The Vercel question for the cloud mcp-server is still unanswered.
+
+### Session 30 addendum — founder review of round 7. READ THIS BEFORE TOUCHING THE WEBSITE.
+
+Nothing below is implemented. This is the brief for the next session. Founder asked for it
+to be recorded and left, so a fresh context window can pick it up.
+
+The one decision that is settled: **the contact sheet is 5x1.** _"Lets make it 5x1 for
+simplicity's sake."_ `motion-contact-sheet-1x5.webp` is already captured and in
+`src/assets/`; `demo-contact-sheet.tsx` currently imports the 5x2 one and hard-codes
+`TILE_COUNT = 10`. Swapping it is a two-line change **plus** setting
+`SCROLL_SCRUBBED_SAMPLES = 5` in BOTH extractors, or the sheet on the site stops matching
+what the tool actually returns — which is the entire point of that demo.
+
+---
+
+#### A. Brand: the logo, and silver as the brand colour
+
+Three related notes, and the third is the substantive one.
+
+1. _"can you make the logo the same color"_ / _"lets change the logo fill color to the
+   silver gray of the CTAs."_ `logo.svg` is hard-coded `fill="#ffffff"`. It should be
+   `--accent` (`#c7c7ce`). Consider `currentColor` so it inherits instead, which also
+   makes the footer's `opacity-80` treatment unnecessary.
+
+2. _"The logo looks disconnected from the rest of the page."_ The mark is set in
+   **Outfit**; the site is Geist Sans + Geist Mono, so the wordmark reads as a foreign
+   object dropped into the bar rather than as the page's own voice.
+
+   **The fix he asked for:** put Outfit on the buttons and the sub-text. Named
+   explicitly — the hero deck (_"So it guesses at layout, can't tell whether the canvas
+   ever painted, and asks you whether it looks right. Ocular gives it sight — starting
+   with your dev server."_) and the section decks (_"Every capture comes back twice: the
+   rendered pixels, and the element tree behind them — annotated with what's in view,
+   what's below the fold, and where each thing sits."_). That is `SectionHeader`'s deck,
+   `hero.tsx`'s deck, and both CTA pills.
+
+   Note this makes Outfit a **third** family alongside Geist Sans and Geist Mono. The
+   font-loading rule in `rules/ecc/web/performance.md` caps at two families without a
+   clear reason; the brand argument is that reason, but budget it — subset it, one or two
+   weights, and check the gzip delta against the 84KB JS the page is proud of.
+
+3. _"Rather than just replacing white it should be used strategically like the brand
+   color it is, both in text and UI."_ This is the real task and it is bigger than a
+   find-and-replace of `#f4f4f2`. Silver currently appears only on two CTA pills and the
+   nav underline. It should carry brand weight across the page — and `--text-primary`
+   (`#f4f4f2`) is used on essentially every heading, so a blanket swap would flatten the
+   text ladder that `tokens.css` deliberately closes at four values. Decide where silver
+   _means something_ versus where white is still correct.
+
+   **One explicit exception, and he changed his mind mid-note — take the second version:**
+
+   > _"One piece of text I wouldn't switch from white tho is the white 'UI it can't see',
+   > it makes it look like its shining and that tracks well with the concept — or rather
+   > the better thing would be to swap the colors of 'Your agent writes' and 'UI it can't
+   > see.' so 'UI it can't see.' is darker."_
+
+   So: **swap the two hero lines.** "Your agent writes" becomes the bright one, "UI it
+   can't see." becomes the darker one. The logic is that the line about _not seeing_
+   should be the dimmer of the two — the type does what the sentence says.
+
+4. _"We should find ways to include the logo as branding throughout the page (let the
+   agents figure this out and do research if necessary)."_ Explicitly delegated: run the
+   design agents, with real research into how comparable developer-tool sites reuse a
+   mark below the fold, rather than inventing placements. `logo-mark-watermark.png` exists
+   in `src/assets/` and is currently unused — a leftover from the round-3 watermark
+   experiment. Check whether it is still the right asset before building on it.
+
+---
+
+#### B. The second demo is inert, and its specimen looks unfinished
+
+> _"the 2nd demo isnt animated and the bounding boxes aren't complete. Make it like the
+> hero demo with the animated scanlines and animated grouped bounding boxes."_
+
+Correct on both counts, and this is my miss from round 7.
+
+- **No scan line.** `capture-readout.tsx` has the full `readout-sweep` + `readout-acquire`
+  - `readout-label` sequence; `demo-tree-readout.tsx` has only `box-pulse`, a dim opacity
+    throb, and no sweep at all. The two demos should share the sweep — which argues for
+    lifting the hero's overlay into a reusable component rather than copying it, since it
+    now has to stay in step in two places.
+- **Boxes are incomplete** because the tree readout draws one box per `useElementBoxes`
+  entry but the Tessera specimen only annotates five elements with `data-tree-role`, and
+  the two systems are not the same set. The hero's grouped-text-block treatment is the
+  one he wants here too.
+- **The boxes are also unlabelled** in this demo. The hero labels every box with its
+  role; this one labels none.
+
+> _"The page itself doesn't look complete, there's nothing under 'Response time
+> distribution'. I assume there's supposed to be a table there. Or maybe it's the stale
+> cache thing again."_
+
+**Not the stale cache — my fault, and worth being exact about.** The `<canvas>` in
+`tessera-dashboard.tsx` is a real canvas element with **nothing drawn into it**. It
+renders as an empty bordered rectangle, so the specimen reads as a broken dashboard. The
+table he expected is real, but it sits below y=900 — deliberately, because "the picture
+stops at the fold and the tree doesn't" is that section's whole claim, so the table is
+_supposed_ to be invisible in the frame.
+
+The fix is to actually paint a chart into the canvas (a small 2D-context draw on mount).
+That also **strengthens** the section rather than compromising it: the claim is that a
+tree can tell you a canvas exists and nothing about what it plots. An empty canvas makes
+that claim trivially true and visually broken; a canvas with a real chart in it makes the
+same claim while showing exactly what is being lost. Right now the demo argues its point
+by having nothing to lose.
+
+---
+
+#### C. Positioning — the bridge statement is a false premise
+
+This is the most important item in the review and it is not a copy nit.
+
+> _"I don't like the framing of some of the copy. For example, 'Your agent has read every
+> line of the code. It has never seen the page.' is not a reason why users should buy
+> because it's not true. According to our research, many users have cobbled together
+> solutions."_
+
+He is right, and the failure is specific: the bridge statement asserts a capability gap
+that the target reader has **already worked around**. A developer who has wired up a
+screenshot script, or `chrome-devtools-mcp`, or a Playwright helper, reads that line and
+concludes the page is not talking about them. The page's hinge — the single sentence
+carrying the whole argument — is aimed at a person who does not exist in the segment we
+are selling to.
+
+**The positioning he wants instead, close to verbatim:**
+
+> _"The real selling point is a 'set it and forget it' MCP server that is cheap, works
+> unobtrusively and is effective for both localhost and the wider web (this along with its
+> caching is what makes it a proper AI vision layer for the web and not just another
+> localhost devtools hack)."_
+
+Four claims, and note they are all **comparative against the cobbled-together
+alternative**, not against blindness:
+
+1. **Set it and forget it** — one line of config, then it is never touched again. The
+   cobbled solution needs babysitting.
+2. **Cheap** — $2.50/mo, ambient. Not "premium", per `CLAUDE.md`'s pricing guardrail.
+3. **Unobtrusive** — no window, no dock icon, ~10-15MB idle. The hand-rolled script
+   leaves a browser running.
+4. **Both localhost and the open web, plus caching** — this is the one that separates it
+   from a devtools hack, and it is the one the current page under-sells. The reach meter
+   makes the two-paths point but the page never says _why both together matters_.
+
+Rewrite the bridge statement against this. Then check the hero, which shares the premise
+(_"Your agent writes UI it can't see"_ has the same problem in miniature), and the FAQ.
+
+**Watch the guardrails while rewriting.** `CLAUDE.md` forbids positioning on cleverness or
+technique — diff-based capture, cross-user caching and downscaling are all shipped free
+elsewhere. The caching claim has to be about _what it does for the user_ (fast, cheap,
+already-warm), never _that we invented it_. Defensibility is maintained completeness plus
+multi-tenant cache economics, and that is an internal fact, not a marketing line.
+
+---
+
+#### D. New sections — what people actually do with it
+
+> _"I think there should be some sections that mention some things users can do with
+> Ocular."_
+
+The page currently proves four capabilities (what comes back, motion, reach, the
+boundary) and never names a **job**. Capability sections answer "what is it"; a use-case
+section answers "is this for me", which is the question a visitor actually arrives with.
+
+Candidates that follow directly from the primary user in `CLAUDE.md` — a developer whose
+agent is building UI it cannot see, usually on localhost:
+
+- Verify a component actually renders, not just that it compiles.
+- Check canvas/WebGL output, where DOM and a11y parsing structurally cannot help — this
+  is the strongest one, because it is the case with no workaround at all.
+- Confirm an animation, transition, or scroll-driven effect really runs.
+- Catch layout breakage at a breakpoint the agent cannot see.
+- Read a page on the open web the agent needs to reference.
+
+Do the research before designing this section. Two rounds have been lost to designing
+from memory, and the how-it-works stepper is the precedent for the opposite: seventeen
+developer-tool sites surveyed, and the finding argued for restraint.
+
+---
+
+#### E. The setup page still has padding faults
+
+> _"The setup page seems to still have those weird padding issues in some sections."_
+
+`setup-page.tsx` was only partly migrated in round 7 — it picked up `pb-sec` from the
+mechanical token sweep, but its internal spacing was never audited the way the home
+page's was. It uses none of `--group` or the `--stack-1/2/3` ladder.
+
+**Check it on a freshly restarted dev server before diagnosing anything**, then audit its
+internal rhythm against the same ladder the home page now uses.
+
+---
+
+#### Carried over, still open
+
+- **The quota rail is faint, not broken** — 1.76:1 against the page. Whether to lift it
+  toward `--rule-mark` is unresolved.
+- **Vercel** — answered in the Session 30 entry above: `mcp-server` fits (stateless
+  transport, no browser), `worker` does not. The real blocker to prototype is BullMQ's
+  `QueueEvents` pub/sub subscriber per cold start against Upstash, not the browser. Not
+  scheduled.
+- **9 pre-existing test failures** in `cloud-cache.test.ts` / `settle-quota.test.ts`, all
+  Redis connectivity. Verified pre-existing by stashing. Nobody has looked at why.
+
+---
+
 ## Session 29 — 2026-09-03/04 · founder review round 6: padding, nav, how-it-works, first specimen
 
 Answering the Session 28 addendum. **A, C, E done. B half done. D done.** Three commits:
