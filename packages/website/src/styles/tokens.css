@@ -38,10 +38,40 @@
   /* Registration ticks, divider hover, panel frame. */
   --rule-mark: #2c2c31;
 
-  --accent: #8c7dff;
-  --accent-hover: #9d90ff;
-  --accent-active: #7e6ef0;
-  --accent-glow: #5eead4;
+  /* Primary. Silver, not violet: #8c7dff was the archetypal 2021-SaaS accent,
+     which is the generic tell the Instrument concept exists to avoid. The +7
+     blue offset (R=G, B=R+7) is the same one every other grey on this page
+     carries (#a1a1a8, #86868c, #6c6c72, #3a3a40) — a neutral silver would be
+     the single grey not in the family.
+
+     The objection to grey is that it has only lightness to spend on states.
+     That was measured and is false at this end of the scale: this ladder
+     spans 18.4 L*, where the violet it replaces spanned 11.3. The states are
+     a WIDER perceptual step than before, and every rung holds >=8.7:1
+     against the near-black pill label. */
+  --accent: #c7c7ce;
+  --accent-hover: #dedee4;
+  --accent-active: #ababb4;
+
+  /* The instrument signal — "this is being read" — as a closed two-value
+     ladder indexed by the ground it is drawn on, exactly like the rule and
+     text ladders. It is NOT two meanings: no element ever crosses grounds.
+     --signal is for our own near-black chrome; --signal-ink is for the light
+     specimen pages the demos now render inside.
+
+     Why not one value for both, which is possible: a single colour clearing
+     3:1 on #09090b and on #f2f2f4 lands near #189b8b, which gives the 10px
+     overlay labels only 3.08:1 on light — under AA for text, and these labels
+     ARE the payload — while halving the on-dark signal from 13.45:1 to
+     5.78:1. That is the difference between a scan line that reads as emissive
+     and one that reads as merely coloured.
+
+     Same hue at both weights (170.6deg / 173.1deg) so they read as one
+     colour. Renamed from --accent-glow: it is not a variant of the primary
+     and never was, and once the primary went silver the old name actively
+     misled. */
+  --signal: #5eead4;
+  --signal-ink: #0b6b60;
 
   /* The only non-pill radius on the site. Mixed radii is the loudest
      template tell available, so there are exactly two values. */
@@ -57,31 +87,50 @@
   --dur-fast: 100ms;
   --dur: 160ms;
 
-  /* Below-fold section rhythm.
-     Round 5 assigned every section its own pad-top and pad-bottom from a
-     four-step scale, but what a reader perceives at a boundary is the SUM of
-     one section's bottom and the next one's top -- and that sum was never
-     checked. It came out between 124px and 312px with no pattern, which reads
-     as sloppiness rather than as rhythm.
-     So the token is now the GAP ITSELF, and each boundary owns exactly one
-     value: every section carries only a padding-top, no padding-bottom. Two
-     values, not four -- major for a chapter break, minor for a break inside a
-     chapter. Two distinct gaps read as structure; seven near-random ones do
-     not.
-     Round 1 of this fix used 272/168 — a 1.6x ratio, which is the worst place
-     to sit: too close to read as two deliberate values, too far apart to read
-     as one. Founder's verdict on the built page was that it looked WORSE. The
-     ratio is now exactly 2:1 at every width, and the absolute values come
-     down, because 272px of dead air at a boundary reads as a hole rather than
-     as generosity. */
-  --sec-gap-major: clamp(104px, 12vw, 224px);
-  --sec-gap-minor: clamp(52px, 6vw, 112px);
+  /* Below-fold vertical rhythm.
+     Rounds 5 and 6 both tuned this against a dev server whose Tailwind build
+     was stale: pt-sec-major was rendering as padding-top: 0, so the page under
+     review had NO section padding at all and the section eyebrow began exactly
+     at the boundary. That — not the token values — is what "the tiny mono
+     heading sits very close to the element above it" was describing. The
+     numbers reported in those rounds were computed, not observed. Restart the
+     dev server before judging any spacing change here.
 
-  /* The gap between a section header and its demo. Must stay well under
-     --sec-gap-minor at EVERY width: this was a hard-coded 112px while section
-     air was clamped, so at 375px the space inside a section (112px) exceeded
-     the space between sections (44px), inverting the grouping. */
-  --demo-gap: clamp(32px, 3.5vw, 64px);
+     Two structural changes survive that correction on their own merits.
+
+     ONE: sections get a tail again. Round 6 moved every boundary onto the next
+     section's padding-top, which is clean but leaves a section ending in a
+     heavy demo frame with no buffer of its own — and leaves three of the four
+     full-bleed chapter rules sitting at 0px clearance, touching the caption
+     above them. Terminal space belongs to the section that ENDS; attaching it
+     to the eyebrow instead would fix neither the rules nor the two sections
+     that have no eyebrow (FAQ, the bridge statement).
+
+     TWO: major/minor collapses to one gap. To stop a weightless 11px eyebrow
+     sticking to a demo slab, the minor boundary has to read at ~150px at 1440.
+     Hold the 2:1 this file used to specify and major becomes ~300px — worse
+     than the 272px already rejected as "a hole". Cap major at 200 and the pair
+     is 200:148, i.e. 1.35x, which is precisely the band this file already
+     identifies as the worst place to sit. No pair of values satisfies both
+     constraints, so air stops carrying the chapter distinction and the four
+     <BleedRule> hairlines carry it instead — a stronger signal that costs no
+     page height and finally gives those rules a job. */
+  --sec-tail: 48px;
+  --sec-gap: clamp(80px, 8.3vw, 120px);
+
+  /* Between component groups inside a section — header to demo, demo to its
+     trailing paragraph, pricing columns to their CTA. Near-constant by
+     design: it is the boundary between sections that should breathe with the
+     viewport, not the inside of one. */
+  --group: clamp(56px, 4.4vw, 64px);
+
+  /* The closed internal ladder. At 375px the page previously ran 12/20/28/32/
+     40/52 — six values inside a 40px range, which is why nothing at that width
+     grouped. Three exact values read as a system for the same reason four
+     exact greys do. */
+  --stack-1: 12px; /* inside one text unit */
+  --stack-2: 20px; /* the parts of one element; an element and its caption */
+  --stack-3: 32px; /* a rank change; a list row's own padding */
 
   /* The site's second and final easing, scoped to the instrument loops.
      --ease is symmetric and correct for a state flipping between two values;
@@ -127,7 +176,7 @@
 /* One focus ring for the whole site, in the system's "instrument is reading
    this" colour, so the signifier means the same thing everywhere it appears. */
 :where(a, button, [role='button'], input, select, textarea):focus-visible {
-  outline: 1px solid var(--accent-glow);
+  outline: 1px solid var(--signal);
   outline-offset: 3px;
 }
 

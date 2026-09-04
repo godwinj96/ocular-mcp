@@ -31,15 +31,27 @@ export default {
           mark: '#2C2C31',
         },
         accent: {
-          DEFAULT: '#8C7DFF',
-          hover: '#9D90FF',
-          active: '#7E6EF0',
-          glow: '#5EEAD4',
+          DEFAULT: '#C7C7CE',
+          hover: '#DEDEE4',
+          active: '#ABABB4',
+        },
+        // The instrument signal, one meaning at two weights indexed by ground
+        // — see tokens.css. `ink` is the light-specimen variant; nothing uses
+        // both, so this is a ladder, not two colours.
+        signal: {
+          DEFAULT: '#5EEAD4',
+          ink: '#0B6B60',
         },
       },
       fontFamily: {
         display: ['"Geist Sans"', '"General Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['"Geist Mono"', '"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        // The wordmark's own face, extended onto the page's controls and the
+        // hero deck. Falls back to Geist deliberately: if Outfit fails to
+        // load the page degrades to exactly what it is today, not to a system
+        // face. Headings and all mono are explicitly NOT in this stack — a
+        // size ladder only reads as a ladder if its rungs share one voice.
+        brand: ['Outfit', '"Geist Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       maxWidth: {
         measure: '68ch',
@@ -53,10 +65,14 @@ export default {
         demo: '1400px',
       },
       spacing: {
-        // Section boundaries own one value each -- see tokens.css.
-        'sec-major': 'var(--sec-gap-major)',
-        'sec-minor': 'var(--sec-gap-minor)',
-        'demo-gap': 'var(--demo-gap)',
+        // One boundary gap plus a section tail; the chapter break is carried
+        // by BleedRule, not by extra air -- see tokens.css.
+        sec: 'var(--sec-gap)',
+        'sec-tail': 'var(--sec-tail)',
+        group: 'var(--group)',
+        'stack-1': 'var(--stack-1)',
+        'stack-2': 'var(--stack-2)',
+        'stack-3': 'var(--stack-3)',
       },
       borderRadius: {
         DEFAULT: '6px',
