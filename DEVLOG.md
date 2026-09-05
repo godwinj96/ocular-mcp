@@ -375,6 +375,13 @@ Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M
 
 ### 2026-09-01 — Session 18: Upstash Redis re-provisioned (old instance archived)
 
+> **CORRECTION (Session 32, 2026-09-05):** the bullet below claiming `REDIS_URL` was updated
+> in **all three** `.env` files is **wrong**. It updated two. `packages/dashboard/.env` was
+> left pointing at the archived `positive-bluejay-158703` host and stayed that way for 14
+> sessions, silently failing 9 tests in `worker` and `mcp-server` — packages that do not
+> import it — via the global `setupFiles` leak described in Session 32. The "confirmed via
+> grep" claim did not hold either. Fixed in Session 32.
+
 - User discovered the dev Upstash Redis instance (`positive-bluejay-158703`, the one causing every live-Redis test to fail with `ENOTFOUND` at the end of Session 17) had been **archived** — not a sandbox network issue as originally assumed, an actual gone database. Created a replacement via the Upstash MCP server: `ocular-redis`, `eu-central-1` (same name/region as the original, per M0's original provisioning), free tier, PING-verified. New endpoint: `real-drum-275762.upstash.io`.
 - Updated `REDIS_URL` in all three `.env` files that held the old connection string (`packages/mcp-server/.env`, `packages/worker/.env`, `packages/dashboard/.env`) — confirmed via grep that no other file (docs, `.env.example`) referenced the old hostname outside this DEVLOG's own historical record of the failure, which is correctly left as-is.
 - **Reran the full suite against the new instance**: 166/166 passing, including every test that failed for connectivity reasons at the end of Session 17 — `redis-quota.test.ts` (the new UTC-midnight TTL logic), `settle-quota.test.ts` (the new `MAX_RESERVE_CHARGE` refund math), `redis-rate-limiter.test.ts`, `enqueue.test.ts`, and `mcp/server.test.ts`'s live e2e cases. Session 17's quota-rewiring work is now fully proven against real infra, closing that session's one open caveat.
@@ -881,6 +888,104 @@ build, not a claim. Both are now persisted memory rules. Multi-client copy is in
 
 ---
 
+## Session 32 — 2026-09-05 · the 9 test failures were never flaky, and the install gate is confirmed open
+
+Working the Session 31 addendum in its stated order. **B done (both fixes). C done and
+verified further than asked. One E item done. A and D not started — see below.**
+
+### B — the 9 failures: diagnosis confirmed, both fixes applied, isolation proven
+
+The Session 31 addendum's root-cause was correct in every particular. Confirmed the
+mechanism, then fixed it at both levels.
+
+One detail the addendum did not name, and it is the reason the bug was invisible:
+**`process.loadEnvFile` follows `--env-file` semantics and does not overwrite an
+already-set variable.** So this was an ordering race, not a collision. `setupFiles` runs
+before any test module graph evaluates, so dashboard's `REDIS_URL` landed in `process.env`
+first and every other package's own correct `.env` silently became a no-op. That is why
+`packages/worker/.env` could hold the right host and still fail: it was never wrong, it was
+never read.
+
+- **Fix 1 (env, untracked).** `packages/dashboard/.env` now carries the live
+  `real-drum-275762` URL. Cleared all 9 immediately.
+- **Fix 2 (`77b17c2`).** New `vitest.workspace.ts` splits the run into a `dashboard`
+  project and a `packages` project; the setup file is scoped to `dashboard` only. Test
+  discovery moved there, coverage stayed in `vitest.config.ts` (root-only option under
+  Vitest 2.1.9 — `projects` is a Vitest 3 feature and is not available here).
+
+**Verified, not assumed:**
+
+- Baseline reproduced first: 9 failed. After Fix 1: 9 passed.
+- Full suite **38 files / 267 tests green**, before and after the project split — same
+  counts, so the split lost nothing and double-counted nothing.
+- **Isolation proven by re-poisoning.** Put the dead host back into
+  `packages/dashboard/.env` and re-ran worker's Redis tests: still green, `setup 0ms` —
+  the setup file no longer runs for that project at all. Then restored the live URL. This
+  is the regression test for Fix 2; without it the split is only plausible, not proven.
+- The 43s → 8s drop on those two files was ioredis retry backoff against a dead host.
+
+**The suite is now fully green for the first time since Session 30.** A real regression is
+distinguishable from standing noise again.
+
+### C — CORRECTION CONFIRMED, and the release is real
+
+The Session 31 addendum corrected the "install gate is closed" claim and flagged one thing
+it had **not** verified: whether a `supervisor-v0.1.0` release actually exists with binaries
+attached. It does, and the trust chain is intact end to end:
+
+- Tag `supervisor-v0.1.0` exists on `origin` (`fcd3064`).
+- The GitHub release is **published — not a draft, not a prerelease** — with all 8 assets:
+  four binaries (`win32-x64`, `darwin-x64`, `darwin-arm64`, `linux-x64`) and their four
+  `.sha256` files.
+- **All four published checksums match `supervisor-checksums.json` exactly.** Checked each
+  one against the pinned value rather than trusting the file's own comment.
+
+So `binary-resolver.ts` will download and verify on all four platforms. **Distribution is
+genuinely unblocked and installability can be announced.** Nobody needs to re-plan around
+this gate again.
+
+(Incidental, not a finding: the repo answers the GitHub API unauthenticated, i.e. it is
+public. That is required for `npx useocular` to fetch release assets, so presumably
+intended — noted only so it is a recorded fact rather than a surprise.)
+
+### E — one item cleared
+
+- **`packages/website/src/bash.exe.stackdump` untracked (`adcfcee`).** The interesting part:
+  `.gitignore` has carried a `bash.exe.stackdump` rule at line 64 the entire time. Gitignore
+  does not untrack an already-tracked file, which is why the rule looked applied and wasn't.
+  Confirmed it was an MSYS crash dump and referenced nowhere before removing.
+
+### New finding — lint runs, but is not clean
+
+Session 31 fixed lint from _failing outright_ (unresolvable rule directives) to _running_.
+It runs, and reports **19 pre-existing `no-undef` errors** across three files — none touched
+this session:
+
+- `packages/local-worker/scripts/kpi-probe.mjs` (8)
+- `scripts/capture-motion-specimen.mjs` (10)
+- `packages/dashboard/next-env.d.ts` (1)
+
+The `.mjs` ones are Node scripts using `process` / `Buffer` / `console` without Node globals
+declared for them in the flat config. A config gap, not broken code. Cheap to fix; folded
+into the open list rather than fixed here, to keep this session's diff to what was verified.
+
+### Still open — the two big ones, deliberately not started
+
+**A (pricing copy) and D (auth rework) were left for a founder call, because the addendum
+itself says they must be designed together and doing either alone produces the wrong thing.**
+
+The addendum's own words: _"if payment now precedes first use, the sign-in flow and the
+payment flow are the same moment, and designing them separately will produce two."_ A is not
+really a copy task — the sentence the site needs depends on what the flow actually does at
+first run, which is D. Writing A's copy first would either describe a flow that does not
+exist yet, or lock D into whatever the copy happened to promise.
+
+Everything else in the addendum's E list carries forward unchanged: setup-page spacing,
+the 1.76:1 quota rail, PRD §9 cache-charge decision, `06-brand-identity.md`'s stale review
+flag, and `eslint-plugin-react-hooks`.
+
+---
+
 ## Session 31 — 2026-09-04/05 · round-8: the shared readout, the brand pass, and a copywriting toolchain
 
 Answering the Session 30 addendum. **A, B, C, D done. E not started.**
@@ -1086,6 +1191,13 @@ they disagree. See the Session 27 note on the AuthKit device-code flow for the i
 shape.
 
 ### Session 31 addendum — the next session's brief. READ THIS FIRST.
+
+> **STATUS as of Session 32 (2026-09-05):** **B is done** (both fixes, isolation proven by
+> re-poisoning — see Session 32). **C is done and verified further** — the release exists,
+> is published, and all four checksums match; distribution is unblocked. **The stackdump in
+> E is untracked.** **A and D are still open and were deliberately left together** — see
+> Session 32's "Still open" for why splitting them produces the wrong flow. The rest of E
+> carries forward unchanged.
 
 Nothing below is implemented. It was diagnosed and decided at the end of Session 31, and the
 founder asked for it to be recorded and left so a fresh context window can pick it up. Items
