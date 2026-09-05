@@ -1085,6 +1085,164 @@ anyone reading `cta-footer.tsx` or `setup-page.tsx` against the running product 
 they disagree. See the Session 27 note on the AuthKit device-code flow for the intended
 shape.
 
+### Session 31 addendum — the next session's brief. READ THIS FIRST.
+
+Nothing below is implemented. It was diagnosed and decided at the end of Session 31, and the
+founder asked for it to be recorded and left so a fresh context window can pick it up. Items
+are in the order they should be worked.
+
+---
+
+#### A. PRICING DECISION — there is no trial. You pay before you try. (Founder, 2026-09-05)
+
+> _"users must pay before they try it. The price is so low that it wouldn't make any sense."_
+
+This closes the largest gap the round-8 copy audit found. The audit's phrasing was that
+**nothing on the site answers "do I pay before I try?"** — no trial, no free tier, and no risk
+reversal above the footer — and it was recorded as a packaging decision rather than a copy one.
+It is now decided, and the answer is **pay first, no trial, deliberately.**
+
+**This converts the item from a packaging problem into a copy problem, and it does not
+disappear.** A visitor still arrives with the question. Right now the page answers it by
+silence, and silence at a CTA reads as evasion — which is the one register this site has
+otherwise avoided completely. The work is to say it plainly.
+
+What that probably looks like (not designed yet, do this properly rather than from memory):
+
+- The hero and closer CTAs already carry `from $2.50/mo · unmetered on localhost · cancel any
+time`. "Cancel any time" is currently doing the work a trial would do, and it is honest.
+  Whether it is _enough_ is the open question.
+- `setup-page.tsx` step 02 is "Sign in once" — a visitor reasonably reads that as free
+  sign-up, then hits a paywall. If payment comes before first capture, the setup page is
+  where that must be stated, not discovered.
+- **Guardrail check before writing any of it:** `CLAUDE.md` says ambient pricing, never
+  premium, never best-in-class. The argument for pay-first is _the price is too low for a
+  trial to be worth anyone's time_ — which is a confident, cheap-product argument, not a
+  hard sell. Write it in that register. "$2.50 and you're in" is on-voice; anything that
+  sounds like it is defending the price is not.
+- `.agents/product-marketing.md` §Goals still records this as **unresolved**. Update it in
+  the same pass — it is the locked context every marketing skill reads, and a stale
+  "unresolved" there will send the next copy agent looking for a trial that does not exist.
+
+---
+
+#### B. THE 9 TEST FAILURES — root-caused, one-line fix, NOT applied
+
+These have been carried as "pre-existing, Redis connectivity, nobody has looked" since Session 30. Someone looked. It is not flaky infrastructure and it is not a connectivity problem.
+
+**The mechanism, exactly:**
+
+1. `vitest.config.ts:13` sets `setupFiles: ['packages/dashboard/vitest.setup.ts']` — and
+   `setupFiles` is **global to the whole workspace run**, not scoped to dashboard tests.
+2. That file calls `process.loadEnvFile(new URL('./.env', import.meta.url))`, which sets
+   `REDIS_URL` **process-wide** before any test module evaluates.
+3. `packages/dashboard/.env` still points at `positive-bluejay-158703.upstash.io` — the
+   instance **Session 18 documented as archived and replaced**.
+4. So every Redis-touching test in `packages/worker` and `packages/mcp-server` resolves the
+   dead host and fails with `getaddrinfo ENOTFOUND`, _regardless of those packages' own `.env`
+   files being correct_. Verified: `packages/worker/.env` and `packages/mcp-server/.env` both
+   correctly hold `real-drum-275762.upstash.io`; only dashboard is stale.
+
+Session 18's entry claims it updated all three `.env` files that held the old connection
+string. It updated two. That miss has been silently failing 9 tests ever since.
+
+**Fix 1 — immediate, clears all 9.** Copy the live `REDIS_URL=rediss://…@real-drum-275762…`
+line from `packages/worker/.env` into `packages/dashboard/.env`. Then re-run
+`npx vitest run packages/worker/src/cache/cloud-cache.test.ts packages/worker/src/quota/settle-quota.test.ts`
+and confirm before trusting anything downstream.
+
+**Fix 2 — structural, the actual bug.** A dashboard-specific setup file should not be
+supplying environment for unrelated packages. That coupling is what let one stale file poison
+`worker` and `mcp-server` invisibly, and it will do it again on the next credential rotation.
+Options: scope the setup file to the dashboard project via a vitest workspace/projects config,
+or have each package load its own env. Worth doing properly — this failure mode cost several
+sessions of "pre-existing, ignore it."
+
+**Do Fix 1 before any other work in the next session.** Everything else is easier to verify
+against a green suite, and right now nobody can tell a real regression from the standing noise.
+
+---
+
+#### C. CORRECTION — the install gate is CLOSED
+
+The Session 30 addendum's "carried over" list says `supervisor-checksums.json` ships with every
+platform entry `null`, so `npx useocular` refuses to download on any machine without a locally
+built supervisor. **That is no longer true.** The file now holds real SHA-256 hashes for all
+four platforms at version `0.1.0` (`win32-x64`, `darwin-x64`, `darwin-arm64`, `linux-x64`).
+Distribution is not blocked on this. Do not re-plan around a gate that has already lifted.
+
+(Not verified in this session: whether a matching `supervisor-v0.1.0` release tag actually
+exists on GitHub with binaries attached. The checksums file's own comment says it is generated
+by `.github/workflows/release-supervisor.yml` on release, which implies one ran — confirm
+before announcing installability.)
+
+---
+
+#### D. THE AUTH REWORK — now the top engineering item, and the push is why
+
+`main` was pushed on 2026-09-05 at the founder's explicit instruction, with the gate's
+consequence stated and accepted. Both Vercel projects deployed. **The live site now says there
+is no API key while the shipped product still requires one:**
+
+- `packages/local-worker/src/config.ts:29` — `apiKey: process.env.OCULAR_API_KEY`
+- `packages/local-worker/src/http/cloud-client.ts:24` — throws without it
+- `cta-footer.tsx` — _"There's no API key to copy, and none to leak"_
+- `setup-page.tsx` — _"That's the whole config. No key in it."_
+
+Under the standing rule the copy is correct: the site describes the finished product and the
+push is what gets gated, not the words. But the gate has now been spent, so **the only thing
+that closes the gap is shipping the auth flow.** Until it lands, anyone who reads the site
+against the running product finds they disagree — and that is live, not hypothetical.
+
+The founder's original ask (Session ~27, DEVLOG line ~691): _"get rid of this entirely — users
+should never have to fiddle with API keys."_ Sketched direction, still unimplemented and still
+**needing a real design pass before code**: a device-code / refresh-token flow through WorkOS
+AuthKit, in the shape `gh` and `gcloud` use — a one-time browser login triggered by the local
+worker itself on first run, a silently-refreshed token cached locally, and real per-user
+revocation through the IdP, replacing a bearer secret pasted into a config file.
+
+Note the interaction with item A: if payment now precedes first use, the sign-in flow and the
+payment flow are the same moment, and designing them separately will produce two. Design them
+together.
+
+---
+
+#### E. Carried forward, unchanged
+
+- **E from the Session 30 addendum — `setup-page.tsx`'s internal spacing** was never audited
+  against the `--group` / `--stack-1/2/3` ladder the home page uses. Still not done. Note it
+  will need re-reading anyway once item A adds payment copy to that page.
+- **The quota rail is 1.76:1** against the page. Faint, not broken. Unresolved.
+- **PRD §9 open decision 1 — cloud cache hits: half-charge or free?** Still open, and it still
+  blocks any caching claim beyond speed. `demo-reach-meter.tsx`'s deck currently says a
+  recently-rendered page "comes straight back", which is a speed claim only and is safe.
+- **`06-brand-identity.md` still carries its 2026-09-01 "Needs review" flag.** It predates the
+  local-worker pivot and still says $1/mo. Session 31 used its JTBD forces and tone-of-voice
+  sections and deliberately did not use its pricing or positioning framing. Someone who owns
+  brand voice should do the pass.
+- **`eslint-plugin-react-hooks` is not installed.** `use-element-boxes.ts` and `use-tree-rows.ts`
+  carry variable-length dependency arrays whose `eslint-disable` directives named a rule ESLint
+  could not resolve — which was failing the whole lint run. Replaced with plain comments in
+  Session 31; the plugin is still owed.
+- **`packages/website/src/bash.exe.stackdump`** is a 1,196-byte crash dump tracked since
+  `2a2c2cf`. Not source. Should be removed from tracking and gitignored.
+- **The design-agent calls that were declined** are recorded in Session 31 and were shipped or
+  cut deliberately; nothing outstanding there.
+
+---
+
+#### F. One process note worth keeping
+
+Two consecutive rounds of website copy were rejected on **scope**, not prose — both times the
+sentence was well written and aimed at a smaller problem than the product. That is now a rule
+at the top of `CLAUDE.md`'s positioning guardrails, as a literal test to apply before writing
+any headline or deck: _would this sentence still be true, and still be the point, if the page
+being looked at were one the agent did not write?_
+
+The corollary is in there too and matters more: **a copywriting pass cannot catch a scope
+error.** The copy-editing skills installed in Session 31 are good at prose and structurally
+blind to this. Check scope first, then hand it to them.
+
 ## Session 30 — 2026-09-04 · the stale-Tailwind root cause, round-7 website work
 
 Answering the Session 29 addendum. **The single most important finding is not on that

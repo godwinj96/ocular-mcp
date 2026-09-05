@@ -1,7 +1,7 @@
 # Product Marketing Context
 
-**Document version:** v1
-**Last updated:** 2026-09-04
+**Document version:** v2
+**Last updated:** 2026-09-05
 
 > **This document is downstream of `CLAUDE.md`, not parallel to it.** Where the two
 > disagree, `CLAUDE.md`'s "Positioning guardrails" and "Hard constraints" win and this
@@ -177,7 +177,11 @@
 **Conversion action:** "Connect your agent" → setup page → MCP config paste + one sign-in.
 **Current metrics:** Pre-launch. `useocular.dev` is live; the local worker's release is gated on cutting a real `supervisor-v*` release.
 
-**Known conversion gap (2026-09-04 audit):** nothing on the site answers _"do I pay before I try?"_ There is no trial, no free tier, and no risk reversal above the footer. Unresolved — a pricing/packaging decision, not a copy decision.
+**Packaging: there is no trial. You pay before you try.** Founder, 2026-09-05: _"users must pay before they try it. The price is so low that it wouldn't make any sense."_ Decided, not a gap.
+
+**But the copy still has to say it.** The 2026-09-04 audit found that nothing on the site answers _"do I pay before I try?"_, and deciding the answer does not answer it for the visitor. The page currently replies with silence, and silence at a CTA reads as evasion — the one register this site otherwise avoids. Two places carry it: the CTA rows (which already say `cancel any time`, currently doing a trial's job honestly), and `setup-page.tsx` step 02 _"Sign in once"_, which a reader can easily take for free sign-up before hitting a paywall.
+
+**Write it in the cheap-product register, not the defensive one.** The argument for pay-first is that the price is too low for a trial to be worth anyone's time. That is a confident, ambient-pricing argument and it is on-voice. Anything that sounds like the page is justifying the price violates the "never premium, never best-in-class" guardrail.
 
 ---
 
@@ -192,4 +196,7 @@
 
 _Newest first. One line per revision: what changed and why._
 
+- v2 (2026-09-05) — Packaging decided: no trial, pay before you try (founder). Rewrote the
+  Goals conversion-gap item from an open packaging question into a copy task, with the
+  register to write it in. The gap is now a wording gap, not a pricing one.
 - v1 (2026-09-04) — Initial context. Sourced from `CLAUDE.md` positioning guardrails, `docs/Ocular_PRD_v0.2.md` (§8.2 defensibility, the line-15 demand finding), `research & planning/06-brand-identity.md` (JTBD forces, tone of voice), and the shipped site copy. Records the scope test and the words-to-avoid list so downstream skills stop re-deriving positioning.
