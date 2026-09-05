@@ -1,16 +1,13 @@
 import { defineConfig } from 'vitest/config';
 
+// Test discovery and setup now live in vitest.workspace.ts, which splits the
+// run into a `dashboard` project and a `packages` project so that dashboard's
+// env-loading setup file cannot leak process-wide env into unrelated packages.
+// Read the comment there before moving anything back up here.
+//
+// Coverage is a root-level option in Vitest 2 and stays in this file.
 export default defineConfig({
   test: {
-    // mcp-server/worker/shared keep source under src/; dashboard is a
-    // Next.js package (app/ + lib/ at the package root, no src/) — its
-    // tests live under lib/ instead.
-    include: [
-      'packages/*/src/**/*.test.ts',
-      'packages/dashboard/lib/**/*.test.ts',
-      'packages/motion/test/**/*.test.ts',
-    ],
-    setupFiles: ['packages/dashboard/vitest.setup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
