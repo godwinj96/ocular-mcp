@@ -969,7 +969,42 @@ The `.mjs` ones are Node scripts using `process` / `Buffer` / `console` without 
 declared for them in the flat config. A config gap, not broken code. Cheap to fix; folded
 into the open list rather than fixed here, to keep this session's diff to what was verified.
 
-### Still open — the two big ones, deliberately not started
+### A + D — founder chose the flow, design pass done, implementation not started
+
+**Founder decision (2026-09-05): one browser trip — sign in and pay together.** `npx useocular`
+opens the browser once; the machine is not connected until payment succeeds. No trial, no free
+tier, no inert install.
+
+Design written to **`docs/design/first-run-auth-and-payment.md`**. Read that before writing any
+auth code or any pricing copy. Headlines:
+
+- **The cloud server side is already built.** `resolveAccount` already tries a real AuthKit JWT
+  verifier (JWKS, `aud`, expiry) and already enforces `subscriptionStatus === 'active'` via
+  `findByOauthSubject`. `VerifiedAuth.authMethod` is already an `'oauth' | 'static_key'`
+  discriminator. **A token from the new flow authenticates against the deployed server with no
+  server change.** The addendum framed D as the top engineering item; most of the server half
+  of it was done already.
+- **The client blast radius is three seams**: `config.ts:29`, `cloud-client.ts:30-37`, and
+  `createCloudSubscriptionCheck` in `subscription/validate.ts` — which re-reads
+  `process.env.OCULAR_API_KEY` directly instead of going through `config.ts`. Two sources of
+  truth for one credential; fix it in the same pass.
+- **PKCE with a loopback redirect, not device code.** WorkOS's `cli-auth` page leads with the
+  device grant, but WorkOS's own guidance is "ship both, default to PKCE" and reserves device
+  flow for headless environments with no browser. Ocular's premise is a machine _with_ a
+  browser. Device flow is kept as a documented `--device` fallback for SSH/containers.
+- **Payment lands before credential issuance without a second browser trip** by making the
+  dashboard's new `/connect` route the first stop and AuthKit's loopback bounce the last hop.
+  The `code_verifier` never leaves the machine, so PKCE integrity holds.
+- **Two things flagged that are easy to get wrong:** `fs.chmod` is effectively a no-op on
+  Windows (only toggles read-only, no per-user ACL), so the 0600 credential-file plan does not
+  cover a shipped `win32-x64` platform and needs an ACL or DPAPI path of its own; and a refresh
+  that fails on dropped wifi must map to `network_error`, not a cancelled subscription —
+  `validate.ts` already draws that line correctly and it must be preserved.
+
+Item A's copy is specified in §9 of that doc but deliberately not written — it needs the real
+copy pass against the scope test, not a sentence invented here.
+
+### Still open — everything else
 
 **A (pricing copy) and D (auth rework) were left for a founder call, because the addendum
 itself says they must be designed together and doing either alone produces the wrong thing.**
