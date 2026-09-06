@@ -51,14 +51,22 @@ export function DemoTreeReadout() {
   // and became fiction the moment the specimen moved — and keeping them in
   // sync by hand is exactly what made swapping this section's specimen
   // expensive enough that it ended up sharing the hero's.
+  // Built with a plain loop rather than .map(), because the running
+  // below-fold counter has to be shared across iterations. Incrementing it
+  // from inside a map callback means a closure mutating a variable that
+  // outlives it, which react-hooks/immutability flags — the React Compiler
+  // cannot prove that is safe to memoize. The loop keeps the counter local to
+  // the render pass and produces identical delays.
+  const rowDelays: number[] = [];
   let belowFoldSeen = 0;
-  const rowDelays = rows.map((row) => {
+  for (const row of rows) {
     if (row.position === 'below-fold') {
       belowFoldSeen += 1;
-      return reachedAt(100) + belowFoldSeen * BELOW_FOLD_STAGGER_MS;
+      rowDelays.push(reachedAt(100) + belowFoldSeen * BELOW_FOLD_STAGGER_MS);
+    } else {
+      rowDelays.push(reachedAt((row.y / FOLD_Y) * 100));
     }
-    return reachedAt((row.y / FOLD_Y) * 100);
-  });
+  }
 
   return (
     <section

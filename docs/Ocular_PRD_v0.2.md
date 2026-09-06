@@ -259,7 +259,7 @@ Do not position on cleverness.
 
 ## 9. Open Decisions
 
-1. **Cloud cache hits: half-charge or free?** Both defensible.
+1. ~~**Cloud cache hits: half-charge or free?**~~ **DECIDED 2026-09-06 (founder): HALF-CHARGE.** Implemented in `packages/shared/src/charge.ts` as a flat `EXHAUSTED_FAILURE_CHARGE`, deliberately not rung-multiplied — the multipliers price ladder climb, and a hit climbs nothing. The "popular pages are free" framing elsewhere in this doc is withdrawn; copy may now claim a hit costs half, and must not claim it is free.
 2. **Exact daily cloud cap** within the 30-50 range — needs real usage data to tune.
 3. **Higher-tier price and per-rung charge multipliers** — blocked on M3 vendor accounts for real cost data.
 4. **Bundle vs. reuse Chromium** on local install (§3.4) — decide before first release.

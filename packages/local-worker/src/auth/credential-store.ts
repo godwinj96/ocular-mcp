@@ -15,6 +15,7 @@
 
 import { spawn } from 'node:child_process';
 import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -85,6 +86,32 @@ export async function secureFile(path: string, deps: StoreDeps): Promise<HardenR
   return { hardened: true, method: 'chmod' };
 }
 
+/**
+ * `rename` over an existing file is atomic on POSIX, but on Windows it throws
+ * EPERM/EBUSY whenever anything holds a handle to the destination for a
+ * moment — an antivirus scanner or the search indexer touching a file we just
+ * wrote is enough, and both are routine on a developer's machine.
+ *
+ * The failure is transient, so a bounded retry is the correct response.
+ * Deliberately NOT falling back to delete-then-rename: that trades a rare
+ * transient failure for a window where the credentials file does not exist,
+ * which is strictly worse for the thing this file protects.
+ */
+async function renameWithRetry(from: string, to: string, attempts = 5): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      const transient = code === 'EPERM' || code === 'EBUSY' || code === 'EACCES';
+      if (!transient || attempt >= attempts) throw error;
+      // 10ms, 20ms, 40ms, 80ms — well inside a scanner's hold window.
+      await new Promise((resolve) => setTimeout(resolve, 10 * 2 ** (attempt - 1)));
+    }
+  }
+}
+
 export async function loadCredentials(deps: StoreDeps): Promise<StoredCredentials | null> {
   let raw: string;
   try {
@@ -127,8 +154,11 @@ export async function saveCredentials(
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
 
   // Unique temp name so two concurrent saves cannot clobber each other's
-  // partial writes before the rename.
-  const tmp = `${path}.${process.pid}.${Date.now()}.tmp`;
+  // partial writes before the rename. The random suffix is load-bearing:
+  // pid+timestamp alone collides when two saves land in the same
+  // millisecond, which is reachable (a refresh racing a fresh login) and
+  // showed up as an EPERM on the rename.
+  const tmp = `${path}.${process.pid}.${Date.now()}.${randomBytes(6).toString('hex')}.tmp`;
   await writeFile(tmp, JSON.stringify(credentials, null, 2), { encoding: 'utf8', mode: 0o600 });
 
   // Harden the temp file BEFORE it becomes the real one, so the credentials
@@ -136,7 +166,7 @@ export async function saveCredentials(
   const hardened = await secureFile(tmp, deps);
 
   try {
-    await rename(tmp, path);
+    await renameWithRetry(tmp, path);
   } catch (error) {
     await rm(tmp, { force: true });
     throw error;

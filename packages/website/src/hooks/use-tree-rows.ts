@@ -92,12 +92,16 @@ export function useTreeRows<T extends HTMLElement>(
       ro.disconnect();
       cancelAnimationFrame(raf);
     };
-    // NOTE: the `...deps` spread below is a variable-length dependency
-    // array, which react-hooks/exhaustive-deps cannot verify. This used to
-    // carry an eslint-disable for that rule, but the plugin is not
-    // installed in this repo, so the directive named a rule ESLint could
-    // not resolve and failed the lint run outright. Left as a plain
-    // comment until eslint-plugin-react-hooks is actually wired up.
+    // The `...deps` spread below is a variable-length dependency array, which
+    // react-hooks/exhaustive-deps genuinely cannot verify statically — the
+    // warning is correct, not a false positive, and the caller owns getting
+    // `deps` right. Suppressed deliberately.
+    //
+    // (Session 31 had to downgrade this to a plain comment because
+    // eslint-plugin-react-hooks was not installed, so the directive named an
+    // unresolvable rule and failed the whole lint run. The plugin is wired up
+    // now, so the directive works again.)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rootRef, ...deps]);
 
   return rows;

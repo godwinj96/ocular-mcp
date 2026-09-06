@@ -47,10 +47,11 @@ export function DemoReachMeter() {
               missing claim: your agent cannot predict which side it will need,
               so a tool covering one hands the work back to you.
 
-              The caching benefit stops at SPEED on purpose. PRD §9 open
-              decision 1 (cache hits: half-charge or free?) is undecided, and
-              any wording implying a hit is free or discounted commits a
-              pricing decision nobody has made yet. */}
+              The caching benefit stops at SPEED here, but that is now a
+              choice rather than a constraint: PRD §9 open decision 1 was
+              DECIDED on 2026-09-06 — a cloud cache hit costs HALF. Copy may
+              claim the discount if a copy pass judges it worth the words. It
+              must never claim a hit is free; that framing is withdrawn. */}
           <SectionHeader
             eyebrow="Two paths"
             heading="Both, from one connection"

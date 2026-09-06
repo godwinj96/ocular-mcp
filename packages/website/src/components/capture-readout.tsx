@@ -34,20 +34,25 @@ const RESOLVE_MS = 900;
 
 export function CaptureReadout() {
   const reduceMotion = usePrefersReducedMotion();
-  const [resolved, setResolved] = useState(false);
+  // `resolved` is DERIVED, not stored. It was previously a useState that an
+  // effect flipped to true immediately under reduced motion, which is a
+  // setState-synchronously-in-an-effect cascading render (flagged by
+  // react-hooks/set-state-in-effect). Deriving it keeps the exact same
+  // values — reduced motion resolves instantly, everyone else resolves when
+  // the timer fires — without the extra render pass.
+  const [timerElapsed, setTimerElapsed] = useState(false);
+  const resolved = reduceMotion || timerElapsed;
   const resolveLayer = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
 
   /** Drives the chrome-bar word and the overlay's read highlight. */
   const { t, phase } = useReadoutCycle(reduceMotion);
 
-  // One-time resolve on mount.
+  // One-time resolve on mount. Under reduced motion there is nothing to
+  // schedule — `resolved` is already true via the derivation above.
   useEffect(() => {
-    if (reduceMotion) {
-      setResolved(true);
-      return;
-    }
-    const id = setTimeout(() => setResolved(true), RESOLVE_START_MS);
+    if (reduceMotion) return;
+    const id = setTimeout(() => setTimerElapsed(true), RESOLVE_START_MS);
     return () => clearTimeout(id);
   }, [reduceMotion]);
 

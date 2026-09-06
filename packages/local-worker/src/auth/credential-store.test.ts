@@ -76,6 +76,24 @@ describe('saveCredentials', () => {
     expect(entries).toContain('credentials.json');
   });
 
+  it('survives concurrent saves — temp names must not collide within a millisecond', async () => {
+    // pid+timestamp alone is not unique enough: two saves in the same
+    // millisecond produced the same temp path and raced, surfacing on Windows
+    // as EPERM on the rename. Reachable in practice when a token refresh
+    // races a fresh login.
+    const writes = Array.from({ length: 20 }, (_, i) =>
+      saveCredentials({ ...creds, accessToken: 'token-' + i }, posixDeps()),
+    );
+    await expect(Promise.all(writes)).resolves.toBeDefined();
+
+    // Exactly one credentials file, no orphaned temp files, and it parses.
+    const { readdir } = await import('node:fs/promises');
+    const entries = await readdir(baseDir);
+    expect(entries.filter((e) => e.endsWith('.tmp'))).toEqual([]);
+    expect(entries).toEqual(['credentials.json']);
+    expect(await loadCredentials(posixDeps())).not.toBeNull();
+  });
+
   it('overwrites a previous credential set — refresh-token rotation must persist', async () => {
     await saveCredentials(creds, posixDeps());
     const rotated = { ...creds, refreshToken: 'refresh-rotated', accessToken: 'access-new' };

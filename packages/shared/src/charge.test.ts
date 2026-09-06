@@ -27,9 +27,30 @@ describe('chargeForEnvelope', () => {
     expect(chargeForEnvelope(success(99))).toBe(SUCCESS_CHARGE * highest);
   });
 
-  it('a cache hit is always free, regardless of outcome', () => {
-    expect(chargeForEnvelope(success(3), { cacheHit: true })).toBe(0);
-    expect(chargeForEnvelope(failure('BLOCKED', 2), { cacheHit: true })).toBe(0);
+  it('a cache hit is charged at half, regardless of outcome', () => {
+    // Founder decision 2026-09-06, closing PRD v0.2 §9 open decision 1.
+    // Previously free; "popular pages are free" is withdrawn.
+    expect(chargeForEnvelope(success(3), { cacheHit: true })).toBe(EXHAUSTED_FAILURE_CHARGE);
+    expect(chargeForEnvelope(failure('BLOCKED', 2), { cacheHit: true })).toBe(
+      EXHAUSTED_FAILURE_CHARGE,
+    );
+  });
+
+  it('a cache hit is NOT rung-multiplied — it climbs no rungs', () => {
+    // The multipliers price escalating proxy/compute as the ladder climbs.
+    // A cache hit serves a stored result, so charging more because the
+    // ORIGINAL render was expensive would bill twice for the expensive part.
+    for (const rung of [0, 1, 2, 3]) {
+      expect(chargeForEnvelope(success(rung), { cacheHit: true })).toBe(EXHAUSTED_FAILURE_CHARGE);
+    }
+  });
+
+  it('a cache hit costs strictly less than the cheapest live render', () => {
+    // The property that has to hold for caching to be worth anything to a
+    // user: a hit must never cost more than rendering it fresh.
+    expect(chargeForEnvelope(success(0), { cacheHit: true })).toBeLessThan(
+      chargeForEnvelope(success(0)),
+    );
   });
 
   it('MAX_RESERVE_CHARGE equals SUCCESS_CHARGE at the most expensive rung multiplier', () => {

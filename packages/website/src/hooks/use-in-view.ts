@@ -14,15 +14,18 @@ export function useInView<T extends HTMLElement>(): {
   inView: boolean;
 } {
   const ref = useRef<T>(null);
-  const [inView, setInView] = useState(false);
+  // Lazy initial state rather than an effect that flips it. Whether
+  // IntersectionObserver exists is a static capability of the environment, not
+  // something that changes at runtime, so the no-observer fallback ("assume
+  // everything is visible") is the correct INITIAL value — not a correction
+  // applied one render later. Setting it inside the effect was a
+  // setState-synchronously-in-an-effect cascading render.
+  const [inView, setInView] = useState(() => typeof IntersectionObserver !== 'function');
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (typeof IntersectionObserver !== 'function') {
-      setInView(true);
-      return;
-    }
+    if (typeof IntersectionObserver !== 'function') return;
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) setInView(entry.isIntersecting);

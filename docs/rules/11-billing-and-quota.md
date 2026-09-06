@@ -107,3 +107,20 @@ Per §9 of `research & planning/03`, every job's structured log (see `09-error-h
 ---
 
 _Rules v1.0 · 2026-07-10 · Ocular Phase 1_
+
+## 6. Cloud cache hits are charged at half
+
+**Decided 2026-09-06 by the founder**, closing PRD v0.2 §9 open decision 1. A cloud cache hit
+costs `EXHAUSTED_FAILURE_CHARGE` (0.5), not zero.
+
+**Rule:** the cache-hit charge is **flat and never rung-multiplied**. `RUNG_CHARGE_MULTIPLIERS`
+prices the escalating proxy/compute cost of climbing the stealth ladder; a cache hit climbs
+nothing, it serves a stored result. Multiplying would charge a user more for a hit because the
+_original_ render happened to be expensive — billing twice for the part already paid for.
+
+**Rule:** the earlier "popular pages are free" framing is **withdrawn**. No copy, deck, or doc
+may state or imply that a cache hit is free. Claiming it costs half is accurate and permitted.
+A speed-only claim ("comes straight back") remains accurate and is always safe.
+
+**Rule:** local-worker renders are unmetered and never reach `chargeForEnvelope` at all — this
+section is cloud-path only.

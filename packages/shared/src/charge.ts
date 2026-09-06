@@ -45,18 +45,25 @@ function rungMultiplier(rung: number): number {
 
 export interface ChargeOptions {
   /**
-   * A cache hit never renders — no proxy/compute was spent, so it's always
-   * free and short-circuits every other rule below. Open decision, recorded
-   * as "free" in docs/rules/11-billing-and-quota.md §9 (simpler mental
-   * model than a half-charge, matches the PRD's "popular pages are free"
-   * framing).
+   * A cache hit is charged at HALF, and short-circuits every rule below.
+   *
+   * DECIDED 2026-09-06 by the founder, closing PRD v0.2 §9 open decision 1.
+   * This file previously returned 0 ("popular pages are free"); that framing
+   * is withdrawn and any copy resting on it is wrong.
+   *
+   * Deliberately NOT rung-multiplied. The multipliers price escalating
+   * proxy/compute cost as the stealth ladder climbs, and a cache hit climbs
+   * nothing — it serves a stored result. Multiplying here would charge a
+   * user more for a cache hit because the ORIGINAL render happened to be
+   * expensive, which is backwards: the expensive part is what already got
+   * paid for.
    */
   cacheHit?: boolean;
 }
 
 export function chargeForEnvelope(envelope: ResultEnvelope, options: ChargeOptions = {}): number {
   if (options.cacheHit) {
-    return 0;
+    return EXHAUSTED_FAILURE_CHARGE;
   }
 
   if (envelope.ok) {

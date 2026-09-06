@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
   {
@@ -8,6 +9,13 @@ export default tseslint.config(
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  {
+    // Next.js regenerates next-env.d.ts on every build and owns its contents;
+    // the triple-slash references are Next's, not ours, and editing them is
+    // undone by the next build. Linting a generated file we cannot fix is
+    // pure noise.
+    ignores: ['**/next-env.d.ts'],
+  },
   {
     // .cjs build/lifecycle scripts run directly under Node, not bundled —
     // they need Node globals (require/process/__dirname/console) and CJS
@@ -18,6 +26,31 @@ export default tseslint.config(
     },
     rules: {
       '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
+    // .mjs scripts are the same story as .cjs above — they run directly under
+    // Node and need its globals (process/Buffer/console). They are ESM, so
+    // unlike .cjs they get no require() exemption.
+    //
+    // Their absence here is why `npx eslint .` reported 18 no-undef errors
+    // across kpi-probe.mjs and capture-motion-specimen.mjs: a config gap, not
+    // broken code.
+    files: ['**/*.mjs'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
+    // React hook correctness for the two React surfaces (website is a Vite
+    // SPA, dashboard is Next.js). Owed since Session 31, when two hooks'
+    // eslint-disable directives had to be downgraded to plain comments
+    // because they named a rule ESLint could not resolve — which failed the
+    // whole lint run rather than just those lines.
+    files: ['packages/website/**/*.{ts,tsx}', 'packages/dashboard/**/*.{ts,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
     },
   },
   {
