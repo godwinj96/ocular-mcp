@@ -75,7 +75,11 @@ describe('mcp-server end-to-end', () => {
   }
 
   it('lists all five tools', async () => {
-    const client = await connectClient();
+    // Authenticated now: the endpoint answers 401 to an anonymous request, so
+    // even the initialize handshake needs credentials. That is the MCP
+    // authorization flow working as specified, not a tightening of scope.
+    const { rawKey } = await insertActiveAccountWithKey();
+    const client = await connectClient(`Bearer ${rawKey}`);
     try {
       const { tools } = await client.listTools();
       expect(tools.map((t) => t.name).sort()).toEqual([
@@ -90,8 +94,57 @@ describe('mcp-server end-to-end', () => {
     }
   });
 
+  it('answers an unauthenticated request with 401 and points at the metadata', async () => {
+    // The entry point of the whole OAuth discovery chain. Previously an
+    // anonymous call got a JSON-RPC error inside a 200, which a remote client
+    // reads as "the tool failed" rather than "authenticate and retry" — so
+    // there was no way in for a client that did not already hold a token.
+    const res = await fetch(`http://127.0.0.1:${server.port}/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    });
+
+    expect(res.status).toBe(401);
+    const challenge = res.headers.get('www-authenticate');
+    expect(challenge).toMatch(/^Bearer /);
+    // The pointer is the load-bearing part: without resource_metadata the
+    // client has no way to learn which authorization server guards this.
+    expect(challenge).toContain('resource_metadata=');
+    expect(challenge).toContain('/.well-known/oauth-protected-resource');
+  });
+
+  it('serves RFC 9728 protected-resource metadata on both discovery paths', async () => {
+    // Both paths because RFC 9728 §3.1 inserts the resource's path component
+    // into the well-known URI: a client treating the resource as
+    // https://host/mcp looks under /mcp, one treating it as the origin does
+    // not. Serving both removes a "works in one client, not another" bug.
+    for (const path of [
+      '/.well-known/oauth-protected-resource',
+      '/.well-known/oauth-protected-resource/mcp',
+    ]) {
+      const res = await fetch(`http://127.0.0.1:${server.port}${path}`);
+      expect(res.status).toBe(200);
+
+      const body = (await res.json()) as {
+        resource: string;
+        authorization_servers: string[];
+        bearer_methods_supported: string[];
+      };
+
+      // resource must be the same value tokens are audience-checked against,
+      // or clients request a token this server will reject.
+      expect(body.resource).toBe(config.authkitResourceIdentifier);
+      expect(body.authorization_servers).toEqual([config.authkitIssuerUrl]);
+      expect(body.bearer_methods_supported).toEqual(['header']);
+    }
+  });
+
   it('rejects a tool call with no Authorization header as an MCP tool error', async () => {
-    const client = await connectClient();
+    // Still exercised at the tool layer via a header that is present but
+    // empty — the pipeline's own credential check is unchanged, and only the
+    // absent-header case was lifted to an HTTP 401 above.
+    const client = await connectClient('Bearer ');
     try {
       const result = await client.callTool({ name: 'get_quota', arguments: {} });
       expect(result.isError).toBe(true);

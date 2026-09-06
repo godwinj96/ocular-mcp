@@ -1416,6 +1416,76 @@ up: "deploy the cloud worker" is not sufficient on its own — `packages/worker`
 Chromium consumer; Claude chat talks to `packages/mcp-server`. Both need to run, and they share
 the existing Upstash Redis and Neon Postgres.
 
+#### Round 3d — the cloud MCP server can now be discovered by a remote client
+
+Gap 1 from Round 3c closed. Two clarifications recorded first, because both were reasonable
+assumptions that turned out wrong:
+
+- **A server does not solve gap 1.** It was missing code, not missing hosting.
+- **The Vercel MCP cannot edit DNS records.** It exposes domain purchase, availability and order
+  status only. `useocular.dev` does sit on Vercel DNS (`ns1/ns2.vercel-dns.com`), so the record
+  change is a dashboard/CLI action. Note `mcp.useocular.dev` **already resolves to Vercel
+  anycast** (216.198.79.1) — it is not an unused name; it needs repointing, not creating.
+
+**What was wrong:** credentials were resolved inside the tool pipeline (`server.ts`), so an
+anonymous request got a JSON-RPC error nested in a 200. A remote client reads that as "the tool
+failed", not "authenticate and retry" — so a client that did not already hold a token had no
+entry point at all. There was also no metadata document, so nothing named the authorization
+server.
+
+**Added to `packages/mcp-server`:**
+
+- `GET /.well-known/oauth-protected-resource` **and** `/.well-known/oauth-protected-resource/mcp`
+  returning RFC 9728 metadata. Both paths because §3.1 inserts the resource's path component into
+  the well-known URI, so a client treating the resource as `https://host/mcp` looks under `/mcp`
+  while one treating it as the origin does not. No Origin check on these — discovery metadata is
+  public by design and must be readable precisely when the caller has no credentials.
+- An HTTP **401 with `WWW-Authenticate: Bearer resource_metadata="…"`** when the Authorization
+  header is absent. This is the first link of the discovery chain.
+
+`resource` is read from `authkitResourceIdentifier` rather than a second env var, so the
+advertised resource and the token audience cannot drift apart.
+
+**Deliberate behaviour change: `tools/list` now requires auth.** Even the initialize handshake
+does. That is the MCP authorization flow as specified, but it changed two existing tests — one
+now authenticates, and the anonymous case became an assertion about the 401 and its
+`resource_metadata` pointer. The tool-layer credential check is unchanged and still covered (via
+a present-but-empty bearer).
+
+**Known gap, deliberately not fixed:** only the _absent_ header produces a 401. A present-but-
+expired token still surfaces as a tool error, so clients will not auto-refresh from it. Fixing
+that means moving verification to the HTTP seam, which is a larger change than this one.
+
+**`AUTHKIT_RESOURCE_IDENTIFIER` is now `https://mcp.useocular.dev`** in `.env` and `.env.example`,
+and re-registered as the AuthKit OAuth resource on Staging
+(`authkit_oauth_resource_01M1V4DDDDDN0Y4091Q3A4JNRT`, default). The bogus `https://mcp.ocular.io`
+is gone.
+
+**406 tests green.** Typecheck and lint clean.
+
+#### Deployment decisions (2026-09-06)
+
+- **Separate instance**, not the circuit-agro box. Evidenced, not cautious: that host is
+  `ubuntu@35.153.245.159`, **2 vCPU / 3.8 GiB, 2.0 GiB available, already 1.0 GiB into swap**,
+  disk 81% full, 75 days uptime. CPU is idle (load 0.16) — memory is the binding constraint. One
+  warm Chromium (~150-200 MB) plus 100-300 MB per context plus `sharp`'s encode spike would put
+  it into swap thrash alongside production Postgres and RabbitMQ. Capacity for cloud renders
+  there is effectively zero.
+- **Recommended new instance: 4 vCPU / 8-16 GB, non-burstable** (`c5.xlarge` matches the plan's
+  4vCPU/8GB; `m5.xlarge` buys WebGL headroom). **Not `t`-series for the worker** — sustained
+  Chromium drains CPU credits and then throttles, which presents as captures timing out rather
+  than as a clean slowdown.
+- Concurrency ceiling is **concurrent renders, not users**: the locked render semaphore is 3-4,
+  a capture is ~3-8s, so ~0.8 renders/sec ≈ 2,800/hour, against per-user daily caps of 40
+  (Basic) / 150 (Pro). Dozens of active subscribers fit; tens of _simultaneous_ captures do not.
+- `mcp-server` and `worker` split cleanly — the former is light (Fastify, no browser), all the
+  weight is the latter.
+
+**Still needed before Claude chat can connect:** repoint `mcp.useocular.dev` at the new instance,
+TLS, deploy both services, and check whether `MCP_ALLOWED_ORIGINS` needs `https://claude.ai`
+(unverified — depends on whether Anthropic's connector calls originate browser-side or
+server-side; the Origin guard rejects any unlisted Origin outright).
+
 ### Still open — everything else
 
 **A and D were designed and built later the same session — see the two sections above.** This

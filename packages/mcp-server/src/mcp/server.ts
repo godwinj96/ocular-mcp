@@ -245,6 +245,45 @@ export async function startMcpServer(config: McpServerConfig): Promise<McpServer
     done(null, undefined);
   });
 
+  // OAuth 2.0 Protected Resource Metadata (RFC 9728), required by the MCP
+  // authorization spec and by every remote client that discovers its own way
+  // in — Claude's custom connectors included.
+  //
+  // Without this a client has no way to learn WHICH authorization server
+  // guards this endpoint. It cannot be inferred from a 401 body, and there is
+  // nowhere else to look: the flow is (1) unauthenticated request, (2) 401
+  // carrying `WWW-Authenticate: ... resource_metadata="<url>"`, (3) GET that
+  // URL, (4) discover AuthKit, (5) register via DCR and run the OAuth dance.
+  // Break any link and the connector dead-ends.
+  //
+  // `resource` MUST be the canonical public URL of this server, and it is the
+  // same value tokens are audience-checked against — which is why it is read
+  // from authkitResourceIdentifier rather than being a second source of
+  // truth that could drift from the audience check.
+  //
+  // Served on both paths deliberately: RFC 9728 §3.1 inserts the resource's
+  // path component into the well-known URI, so a client treating the resource
+  // as `https://host/mcp` looks under `/mcp` while one treating it as the
+  // origin looks at the root. Serving both costs nothing and removes a class
+  // of "works in one client, not another" bug.
+  const protectedResourceMetadata = {
+    resource: appConfig.authkitResourceIdentifier,
+    authorization_servers: [appConfig.authkitIssuerUrl],
+    bearer_methods_supported: ['header'],
+  };
+
+  // No Origin check on these two: discovery metadata is public by design, and
+  // a client must be able to read it precisely when it has no credentials.
+  for (const path of [
+    '/.well-known/oauth-protected-resource',
+    '/.well-known/oauth-protected-resource/mcp',
+  ]) {
+    fastify.get(path, async (_request, reply) => {
+      reply.header('cache-control', 'public, max-age=3600');
+      return protectedResourceMetadata;
+    });
+  }
+
   // The transport speaks directly to Node's raw IncomingMessage/ServerResponse
   // (it writes the SSE/JSON response itself), so this route hands off to it
   // via Fastify's `reply.hijack()` instead of returning a value for Fastify
@@ -269,6 +308,30 @@ export async function startMcpServer(config: McpServerConfig): Promise<McpServer
     const origin = request.headers.origin;
     if (origin && !appConfig.allowedOrigins.includes(origin)) {
       reply.code(403).send({ error: 'origin_not_allowed' });
+      return;
+    }
+
+    // No credentials at all -> an HTTP 401 naming where to authenticate.
+    //
+    // This has to happen at the HTTP layer, not inside the tool pipeline.
+    // Credentials were previously resolved per tool call, so an anonymous
+    // request got a JSON-RPC error nested in a 200 — which a remote client
+    // reads as "the tool failed", not as "authenticate and retry". The OAuth
+    // discovery chain starts with a real 401, so without this there is no
+    // entry point for a client that does not already hold a token.
+    //
+    // Only the ABSENCE of a header is handled here. A present-but-invalid
+    // token still goes to resolveAccount, which distinguishes AuthKit JWTs
+    // from static API keys and maps failures to their existing errors; that
+    // path is unchanged. An expired token therefore still surfaces as a tool
+    // error rather than a 401 — clients will not auto-refresh from it. Worth
+    // fixing, but it is a change to the verification seam, not to this one.
+    if (!request.headers.authorization) {
+      const metadataUrl = `${appConfig.authkitResourceIdentifier.replace(/\/$/, '')}/.well-known/oauth-protected-resource`;
+      reply
+        .code(401)
+        .header('WWW-Authenticate', `Bearer resource_metadata="${metadataUrl}"`)
+        .send({ error: 'unauthorized', error_description: 'Authorization header is required' });
       return;
     }
 
