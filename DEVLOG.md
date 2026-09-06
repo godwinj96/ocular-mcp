@@ -1048,12 +1048,58 @@ is complete and tested end to end; it is not yet proven against real WorkOS/Bach
   3 processes, 2 modules) because it reaches the whole capture path. Nothing's signature
   changed, which is what kept that blast radius theoretical; the full suite confirms it.
 
+#### Step 5 partially done — WorkOS configured, and the first real run found a bug
+
+**WorkOS is configured.** Registered two wildcard loopback redirect URIs on the AuthKit app
+(`app_01KX873JQ2DKJDHAJZC2JXT2JN`) via the WorkOS MCP, dry-run first, preserving all four
+existing URIs by id: `http://127.0.0.1:*/callback` (what the worker actually emits) and
+`http://localhost:*/callback` (for the manual/`--device` path). `OCULAR_AUTH_CLIENT_ID` is set
+in `packages/local-worker/.env` and documented in `.env.example`.
+
+**Two things that came out of doing it:**
+
+- **`connectUrl`'s default was wrong.** The design guessed `https://app.useocular.com/connect`;
+  the dashboard actually lives at `dashboard.useocular.dev`. Fixed. Worth noting the class of
+  error — a plausible-looking constant invented during design and never checked against
+  reality.
+- **The dashboard's `WORKOS_CLIENT_ID` points at the WorkOS _Staging_ environment**
+  (`sandbox: true`), even though it serves the production domain. Not changed — flagging it as
+  a fact rather than assuming it is wrong, but it should be a deliberate decision before real
+  customers sign in.
+
+**The founder ran the flow and it failed:** `Invalid connect request: code_challenge is
+required`. Root cause and fix are in design §4.2a and commit `29cc318`; the short version is
+that `authkitMiddleware` auth-gates every route, so `/connect` bounced to sign-in _before_ its
+handler ran, and the PKCE params had to survive AuthKit's `returnPathname` — which carries a
+pathname, not a query string. `/connect` now sits in `unauthenticatedPaths` (it still requires
+a session, via `getCurrentAccount`) and stashes the request in the resume cookie before
+authenticating.
+
+**A second, quieter problem the same bug hid:** the validate-before-anything ordering §4.3
+specifies was not actually in force in production, because the middleware bounce came first.
+No open-redirect exposure — the bounce target is AuthKit and a hostile `redirect_uri` was only
+ever carried as opaque state and rejected on return — but the guarantee in effect was not the
+one written down.
+
+**Verified live against the deployed dashboard**, unauthenticated:
+
+| Request                                | Result                                                                                              |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| no params                              | `400 redirect_uri is required`                                                                      |
+| `redirect_uri=https://evil.example/cb` | `400 redirect_uri must use http on loopback` — no redirect                                          |
+| valid loopback params                  | `307` to AuthKit **plus** `Set-Cookie: ocular_connect; Secure; HttpOnly; SameSite=lax; Max-Age=900` |
+
+That last row is the proof the fix works: the request is persisted before the bounce, so it no
+longer depends on `returnPathname` preserving anything.
+
+**Still not done on step 5:** nobody has completed a paid checkout and reached
+`✓ This machine is connected`. Everything up to the AuthKit hand-off is now proven live.
+
 #### What is left on A + D
 
-- **Step 5 — end-to-end on a real machine. Blocked on configuration only, no missing code:**
-  `OCULAR_AUTH_CLIENT_ID` must be set, and the loopback redirect URI registered in WorkOS as
-  `http://localhost:*/callback` (wildcard port, per RFC 8252). Until that is done the flow has
-  never touched real AuthKit.
+- **Step 5 — mostly done, see above.** WorkOS is configured and everything up to the AuthKit
+  hand-off is verified live. What remains is one complete paid run: checkout through to
+  `✓ This machine is connected`.
 - **Step 6 — item A's copy.** Specified in design §9, deliberately unwritten: it needs the real
   copy pass against the scope test, and `.agents/product-marketing.md` §Goals still records the
   pay-before-trial question as unresolved. It is resolved; that file must be updated in the
