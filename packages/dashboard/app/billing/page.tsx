@@ -1,6 +1,9 @@
 import Link from 'next/link';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { getCurrentAccount } from '../../lib/current-account';
 import { bachs, bachsClient } from '../../lib/bachs';
+import { RESUME_COOKIE, resumeConnectUrl } from '../../lib/connect-resume';
 import { PLAN_PRICE_USD, tierOfPlanSlug, type PlanCycle, type PlanTier } from '@ocular/shared';
 
 const PLAN_CARDS: Array<{ tier: PlanTier; label: string; blurb: string }> = [
@@ -14,6 +17,17 @@ const PLAN_CARDS: Array<{ tier: PlanTier; label: string; blurb: string }> = [
 
 export default async function BillingPage() {
   const account = await getCurrentAccount();
+
+  // First-run connect flow resuming after checkout. Bachs returns a paying
+  // user here rather than to /connect, so without this hop the "one browser
+  // visit" promise would break at the moment they have just paid. Only
+  // resumes once the subscription is actually active, so a cancelled or
+  // still-processing checkout falls through to the normal billing page.
+  // See docs/design/first-run-auth-and-payment.md §4.2.
+  if (account.subscriptionStatus === 'active') {
+    const pending = resumeConnectUrl((await cookies()).get(RESUME_COOKIE)?.value);
+    if (pending) redirect(pending);
+  }
 
   // An active subscriber manages an existing plan (Bachs's own hosted
   // portal — invoices, payment method, cancellation); anyone else picks a
