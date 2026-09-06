@@ -373,6 +373,101 @@ Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M
 
 ## Pending / Next Up
 
+### Session 33 addendum — the next session's brief. READ THIS FIRST.
+
+Written 2026-09-06 at the founder's request, so the next session can start from a clean context
+window. **Nothing in this section has been implemented.** It is all scoped, evidenced and ready
+to pick up cold. Do the work here before anything else in Pending.
+
+#### 0. CORRECTION — item A's copy is SETTLED, not open
+
+Earlier entries (Round 2, Round 3c) list "item A's copy" as deliberately unwritten and record
+`.agents/product-marketing.md` §Goals as unresolved. **That is now wrong and was wrong when I
+repeated it today.** The founder settled it: the pay-before-trial question is resolved and the
+register is approved.
+
+Approved surfacings, both on-voice:
+
+- **"$2.50 and you're in"**
+- **"…for $2.50"** — e.g. **"give your agent eyes for $2.50"**
+
+Both pass CLAUDE.md's scope test (they stay true and stay the point when the page being looked
+at is one the agent did not write) and neither gives Ocular agency. The remaining work is
+mechanical, not a decision: write it into `setup-page.tsx` step 02 — which still says
+**"Sign in once"**, and a visitor reads that as free sign-up before hitting a paywall — and
+update `.agents/product-marketing.md` §Goals in the same pass to stop recording the question as
+open.
+
+#### 1. Website copy overhaul — from real reader feedback
+
+The founder showed the site to several people. Their feedback, verbatim in substance:
+
+1. **Simplify to a ~6th-grade reading level.** Non-technical visitors must immediately understand
+   what the site does. **Technical jargon actively hurts** — "paint canvas" was named
+   specifically as a phrase that costs more than it earns.
+2. **It reads like a very long list.** "Easy to feel overwhelmed/exhausted, feels like a long
+   read." The fix asked for is **scroll animation that reveals content as you scroll**, used to
+   manage attention and direct it to one element at a time, emphasising the message rather than
+   decorating it.
+3. **"Don't make people think."** (Krug.) This is the governing principle for the whole pass.
+
+**Mandatory before implementing:** research the scroll-animation approach **with both design
+agents** (`ui-design-intelligence` + `product-intelligence`). This is the founder's standing rule
+for all UI work — never design from memory — and here it is doubled, because the request is
+explicitly "do research on this with the 2 agents before implementing anything."
+
+Note the tension to hold: simplifying to 6th-grade reading level must **not** narrow the claim.
+CLAUDE.md's scope test still binds — two rounds of copy were already rejected for describing a
+smaller problem than the product solves, and simplification is exactly the pressure that causes
+that. Simpler words, same size claim.
+
+#### 2. The three UI items — APPROVED to fix, with the agents
+
+Previously deferred; the founder has now green-lit them. Same rule: both design agents, no
+designing from memory.
+
+- `setup-page.tsx` internal spacing.
+- The **1.76:1 quota rail**.
+- `research & planning/06-brand-identity.md`'s stale **"Needs review"** flag — it predates the
+  local-worker pivot and still says **$1/mo** (the price is $2.50).
+
+#### 3. Cache TTL — research task, not an implementation task
+
+The founder wants to be informed before deciding, so this closes the long-standing PRD v0.2 §9
+open decision on the cache-TTL volatility classifier.
+
+Deliverable: **what the industry standard is for cache TTL**, and **what our realistic options
+are given what is already built**. Present options with trade-offs; do not pick one. The
+existing machinery is the two-cache split (local device-only vs shared cloud, public URLs only,
+populated solely by Ocular's own renders) plus `fresh: true` force-refresh on every capture tool.
+The open part has always been what "volatile" means for a target page.
+
+#### 4. Favicon bug — the logomark does not show
+
+Founder-reported. Diagnosed but **not fixed**:
+
+- `packages/website/index.html:12` references `/favicon.png`.
+- `packages/website/public/favicon.png` is **1054 x 1040, dated 12 July** — it predates the brand
+  pass entirely.
+- The current logomark lives in `src/components/mark.tsx` and `src/assets/logo.svg`.
+
+A ~1000px detailed PNG downscaled by the browser to 16x16 is the most likely reason the mark
+reads as mush. Not visually confirmed — verify before assuming. The fix is to generate proper
+sizes from the **current** mark (16/32/180 plus an SVG icon), not to re-export the stale asset.
+
+#### 5. State of the repo as this session ended
+
+- **4 commits are unpushed** (`ac88c0f`, `95ba7b1`, `2cdf664`, `d048dc3`). Vercel deploys on
+  push, so **the plan-selection fix is not live** — users are still sent into a `basic/monthly`
+  checkout they never chose.
+- 406 tests green, typecheck and lint clean, GitNexus index fresh.
+- Unrelated-but-unblocked work that did NOT make it in, in priority order: publish `useocular`
+  to npm (**the name is free — npm 404s**; first verify the GitHub release carrying the four
+  supervisor binaries exists, or `binary-resolver.ts` will refuse the download for every user);
+  drop `OCULAR_API_KEY` per design §7 step 2 (**the completed paid run was its gate**, and it is
+  what makes the live site's "no API key" copy true); and the expired-token 401 gap left in
+  `mcp-server` this session.
+
 ### 2026-09-01 — Session 18: Upstash Redis re-provisioned (old instance archived)
 
 > **CORRECTION (Session 32, 2026-09-05):** the bullet below claiming `REDIS_URL` was updated
