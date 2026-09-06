@@ -33,9 +33,13 @@ import { RESUME_COOKIE, parseResumeCookie } from '../../lib/connect-resume';
 
 const RESUME_TTL_S = 15 * 60;
 
-/** Cheapest plan — "$2.50/mo, cancel any time". Pay-first, no trial. */
-const DEFAULT_TIER = 'basic';
-const DEFAULT_CYCLE = 'monthly';
+/**
+ * Where an unsubscribed user goes to pay. /billing, not a pre-filled
+ * checkout: it already renders every plan and cycle with prices, and sending
+ * someone straight into a checkout for a plan they were never shown picks
+ * for them. Pay-first is the design; choosing for them is not.
+ */
+const PLAN_SELECTION_PATH = '/billing';
 
 const AUTHORIZE_URL = 'https://api.workos.com/user_management/authorize';
 
@@ -126,9 +130,10 @@ export async function GET(request: Request): Promise<Response> {
 
   if (account.subscriptionStatus !== 'active') {
     // Pay-first, by design. The request is already stored, so the same
-    // browser visit continues after checkout instead of making the user
-    // re-run the CLI.
-    redirect(`/billing/checkout?tier=${DEFAULT_TIER}&cycle=${DEFAULT_CYCLE}`);
+    // browser visit continues after they pick a plan and check out, instead
+    // of making the user re-run the CLI. /billing resumes it once the
+    // subscription reads active.
+    redirect(PLAN_SELECTION_PATH);
   }
 
   // Active subscription: the request has served its purpose, so drop it

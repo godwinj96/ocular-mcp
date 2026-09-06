@@ -1349,6 +1349,73 @@ received the complete query — `redirect_uri`, `code_challenge`, `code_challeng
 the first fix was verified with a tool (curl) that structurally could not exercise the second.
 An error message matching a known bug is not evidence it is that bug.
 
+#### Round 3c — THE PAID RUN IS DONE, plan selection restored, and the cloud-access gap
+
+**The first complete first-run login happened (2026-09-06).** `✓ This machine is connected`.
+This closes the item that has been open since Session 25.
+
+It exercised the **full** flow, not the shortcut. The `accounts` table proves it:
+
+```
+godwinjames670+run1@gmail.com   basic_monthly   active
+created 08:58:53  ->  updated 08:59:41   (48s)
+```
+
+A brand-new account with no subscription, so `/connect` took the checkout branch: Bachs
+checkout -> webhook -> `subscription_status = active` -> the `/billing` resume hop ->
+AuthKit authorize -> loopback callback -> credentials stored. The resume cookie hop
+(design §4.2, the thing that exists because Bachs hard-codes `success_url` to `/billing`)
+is now proven in production rather than by test.
+
+It took **two** bug fixes in one session to get here — see Round 3 and 3b. Both presented as
+the same error string.
+
+#### Plan selection: `/connect` was choosing for the user
+
+The founder's objection: users never see or choose a plan. Correct — `/connect` redirected
+straight to `/billing/checkout?tier=basic&cycle=monthly`, so the first thing a paying user saw
+was a checkout for a plan nobody offered them.
+
+`/billing` **already renders the full chooser** for an unsubscribed user — Basic and Pro, each
+with monthly and annual pricing from `PLAN_PRICE_USD`. So the fix is the redirect target, not
+new UI: `/connect` now sends unsubscribed users to `/billing`, they pick, and the existing
+resume hop carries them back. Pay-first is unchanged; choosing for them is what stopped.
+
+**Needs a dashboard deploy to take effect** — the change is server-side in the Vercel app.
+
+#### The cloud-access gap: nobody but the founder can use Ocular yet
+
+Question raised: aside from `npx useocular`, how do users reach the MCP server — Claude chat in
+particular? Audited; the honest status:
+
+| Access path                     | Status                                                                                  |
+| ------------------------------- | --------------------------------------------------------------------------------------- |
+| `npx useocular` (local stdio)   | Code proven end to end today. **Never published to npm** — the command 404s.            |
+| Static API key -> cloud `/mcp`  | Implemented (`OCULAR_API_KEY`, bearer). **Server never deployed** — no URL to point at. |
+| OAuth (AuthKit) -> cloud `/mcp` | Token verification implemented. Same deployment blocker, plus the two gaps below.       |
+
+`packages/mcp-server` does serve `ALL /mcp` over `StreamableHTTPServerTransport` (stateless,
+Fastify, `0.0.0.0:PORT`), which is the right shape for Claude's custom connectors. Two things
+are missing before one can connect:
+
+1. **No `/.well-known/oauth-protected-resource` route, and no `WWW-Authenticate` header
+   anywhere in `mcp-server`.** The MCP authorization spec requires the resource server to
+   publish RFC 9728 metadata naming its authorization server, and to return
+   `WWW-Authenticate: Bearer resource_metadata="..."` on a 401. Without it a remote client
+   cannot discover AuthKit and the connector flow dead-ends.
+2. **`AUTHKIT_RESOURCE_IDENTIFIER` is `https://mcp.ocular.io`** — a domain we do not own. It is
+   the token audience AND the URI registered as the AuthKit OAuth resource on Staging. It has to
+   become the deployed server's real public URL and be re-registered. Same stale-constant class
+   as `app.useocular.com`; flagged in Round 3, now load-bearing.
+
+Working in our favour: **DCR and CIMD are both already enabled on Staging**, which is what lets
+a client like Claude register itself without manual client provisioning.
+
+The founder has offered a server for a temporary cloud deployment. Note for whoever picks this
+up: "deploy the cloud worker" is not sufficient on its own — `packages/worker` is the BullMQ
+Chromium consumer; Claude chat talks to `packages/mcp-server`. Both need to run, and they share
+the existing Upstash Redis and Neon Postgres.
+
 ### Still open — everything else
 
 **A and D were designed and built later the same session — see the two sections above.** This
