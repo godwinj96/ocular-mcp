@@ -1107,6 +1107,91 @@ longer depends on `returnPathname` preserving anything.
 - **Step 7 — remove the static key.** `OCULAR_API_KEY` still works on purpose so there is no
   flag day. Only after it is gone does the live site's "no API key" copy become true.
 
+### Round 2 — cache decision, lint to zero, and four bugs (2026-09-06)
+
+**Founder decisions this round:**
+
+1. **Cloud cache hits are HALF-CHARGE.** Closes PRD v0.2 §9 open decision 1. Implemented in
+   `shared/src/charge.ts` as a flat `EXHAUSTED_FAILURE_CHARGE`, **never rung-multiplied** — the
+   multipliers price climbing the ladder and a hit climbs nothing, so multiplying would bill
+   twice for the expensive original render. Recorded in PRD §9, new `docs/rules/11` §6, and the
+   deck comment in `demo-reach-meter.tsx`. **"Popular pages are free" is withdrawn — no copy may
+   say a hit is free.** Claiming it costs half is now permitted.
+2. **WorkOS should be Production.** Not done — see the blocker below.
+
+**Lint is now 0 errors AND 0 warnings** (was 19 errors).
+
+- 18 of 19 were a config gap: `.mjs` files never got Node globals, only `.cjs` did.
+- `next-env.d.ts` is Next-generated; ignored.
+- `eslint-plugin-react-hooks` **installed at last** (owed since Session 31), and the two
+  `exhaustive-deps` directives Session 31 had to downgrade to plain comments are restored now
+  that the rule name resolves.
+
+**Four real bugs, three found by the new plugin and one by a test:**
+
+- `use-in-view.ts` set state in an effect for a _static_ capability check → lazy initial value.
+- `capture-readout.tsx` stored `resolved` and flipped it synchronously in an effect under
+  reduced motion → derived from `reduceMotion || timerElapsed`. Same values, one less render.
+- `demo-tree-readout.tsx` mutated a counter inside a `.map()` callback, which the React Compiler
+  cannot prove safe to memoize → plain loop, identical delays.
+- **In my own new code:** `saveCredentials`' temp name was `pid+timestamp`, which collides when
+  two saves land in the same millisecond (reachable when a refresh races a login) and surfaced
+  as `EPERM` on the rename. Added a random suffix, plus a bounded retry for the separate Windows
+  case where rename-over-existing throws `EPERM`/`EBUSY` because a scanner briefly holds the
+  destination. **Deliberately not delete-then-rename** — that trades a rare transient failure for
+  a window where the credentials file does not exist. Covered by a 20-way concurrent save test.
+
+All three website render paths were **verified visually**, not just by tests: hero, overlay
+boxes, and the tree readout's in-view/below-fold stagger all correct, zero console errors.
+
+**49 files / 397 tests green.** Typecheck clean. Website and dashboard both build.
+
+#### BLOCKER: the Production switch cannot be done from here
+
+`setAuthkitApplicationRedirectUris` against the Production environment returns **`Forbidden`
+even for an ADMIN** — "some roles have different access levels in sandbox vs production." This
+is a WorkOS-dashboard task for the founder:
+
+1. Production AuthKit app is `app_01KX873K520PS1MQ0FP0MW649N`, client id
+   `client_01KX873JX8K89K81MTEKQ7WSZJ`. It is **completely empty**: `redirectUris: []`,
+   `keys: []`.
+2. Add redirect URIs: `https://dashboard.useocular.dev/callback` (default),
+   `http://127.0.0.1:*/callback`, `http://localhost:*/callback`.
+3. Create a Production API key — there is none.
+4. Vercel env: `WORKOS_CLIENT_ID` and `WORKOS_API_KEY` (needs `sk_live_…`; currently
+   `sk_test_…`). Then `OCULAR_AUTH_CLIENT_ID` in `packages/local-worker/.env`.
+
+**Two consequences to decide before doing it:**
+
+- **`BACHS_API_KEY` is still `sk_sandbox_…`.** WorkOS-Production + Bachs-sandbox is a half
+  switch: real identities, fake payments. Move both or neither.
+- **Accounts key on `oauth_subject_id`**, so a different WorkOS environment is a different user
+  pool. The existing dogfooding account and its monthly plan **do not carry over** — the founder
+  becomes a new user. Fine if the plan is a fresh paid run anyway; surprising otherwise.
+
+#### Also worth knowing
+
+- **`npx useocular` 404s — the package has never been published to npm.** The working command is
+  `cd packages/local-worker && node dist/main.js login`. Publishing is its own unstarted task.
+- `connectUrl`'s default was a design-time guess (`app.useocular.com`) and was wrong; the
+  dashboard is `dashboard.useocular.dev`. Fixed. Worth noting the class of error.
+
+#### Still open after this round
+
+- **The paid run**, then removing `OCULAR_API_KEY` (design §7 step 2). Only that makes the live
+  "no API key" copy true.
+- **Item A's copy.** Still deliberately unwritten. The specific gap: `setup-page.tsx` step 02
+  says "Sign in once", which a visitor reads as free sign-up before hitting a paywall. It needs
+  to say payment happens there, in the register `CLAUDE.md` requires (ambient, never defensive —
+  "$2.50 and you're in" is on-voice; defending the price is not). Two rounds of copy have already
+  been rejected on scope; do not invent this sentence between other tasks.
+  `.agents/product-marketing.md` §Goals still says this is unresolved and must be updated in the
+  same pass.
+- **Three UI items deliberately not touched**, because the standing rule is that all UI work goes
+  through both design agents rather than being designed from memory: setup-page internal spacing,
+  the 1.76:1 quota rail, and `06-brand-identity.md`'s stale "Needs review" flag (predates the
+  local-worker pivot, still says $1/mo).
+
 ### Still open — everything else
 
 **A and D were designed and built later the same session — see the two sections above.** This
