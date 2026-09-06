@@ -455,7 +455,76 @@ A ~1000px detailed PNG downscaled by the browser to 16x16 is the most likely rea
 reads as mush. Not visually confirmed — verify before assuming. The fix is to generate proper
 sizes from the **current** mark (16/32/180 plus an SVG icon), not to re-export the stale asset.
 
-#### 5. State of the repo as this session ended
+#### 5. Logout lands on a WorkOS error page — root cause already known
+
+Founder-reported: signing out goes to
+`https://error.workos.com/user_management/app-homepage-url-not-found`.
+
+**Root cause is confirmed, not suspected.** The Staging AuthKit application
+(`app_01KX873JQ2DKJDHAJZC2JXT2JN`, client `client_01KX873J58RKZXKHSWV2RBH2PY`) was queried
+earlier in this same session and every URL field is null:
+
+```
+appHomepageUrl:    null      <-- this is the one logout needs
+initiateLoginUri:  null
+signUpUrl:         null
+passwordResetUrl:  null
+userInvitationUrl: null
+```
+
+AuthKit redirects to the application's homepage URL after logout. It is unset, so WorkOS sends
+the user to its own error page. Nothing in our code is wrong.
+
+**Fix: one `updateAuthkitApplication` mutation via the WorkOS MCP** against
+`environment_01KX873HHBE8C4VF66W3XBGD3M`. It was deliberately not run this session because the
+founder asked for documentation only.
+
+The one judgement call is where logout should land:
+
+- **`https://useocular.dev` (recommended)** — the marketing site. Signing out and landing on a
+  page that immediately demands sign-in again reads as a loop.
+- `https://dashboard.useocular.dev` — defensible, but bounces straight back to AuthKit.
+
+Set `signUpUrl` / `passwordResetUrl` / `initiateLoginUri` in the same pass while the mutation is
+open; all three being null is the same latent class of bug waiting on a different flow.
+
+#### 6. Dashboard redesign — it is on a pre-brand-pass palette
+
+The website got the brand pass (Session 31, "Instrument" concept). **The dashboard never did**,
+and the two have silently diverged. Evidence:
+
+|                  | Website (`src/styles/tokens.css`)       | Dashboard (`tailwind.config.ts`)         |
+| ---------------- | --------------------------------------- | ---------------------------------------- |
+| surface base     | `#09090b`                               | `#0A0A0B`                                |
+| surface elevated | `#121214`                               | `#131315`                                |
+| surface raised   | `#1a1a1d`                               | `#1C1C1F`                                |
+| border           | three-weight graded rule system         | single `#2A2A2E`                         |
+| text             | closed four-value ladder + one inactive | ad hoc                                   |
+| accent           | —                                       | `#8C7DFF` purple + `#5EEAD4` teal "glow" |
+
+Two things matter here, beyond "make it match":
+
+1. **The values are near-misses, not clean differences.** `#0A0A0B` vs `#09090b` reads as
+   sloppiness rather than as a deliberate second theme. Anyone moving between the marketing site
+   and the dashboard in one session will feel it without being able to name it.
+2. **The dashboard carries an accent purple and a teal "glow" that the Instrument concept
+   appears to forbid.** That concept is documented in `tokens.css` as _"cold precision,
+   value-shift depth only, no shadow / gradient / texture"_, and it deliberately retired the
+   single-border token in favour of a three-weight system on the grounds that _"under a
+   no-decoration doctrine the rules ARE the design."_ A glow accent is decoration. Confirm this
+   against the moodboard (`research & planning/moodboards/2026-09-02-ocular-visual-identity.html`)
+   before assuming — but do not carry the purple across on autopilot.
+
+**Both design agents are mandatory here** (`ui-design-intelligence` + `product-intelligence`) —
+this is exactly the "all UI work, never design from memory" rule. Worth raising with them: the
+tokens should end up in one shared source rather than being duplicated per package, since
+duplication is what let them drift in the first place. Note `research & planning/06-brand-identity.md`
+still carries a stale "Needs review" flag and a $1/mo price (see item 2), so read it critically.
+
+Surfaces in scope: `/billing` (incl. the plan chooser now reached from `/connect`), `/keys`,
+`/quota`, and the dashboard root.
+
+#### 7. State of the repo as this session ended
 
 - **4 commits are unpushed** (`ac88c0f`, `95ba7b1`, `2cdf664`, `d048dc3`). Vercel deploys on
   push, so **the plan-selection fix is not live** — users are still sent into a `basic/monthly`
