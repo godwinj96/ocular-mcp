@@ -39,7 +39,7 @@ export const config = {
    * checkout -> AuthKit bounce, so payment happens in the same browser visit
    * (design §4.2). The local worker opens this, not AuthKit directly.
    */
-  connectUrl: process.env.OCULAR_CONNECT_URL ?? 'https://app.useocular.com/connect',
+  connectUrl: process.env.OCULAR_CONNECT_URL ?? 'https://dashboard.useocular.dev/connect',
   /** Comma-separated hostnames explicitly routed to the local path beyond localhost/private-IP. */
   localDomains: (process.env.OCULAR_LOCAL_DOMAINS ?? '')
     .split(',')

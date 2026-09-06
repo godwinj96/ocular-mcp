@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resumeConnectUrl } from './connect-resume';
+import { parseResumeCookie, resumeConnectUrl } from './connect-resume';
 
 const valid = JSON.stringify({
   redirectUri: 'http://127.0.0.1:53219/callback',
@@ -78,5 +78,38 @@ describe('resumeConnectUrl', () => {
         JSON.stringify({ redirectUri: 'http://127.0.0.1:1/cb', codeChallenge: 42, state: 's' }),
       ),
     ).toBeNull();
+  });
+});
+
+describe('parseResumeCookie', () => {
+  it('returns the stored request when valid', () => {
+    expect(parseResumeCookie(valid)).toEqual({
+      redirectUri: 'http://127.0.0.1:53219/callback',
+      codeChallenge: 'the-challenge',
+      state: 'the-state',
+    });
+  });
+
+  it('is what lets the flow survive a sign-in round trip', () => {
+    // AuthKit's returnPathname carries a pathname, not a query string, so the
+    // PKCE params come back missing. Recovering them from the cookie is the
+    // fix for the "code_challenge is required" failure seen on the first real
+    // run of the flow.
+    expect(parseResumeCookie(valid)).not.toBeNull();
+  });
+
+  it('still re-validates the redirect target', () => {
+    const hostile = JSON.stringify({
+      redirectUri: 'https://evil.example/callback',
+      codeChallenge: 'c',
+      state: 's',
+    });
+    expect(parseResumeCookie(hostile)).toBeNull();
+  });
+
+  it('returns null rather than throwing on junk', () => {
+    expect(parseResumeCookie(undefined)).toBeNull();
+    expect(parseResumeCookie('{ not json')).toBeNull();
+    expect(parseResumeCookie('[]')).toBeNull();
   });
 });

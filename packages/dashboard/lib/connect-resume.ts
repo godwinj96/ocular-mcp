@@ -22,11 +22,14 @@ export interface ResumedConnect {
 }
 
 /**
- * Rebuilds the /connect URL to resume, or null when there is nothing valid to
- * resume. Never throws — a malformed cookie is a no-op, not a 500 on the page
- * a user lands on straight after paying.
+ * Reads a stored connect request back, or null when there is nothing valid.
+ * Never throws — a malformed cookie is a no-op, not a 500 on the page a user
+ * lands on straight after paying.
+ *
+ * Also used to recover the request when the query string does not survive a
+ * round trip (AuthKit's `returnPathname` carries a pathname, not a search).
  */
-export function resumeConnectUrl(cookieValue: string | undefined | null): string | null {
+export function parseResumeCookie(cookieValue: string | undefined | null): ResumedConnect | null {
   if (!cookieValue) return null;
 
   let parsed: unknown;
@@ -55,11 +58,22 @@ export function resumeConnectUrl(cookieValue: string | undefined | null): string
   const redirect = validateLoopbackRedirect(redirectUri);
   if (!redirect.ok) return null;
 
+  return { redirectUri: redirect.redirectUri, codeChallenge, state };
+}
+
+/**
+ * Rebuilds the /connect URL to resume, or null when there is nothing valid to
+ * resume.
+ */
+export function resumeConnectUrl(cookieValue: string | undefined | null): string | null {
+  const request = parseResumeCookie(cookieValue);
+  if (!request) return null;
+
   const url = new URL('/connect', 'https://placeholder.invalid');
-  url.searchParams.set('redirect_uri', redirect.redirectUri);
-  url.searchParams.set('code_challenge', codeChallenge);
+  url.searchParams.set('redirect_uri', request.redirectUri);
+  url.searchParams.set('code_challenge', request.codeChallenge);
   url.searchParams.set('code_challenge_method', 'S256');
-  url.searchParams.set('state', state);
+  url.searchParams.set('state', request.state);
   // Relative, so it works on any deployment host.
   return `${url.pathname}${url.search}`;
 }

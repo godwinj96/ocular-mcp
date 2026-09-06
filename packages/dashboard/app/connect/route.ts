@@ -5,13 +5,22 @@
 // sign-in, subscription state, and checkout. The sequence is:
 //
 //   1. validate the loopback redirect target      (security-critical, see below)
-//   2. require an AuthKit session                 (getCurrentAccount)
-//   3. if the subscription is not active -> checkout, resume here afterwards
-//   4. otherwise bounce to AuthKit /authorize with the worker's PKCE challenge
+//   2. persist the request                        (must outlive the sign-in trip)
+//   3. require an AuthKit session                 (getCurrentAccount)
+//   4. if the subscription is not active -> checkout, resume here afterwards
+//   5. otherwise bounce to AuthKit /authorize with the worker's PKCE challenge
 //
-// Step 4 is silent: the user already has an AuthKit session by then, so they
+// Step 5 is silent: the user already has an AuthKit session by then, so they
 // are not asked to sign in a second time. From their side it is one visit
 // that ends with "this machine is connected".
+//
+// Step 2 exists because of a real production failure. This route was
+// originally covered by middlewareAuth, so the sign-in bounce happened BEFORE
+// the handler ran and the PKCE parameters had to survive AuthKit's
+// `returnPathname` — which carries a pathname, not a query string. The first
+// real run of the flow came back as "code_challenge is required". /connect is
+// now in middleware's unauthenticatedPaths so this handler controls the
+// ordering; it still requires a session, via getCurrentAccount below.
 //
 // This route NEVER sees the code_verifier — only the challenge, which is a
 // SHA-256 hash. It therefore cannot mint tokens for the user, which is the
@@ -20,9 +29,8 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getCurrentAccount } from '../../lib/current-account';
 import { validateLoopbackRedirect } from '../../lib/loopback-redirect';
+import { RESUME_COOKIE, parseResumeCookie } from '../../lib/connect-resume';
 
-/** Carries the pending connect request across the checkout round-trip. */
-const RESUME_COOKIE = 'ocular_connect';
 const RESUME_TTL_S = 15 * 60;
 
 /** Cheapest plan — "$2.50/mo, cancel any time". Pay-first, no trial. */
@@ -74,12 +82,24 @@ function buildAuthorizeRedirect(request: ConnectRequest, clientId: string): stri
 
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  const parsed = parseConnectRequest(url);
+  const jar = await cookies();
 
-  if ('error' in parsed) {
+  // Parse from the query string, falling back to the stored request.
+  //
+  // The fallback is not belt-and-braces, it is load-bearing: this route is
+  // reached again after a sign-in round trip, and AuthKit's `returnPathname`
+  // carries a PATHNAME — the query string does not survive it. Without the
+  // cookie the flow comes back as "code_challenge is required", which is
+  // exactly how this failed in production the first time it was run.
+  const fromQuery = parseConnectRequest(url);
+  const parsed =
+    'error' in fromQuery ? parseResumeCookie(jar.get(RESUME_COOKIE)?.value) : fromQuery;
+
+  if (!parsed) {
     // Plain text and no redirect: if the target was the invalid part, we must
     // not bounce anywhere at all.
-    return new Response(`Invalid connect request: ${parsed.error}`, {
+    const reason = 'error' in fromQuery ? fromQuery.error : 'no pending connect request';
+    return new Response(`Invalid connect request: ${reason}`, {
       status: 400,
       headers: { 'content-type': 'text/plain; charset=utf-8' },
     });
@@ -90,26 +110,29 @@ export async function GET(request: Request): Promise<Response> {
     return new Response('Sign-in is not configured on this deployment.', { status: 500 });
   }
 
-  // Redirects to AuthKit sign-in when there is no session, then returns here.
+  // Persist BEFORE authenticating. getCurrentAccount() redirects to sign-in
+  // when there is no session, and the request has to outlive that trip.
+  // /connect is in middleware's unauthenticatedPaths precisely so this runs
+  // first — the route still requires a session, it just controls the order.
+  jar.set(RESUME_COOKIE, JSON.stringify(parsed), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: RESUME_TTL_S,
+  });
+
   const account = await getCurrentAccount();
 
   if (account.subscriptionStatus !== 'active') {
-    // Pay-first, by design. Stash the request so the same browser visit can
-    // continue after checkout instead of making the user re-run the CLI.
-    const jar = await cookies();
-    jar.set(RESUME_COOKIE, JSON.stringify(parsed), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: RESUME_TTL_S,
-    });
+    // Pay-first, by design. The request is already stored, so the same
+    // browser visit continues after checkout instead of making the user
+    // re-run the CLI.
     redirect(`/billing/checkout?tier=${DEFAULT_TIER}&cycle=${DEFAULT_CYCLE}`);
   }
 
-  // Active subscription: clear any stale resume state and complete the bounce.
-  const jar = await cookies();
+  // Active subscription: the request has served its purpose, so drop it
+  // before completing the bounce.
   jar.delete(RESUME_COOKIE);
-
   redirect(buildAuthorizeRedirect(parsed, clientId));
 }
