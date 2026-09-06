@@ -19,14 +19,27 @@ export const config = {
   /** Deployed cloud mcp-server's MCP endpoint — where cloud-routed tool calls forward to. */
   cloudMcpUrl: process.env.OCULAR_CLOUD_MCP_URL ?? 'http://localhost:3000/mcp',
   /**
-   * Static API key used both to authenticate cloud-routed captures and as
-   * the subscription-validity signal (see src/subscription/validate.ts).
-   * Phase 8 replaces manual placement here with a real install-time
-   * credential-issuance flow (dashboard-issued, stored locally) — see
-   * docs/rules/11-billing-and-quota.md §4 for the existing issuance
-   * mechanism this will reuse.
+   * DEPRECATED — the legacy static API key.
+   *
+   * The replacement has landed: src/auth/ implements the PKCE login flow from
+   * docs/design/first-run-auth-and-payment.md, and src/auth/bearer.ts prefers
+   * stored OAuth credentials over this value. It is still read so that anyone
+   * mid-migration keeps working (the cloud server's resolveAccount() accepts
+   * both), and it is removed at design §7 step 2.
+   *
+   * Read it through createBearerResolver(), never directly. A second direct
+   * read is exactly how subscription/validate.ts ended up with its own
+   * duplicate source of truth.
    */
   apiKey: process.env.OCULAR_API_KEY,
+  /** WorkOS AuthKit public client id. Public by design — a PKCE client holds no secret. */
+  authClientId: process.env.OCULAR_AUTH_CLIENT_ID ?? '',
+  /**
+   * Dashboard route that orchestrates sign-in -> subscription check ->
+   * checkout -> AuthKit bounce, so payment happens in the same browser visit
+   * (design §4.2). The local worker opens this, not AuthKit directly.
+   */
+  connectUrl: process.env.OCULAR_CONNECT_URL ?? 'https://app.useocular.com/connect',
   /** Comma-separated hostnames explicitly routed to the local path beyond localhost/private-IP. */
   localDomains: (process.env.OCULAR_LOCAL_DOMAINS ?? '')
     .split(',')

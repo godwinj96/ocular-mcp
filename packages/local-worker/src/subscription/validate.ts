@@ -88,19 +88,24 @@ export class SubscriptionValidator {
 // dropped wifi connection as a cancellation.
 export function createCloudSubscriptionCheck(): CheckFn {
   return async () => {
-    if (!process.env.OCULAR_API_KEY) {
-      // No key configured at all isn't "offline" — it's a configuration
-      // state with a definitive answer: not active.
-      return { kind: 'definitive', active: false };
-    }
-
+    // NOTE: this function used to read process.env.OCULAR_API_KEY directly,
+    // duplicating config.ts and creating a second source of truth for one
+    // credential. They agreed only because they read the same variable. The
+    // credential question is now asked in exactly one place —
+    // connectCloudClient() -> createBearerResolver() — and answered here by
+    // which error comes back.
     let client;
     try {
       client = await connectCloudClient();
     } catch (error) {
       if (error instanceof NoApiKeyError) {
+        // Definitively not signed in. That is a configuration state with a
+        // real answer, not an outage: not active.
         return { kind: 'definitive', active: false };
       }
+      // Includes CredentialUnavailableError — we could not reach the token
+      // endpoint, so the subscription question is unanswered, not answered
+      // "no". The grace window exists for exactly this.
       return { kind: 'network_error' };
     }
 
