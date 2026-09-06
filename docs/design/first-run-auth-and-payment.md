@@ -255,12 +255,17 @@ worth anyone's time_ — a cheap-product argument, written confidently.
 
 ## 10. Build order
 
-1. Credential store + refresh + **Windows ACL/DPAPI** (§5) — with tests, no network.
-2. Loopback callback server + PKCE verifier/challenge/state generation (§4.2 steps 1–2, 8–12).
-3. Dashboard `/connect` route, **starting with the loopback-only `redirect_uri` validation**
-   (§4.3) — it is the security-critical part and should not be an afterthought.
-4. Swap the three seams (§3), keeping `OCULAR_API_KEY` working.
-5. End-to-end proof on a real machine: fresh install → browser → pay → capture.
+> **STATUS 2026-09-06:** steps 1-4 are **built, tested and committed**. Step 5 (end-to-end on
+> a real machine) is blocked only on `OCULAR_AUTH_CLIENT_ID` / a WorkOS redirect-URI
+> registration — no code is missing. Steps 6-7 remain.
+
+1. ~~Credential store + refresh + **Windows ACL/DPAPI** (§5)~~ **DONE** — `auth/credential-store.ts`, `auth/access-token.ts`.
+2. ~~Loopback callback server + PKCE generation~~ **DONE** — `auth/loopback-server.ts`, `auth/pkce.ts`, `auth/token-client.ts`, orchestrated by `auth/login.ts`.
+3. ~~Dashboard `/connect` route, starting with the loopback-only validation~~ **DONE** —
+   `dashboard/lib/loopback-redirect.ts` (14 tests) built first, then `app/connect/route.ts`,
+   plus `lib/connect-resume.ts` for the post-checkout hop Bachs' fixed `success_url` forces.
+4. ~~Swap the three seams (§3), keeping `OCULAR_API_KEY` working~~ **DONE** — via `auth/bearer.ts`. Plus `cli/command.ts` + `main.ts`, which the original order omitted: the flow was unreachable until something invoked it.
+5. End-to-end proof on a real machine: fresh install → browser → pay → capture. **BLOCKED on config only** — needs `OCULAR_AUTH_CLIENT_ID` and the loopback redirect URI (`http://localhost:*/callback`) registered in WorkOS.
 6. Copy pass (§9).
 7. Remove the static key (§7 steps 2–4).
 

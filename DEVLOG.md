@@ -1004,6 +1004,63 @@ auth code or any pricing copy. Headlines:
 Item A's copy is specified in §9 of that doc but deliberately not written — it needs the real
 copy pass against the scope test, not a sentence invented here.
 
+### A + D implementation — steps 1-4 of the build order, shipped
+
+Built in the same session as the design, after the founder chose the flow. **The login flow
+is complete and tested end to end; it is not yet proven against real WorkOS/Bachs config.**
+
+| Commit    | What                                                                                            |
+| --------- | ----------------------------------------------------------------------------------------------- |
+| `d7ae7b3` | PKCE foundation — `pkce`, `credential-store`, `loopback-server`, `token-client`, `access-token` |
+| `83f05db` | The three credential seams routed through one resolver (`auth/bearer.ts`)                       |
+| `f92182f` | `auth/login.ts` orchestrator + dashboard `/connect` + loopback validation                       |
+| (this)    | CLI wiring — `cli/command.ts`, `main.ts` subcommands                                            |
+
+**Test count went 267 → 380.** Workspace typecheck clean, both builds green.
+
+#### Things worth knowing that were not obvious from the design
+
+- **`fs.chmod` is a no-op on Windows**, so the 0600 plan did not cover a shipped platform.
+  Windows now gets an `icacls /inheritance:r /grant:r` pass, and `saveCredentials` returns
+  `hardened: false` rather than claiming a file is protected when it is not — the CLI prints
+  that warning instead of swallowing it.
+- **The verifier/challenge split is what makes the dashboard hop safe.** `/connect` only ever
+  sees the SHA-256 challenge, so it structurally cannot mint tokens for the user. That is why
+  routing the browser through our own app before AuthKit does not weaken PKCE.
+- **`/connect`'s `redirect_uri` is a credential-exfiltration sink, not just an open redirect.**
+  It tells AuthKit where to deliver an authorization code. Built as an allowlist with its own
+  module and 14 tests, including the two ways this check is usually written wrong: a substring
+  match (`localhost.evil.example`) and the userinfo trick (`http://127.0.0.1@evil.example`).
+- **Bachs's `success_url` is hard-coded to `/billing`**, so a paying user does not come back to
+  `/connect`. Without a resume hop the one-visit promise would break at the exact moment
+  someone has just paid. `lib/connect-resume.ts` carries it in a short httpOnly cookie and
+  **re-validates the target on the way out** — anything that can set a cookie on the origin can
+  write that value, so "we wrote it" is not proof of what it contains.
+- **One command, two audiences.** `npx useocular` is both what a human runs and what an MCP
+  client spawns. Blocking an MCP client on a browser prompt would hang its startup, and any
+  human-facing line on stdout would corrupt the protocol stream. Resolved on `stdin.isTTY`,
+  with explicit `login` / `serve` subcommands as a deterministic escape hatch, and every
+  human-facing line on stderr.
+- **A real bug the tests caught:** the loopback callback promise could reject before a caller
+  attached `waitForCode()`, surfacing as an unhandled rejection — fatal under
+  `--unhandled-rejections=strict`.
+- **GitNexus impact before the seam swap:** `connectCloudClient` is HIGH risk (exact, 5 symbols,
+  3 processes, 2 modules) because it reaches the whole capture path. Nothing's signature
+  changed, which is what kept that blast radius theoretical; the full suite confirms it.
+
+#### What is left on A + D
+
+- **Step 5 — end-to-end on a real machine. Blocked on configuration only, no missing code:**
+  `OCULAR_AUTH_CLIENT_ID` must be set, and the loopback redirect URI registered in WorkOS as
+  `http://localhost:*/callback` (wildcard port, per RFC 8252). Until that is done the flow has
+  never touched real AuthKit.
+- **Step 6 — item A's copy.** Specified in design §9, deliberately unwritten: it needs the real
+  copy pass against the scope test, and `.agents/product-marketing.md` §Goals still records the
+  pay-before-trial question as unresolved. It is resolved; that file must be updated in the
+  same pass.
+- **Step 7 — remove the static key.** `OCULAR_API_KEY` still works on purpose so there is no
+  flag day. Only after it is gone does the live site's "no API key" copy become true.
+
 ### Still open — everything else
 
 **A (pricing copy) and D (auth rework) were left for a founder call, because the addendum
@@ -1227,7 +1284,11 @@ shape.
 
 ### Session 31 addendum — the next session's brief. READ THIS FIRST.
 
-> **STATUS as of Session 32 (2026-09-05):** **B is done** (both fixes, isolation proven by
+> **STATUS as of Session 32 (2026-09-05/06):** **A and D are DESIGNED AND BUILT** — the
+> founder chose one-browser-trip (sign in and pay together); see
+> `docs/design/first-run-auth-and-payment.md` and Session 32. Build-order steps 1-4 are
+> shipped; step 5 is blocked on WorkOS config only, and A's copy is still unwritten.
+> **B is done** (both fixes, isolation proven by
 > re-poisoning — see Session 32). **C is done and verified further** — the release exists,
 > is published, and all four checksums match; distribution is unblocked. **The stackdump in
 > E is untracked.** **A and D are still open and were deliberately left together** — see
