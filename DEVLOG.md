@@ -1109,14 +1109,10 @@ longer depends on `returnPathname` preserving anything.
 
 ### Still open — everything else
 
-**A (pricing copy) and D (auth rework) were left for a founder call, because the addendum
-itself says they must be designed together and doing either alone produces the wrong thing.**
-
-The addendum's own words: _"if payment now precedes first use, the sign-in flow and the
-payment flow are the same moment, and designing them separately will produce two."_ A is not
-really a copy task — the sentence the site needs depends on what the flow actually does at
-first run, which is D. Writing A's copy first would either describe a flow that does not
-exist yet, or lock D into whatever the copy happened to promise.
+**A and D were designed and built later the same session — see the two sections above.** This
+paragraph originally said they had been left for a founder call, which was true only for the
+few hours before the founder made it. What is still open on them is listed under "What is left
+on A + D" above: one complete paid run, item A's copy, and removing the static key.
 
 Everything else in the addendum's E list carries forward unchanged: setup-page spacing,
 the 1.76:1 quota rail, PRD §9 cache-charge decision, `06-brand-identity.md`'s stale review
