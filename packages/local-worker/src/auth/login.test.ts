@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StoreDeps } from './credential-store.js';
 import { loadCredentials } from './credential-store.js';
-import { buildConnectUrl, runLogin } from './login.js';
+import { browserLaunchCommand, buildConnectUrl, runLogin } from './login.js';
 
 const NOW = 1_700_000_000_000;
 const CONNECT_URL = 'https://app.useocular.com/connect';
@@ -64,6 +64,48 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await rm(baseDir, { recursive: true, force: true });
+});
+
+describe('browserLaunchCommand', () => {
+  // A real /connect URL: several `&`, no space, tab or double quote — which
+  // is exactly the shape spawn leaves unquoted and cmd then splits.
+  const URL_WITH_AMPERSANDS =
+    'https://dashboard.useocular.dev/connect?redirect_uri=http%3A%2F%2F127.0.0.1%3A5555%2Fcallback' +
+    '&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256&state=xyz';
+
+  it('quotes the URL on Windows so cmd cannot split it at the first &', () => {
+    const launch = browserLaunchCommand('win32', URL_WITH_AMPERSANDS);
+
+    expect(launch.command).toBe('cmd');
+    // Verbatim, because the whole point is that we build the command line
+    // rather than letting spawn decide the URL needs no quoting.
+    expect(launch.windowsVerbatimArguments).toBe(true);
+    expect(launch.args).toEqual(['/c', 'start', '""', `"${URL_WITH_AMPERSANDS}"`]);
+
+    // The regression itself: everything after the first & must still be there.
+    const commandLine = launch.args.join(' ');
+    expect(commandLine).toContain('code_challenge=');
+    expect(commandLine).toContain('state=xyz');
+  });
+
+  it('passes the URL through untouched on macOS and Linux', () => {
+    expect(browserLaunchCommand('darwin', URL_WITH_AMPERSANDS)).toEqual({
+      command: 'open',
+      args: [URL_WITH_AMPERSANDS],
+      windowsVerbatimArguments: false,
+    });
+    expect(browserLaunchCommand('linux', URL_WITH_AMPERSANDS)).toEqual({
+      command: 'xdg-open',
+      args: [URL_WITH_AMPERSANDS],
+      windowsVerbatimArguments: false,
+    });
+  });
+
+  it('refuses a Windows URL carrying a quote rather than letting cmd run it', () => {
+    // Fails into runLogin's "open this URL manually" path instead of handing
+    // cmd a command to execute.
+    expect(() => browserLaunchCommand('win32', 'https://x.dev/?a="&calc')).toThrow(/quote/);
+  });
 });
 
 describe('buildConnectUrl', () => {

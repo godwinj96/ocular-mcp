@@ -1300,6 +1300,55 @@ LOW, exact, 2 direct callers, 3 real `login` processes.
   a non-goal: item A's copy, removing `OCULAR_API_KEY`, the three UI items, and publishing
   `useocular` to npm (`npx useocular` still 404s).
 
+#### Round 3b — the SECOND cause of "code_challenge is required": cmd.exe ate the URL
+
+The founder ran the flow after the fix above and got **`Invalid connect request: code_challenge
+is required`** — the same message as the §4.2a middleware bug, from a completely unrelated
+cause. That collision is what let this survive two rounds of debugging.
+
+Reading the message precisely is what located it: `parseConnectRequest` validates `redirect_uri`
+**first**, so reaching the `code_challenge` check means redirect_uri arrived intact and the
+parameters after it did not. The query string was being truncated before the browser ever
+loaded it.
+
+**Root cause — `defaultOpenBrowser` on Windows.** It spawned
+`cmd /c start "" <url>`. Node/libuv only quotes an argument containing a space, tab or double
+quote, and a /connect URL contains none of those, so the URL reached `cmd.exe` **bare** — and
+`&` is cmd's command separator. Proven, not inferred:
+
+```
+> cmd /c echo https://…/connect?redirect_uri=…%2Fcallback&code_challenge=ABC&…
+https://dashboard.useocular.dev/connect?redirect_uri=http://127.0.0.1:5555/callback
+'code_challenge' is not recognized as an internal or external command
+```
+
+The browser opened with only `?redirect_uri=…`; `code_challenge=ABC` was handed to the shell as
+a command to run. **This has never worked on Windows.** Every curl-based verification passed
+because curl does not go through `cmd`.
+
+**Why no test caught it:** every `runLogin` test injects `openBrowser`, so the real launcher was
+never executed by the suite. Confirmed by text search after `impact` returned
+`risk: UNKNOWN` — `defaultOpenBrowser` is read as a bare identifier
+(`deps.openBrowser ?? defaultOpenBrowser`), which produces no call edge, exactly the case
+CLAUDE.md says to confirm rather than read as an all-clear.
+
+**Fix:** extracted `browserLaunchCommand(platform, url)` as a pure, testable function. Windows
+now builds the command line itself — `windowsVerbatimArguments` with the URL wrapped in double
+quotes, inside which cmd does not treat `&` as a separator. The empty `""` window-title argument
+stays. A URL containing a quote or newline is refused rather than handed to cmd, failing into
+runLogin's "open this URL manually" path.
+
+**Verified end to end on Windows**, not just by unit test: ran the real
+`node dist/main.js login` with `OCULAR_CONNECT_URL` pointed at a local recorder, and the browser
+received the complete query — `redirect_uri`, `code_challenge`, `code_challenge_method` and
+`state` all present.
+
+**404 tests green** (+3). Typecheck and lint clean.
+
+**The lesson worth keeping:** two distinct bugs produced the identical user-visible string, and
+the first fix was verified with a tool (curl) that structurally could not exercise the second.
+An error message matching a known bug is not evidence it is that bug.
+
 ### Still open — everything else
 
 **A and D were designed and built later the same session — see the two sections above.** This

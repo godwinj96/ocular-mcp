@@ -31,6 +31,57 @@ export type LoginOutcome =
   | { kind: 'ok'; subject: string; credentialsHardened: boolean; hardenDetail?: string }
   | { kind: 'failed'; detail: string };
 
+export interface BrowserLaunch {
+  command: string;
+  args: string[];
+  windowsVerbatimArguments: boolean;
+}
+
+/**
+ * How to hand a URL to the platform's default browser.
+ *
+ * A pure function because the Windows form is a trap that unit tests had no
+ * way to see: every runLogin test injects `openBrowser`, so the real launcher
+ * was never executed by the suite while being broken in production.
+ *
+ * The trap: `spawn` leaves an argument unquoted unless it contains a space,
+ * tab or double quote, and a /connect URL contains none of those. cmd.exe
+ * therefore received the URL bare and split it at the first `&`, which is its
+ * command separator. The browser opened with only `?redirect_uri=...` and the
+ * dashboard answered `code_challenge is required` — the same message as the
+ * unrelated middleware bug in design §4.2a, which is what disguised it.
+ * Verified 2026-09-06: `cmd /c echo <url>` prints up to the first `&` and
+ * then reports `'code_challenge' is not recognized as a command`.
+ *
+ * So build the command line ourselves and wrap the URL in double quotes,
+ * inside which cmd does not treat `&` as a separator. The empty `""` stays —
+ * it is start's window-title argument, without which a quoted URL is consumed
+ * as the title and nothing opens.
+ */
+export function browserLaunchCommand(platform: NodeJS.Platform, url: string): BrowserLaunch {
+  if (platform !== 'win32') {
+    return {
+      command: platform === 'darwin' ? 'open' : 'xdg-open',
+      args: [url],
+      windowsVerbatimArguments: false,
+    };
+  }
+
+  // A double quote in the URL would close our quoting and hand the remainder
+  // to cmd as commands. URLSearchParams percent-encodes it, so this guards a
+  // future caller that does not rather than a live case — and it fails loudly
+  // into runLogin's "open this URL manually" path instead of executing it.
+  if (/["\r\n]/.test(url)) {
+    throw new Error('refusing to open a URL containing a quote or newline');
+  }
+
+  return {
+    command: 'cmd',
+    args: ['/c', 'start', '""', `"${url}"`],
+    windowsVerbatimArguments: true,
+  };
+}
+
 /**
  * Opens the user's default browser. Deliberately fire-and-forget: we do not
  * wait for the browser process, only for the loopback callback. `windowsHide`
@@ -38,19 +89,13 @@ export type LoginOutcome =
  * invisibility requirement rather than polish.
  */
 function defaultOpenBrowser(url: string): Promise<void> {
-  const [cmd, args] =
-    process.platform === 'win32'
-      ? // The empty "" is start's window-title argument; without it a quoted
-        // URL is consumed as the title and nothing opens.
-        (['cmd', ['/c', 'start', '', url]] as const)
-      : process.platform === 'darwin'
-        ? (['open', [url]] as const)
-        : (['xdg-open', [url]] as const);
+  const launch = browserLaunchCommand(process.platform, url);
 
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, [...args], {
+    const child = spawn(launch.command, launch.args, {
       stdio: 'ignore',
       windowsHide: true,
+      windowsVerbatimArguments: launch.windowsVerbatimArguments,
       detached: process.platform !== 'win32',
     });
     child.on('error', reject);
