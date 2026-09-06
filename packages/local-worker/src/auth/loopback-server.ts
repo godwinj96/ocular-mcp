@@ -30,12 +30,80 @@ export class LoginTimeoutError extends Error {
   }
 }
 
+/**
+ * Hosts a callback may arrive on. Mirrors the dashboard's own allowlist.
+ *
+ * Both spellings of the IPv6 literal are listed: Node's URL parser keeps the
+ * brackets on `hostname`, but the bare form costs nothing and removes the
+ * dependency on which way that goes.
+ */
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
+
+export interface LoopbackCallback {
+  code: string;
+  /**
+   * The redirect_uri to present at the token endpoint — NOT necessarily the
+   * one we advertised.
+   *
+   * RFC 6749 §4.1.3 requires this value to be identical to the redirect_uri
+   * the authorization request carried, and we cannot assume that is the URI
+   * we handed out. The dashboard is served by Vercel, whose edge rewrites a
+   * query parameter named `redirect_uri` from `http://127.0.0.1:<port>/...`
+   * to `http://localhost:<port>/...` before /connect ever runs. Verified
+   * 2026-09-06 against the deployed dashboard: a parameter of any other name
+   * carrying the identical value passes through untouched, and the same
+   * request against a local `next dev` is not rewritten at all — so this is
+   * the platform, not our middleware, and not something we can turn off.
+   *
+   * Sending the advertised 127.0.0.1 form after an authorize call that
+   * recorded `localhost` fails the exchange with `invalid_grant`, which is
+   * the last step of the first-run login.
+   *
+   * So use the host the browser actually dialled, read from the callback's
+   * Host header. That is client-controlled, hence the allowlist and the port
+   * check below; and it is in any case a value the authorization server
+   * independently compares against one we never supplied it, so a wrong
+   * guess can only fail the exchange, never redirect a code anywhere.
+   */
+  redirectUri: string;
+}
+
 export interface LoopbackServer {
   port: number;
   redirectUri: string;
-  /** Resolves with the authorization code once the browser hits the callback. */
-  waitForCode(): Promise<string>;
+  /** Resolves once the browser hits the callback. */
+  waitForCode(): Promise<LoopbackCallback>;
   close(): Promise<void>;
+}
+
+/**
+ * Reconstruct the redirect_uri from the callback's Host header, falling back
+ * to the advertised one for anything not provably our own loopback listener.
+ */
+export function resolveDialledRedirectUri(
+  hostHeader: string | undefined,
+  port: number,
+  advertised: string,
+): string {
+  if (!hostHeader) return advertised;
+
+  let parsed: URL;
+  try {
+    // Parsing as a URL rather than splitting on ':' so that an IPv6 literal,
+    // userinfo (`user@evil.example`), and a missing port are all handled by
+    // the same well-tested code path rather than by string arithmetic.
+    parsed = new URL(`http://${hostHeader}`);
+  } catch {
+    return advertised;
+  }
+
+  if (parsed.username || parsed.password) return advertised;
+  if (parsed.port !== String(port)) return advertised;
+  if (!LOOPBACK_HOSTS.has(parsed.hostname)) return advertised;
+
+  // parsed.host keeps the brackets on an IPv6 literal; parsed.hostname strips
+  // them, and the URI has to be reassembled in the bracketed form.
+  return `http://${parsed.host}${CALLBACK_PATH}`;
 }
 
 export interface LoopbackOptions {
@@ -56,9 +124,15 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 .4rem}p{margin:0;opacity:.65}</s
 export async function startLoopbackServer(options: LoopbackOptions): Promise<LoopbackServer> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  let resolveCode: (code: string) => void;
+  // Assigned immediately after listen(), before any request can arrive — the
+  // handler below is the only reader and it cannot run until the socket is
+  // bound, which is what makes the empty initial values unobservable.
+  let boundPort = 0;
+  let advertisedRedirectUri = '';
+
+  let resolveCode: (callback: LoopbackCallback) => void;
   let rejectCode: (error: Error) => void;
-  const codePromise = new Promise<string>((resolve, reject) => {
+  const codePromise = new Promise<LoopbackCallback>((resolve, reject) => {
     resolveCode = resolve;
     rejectCode = reject;
   });
@@ -72,10 +146,10 @@ export async function startLoopbackServer(options: LoopbackOptions): Promise<Loo
   void codePromise.catch(() => undefined);
 
   let settled = false;
-  const settleOk = (code: string) => {
+  const settleOk = (callback: LoopbackCallback) => {
     if (settled) return;
     settled = true;
-    resolveCode(code);
+    resolveCode(callback);
   };
   const settleErr = (error: Error) => {
     if (settled) return;
@@ -127,7 +201,10 @@ export async function startLoopbackServer(options: LoopbackOptions): Promise<Loo
     res
       .writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
       .end(page("You're connected", 'You can close this tab and return to your terminal.'));
-    settleOk(code);
+    settleOk({
+      code,
+      redirectUri: resolveDialledRedirectUri(req.headers.host, boundPort, advertisedRedirectUri),
+    });
   });
 
   // 127.0.0.1 explicitly. Passing no host would bind every interface.
@@ -140,6 +217,13 @@ export async function startLoopbackServer(options: LoopbackOptions): Promise<Loo
   });
 
   const port = (server.address() as AddressInfo).port;
+  boundPort = port;
+  // Advertise the IP literal, not `localhost`: RFC 8252 §8.3 prefers it
+  // precisely because `localhost` is resolver-dependent and a hosts-file
+  // entry could point it off-machine. The Vercel rewrite described on
+  // LoopbackCallback.redirectUri is absorbed at exchange time instead of by
+  // giving that preference up here.
+  advertisedRedirectUri = `http://127.0.0.1:${port}${CALLBACK_PATH}`;
 
   const timer = setTimeout(() => settleErr(new LoginTimeoutError(timeoutMs)), timeoutMs);
   // Do not hold the event loop open purely for the login timeout.
@@ -155,7 +239,7 @@ export async function startLoopbackServer(options: LoopbackOptions): Promise<Loo
 
   return {
     port,
-    redirectUri: `http://127.0.0.1:${port}${CALLBACK_PATH}`,
+    redirectUri: advertisedRedirectUri,
     waitForCode: () => codePromise,
     close,
   };

@@ -13,7 +13,7 @@
 import { spawn } from 'node:child_process';
 import type { StoreDeps } from './credential-store.js';
 import { saveCredentials } from './credential-store.js';
-import { startLoopbackServer } from './loopback-server.js';
+import { startLoopbackServer, type LoopbackCallback } from './loopback-server.js';
 import { createPkcePair, createState } from './pkce.js';
 import type { TokenClientDeps } from './token-client.js';
 import { exchangeAuthorizationCode } from './token-client.js';
@@ -105,15 +105,21 @@ export async function runLogin(deps: LoginDeps): Promise<LoginOutcome> {
       };
     }
 
-    let code: string;
+    let callback: LoopbackCallback;
     try {
-      code = await server.waitForCode();
+      callback = await server.waitForCode();
     } catch (error) {
       return { kind: 'failed', detail: error instanceof Error ? error.message : 'login failed' };
     }
 
+    // callback.redirectUri, not server.redirectUri: the authorization request
+    // may not have carried the URI we advertised. See LoopbackCallback.
     const exchanged = await exchangeAuthorizationCode(
-      { code, codeVerifier: pkce.verifier, redirectUri: server.redirectUri },
+      {
+        code: callback.code,
+        codeVerifier: pkce.verifier,
+        redirectUri: callback.redirectUri,
+      },
       deps.tokenClient,
     );
 

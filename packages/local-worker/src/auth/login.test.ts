@@ -29,12 +29,23 @@ function jsonResponse(status: number, body: unknown): Response {
  * calls back to the loopback server the way AuthKit's redirect eventually
  * would.
  */
-function browserThatCallsBack(options: { code?: string; state?: string; error?: string }) {
+function browserThatCallsBack(options: {
+  code?: string;
+  state?: string;
+  error?: string;
+  /**
+   * Simulate the rewrite Vercel's edge performs on /connect's `redirect_uri`
+   * (127.0.0.1 -> localhost), so the browser lands on a different spelling of
+   * the loopback host than the worker advertised. See LoopbackCallback.
+   */
+  dialHost?: string;
+}) {
   return vi.fn(async (url: string) => {
     const parsed = new URL(url);
     const redirectUri = parsed.searchParams.get('redirect_uri');
     const state = options.state ?? parsed.searchParams.get('state') ?? '';
     const cb = new URL(redirectUri as string);
+    if (options.dialHost) cb.hostname = options.dialHost;
     if (options.error) {
       cb.searchParams.set('error', options.error);
     } else {
@@ -129,6 +140,32 @@ describe('runLogin', () => {
 
     expect(sentVerifier).toBeTruthy();
     expect((sentVerifier as unknown as string).length).toBeGreaterThanOrEqual(43);
+  });
+
+  it('exchanges with the host the browser dialled, not the one it advertised', async () => {
+    // Regression: the deployed dashboard sits behind Vercel, whose edge
+    // rewrites the `redirect_uri` query parameter from 127.0.0.1 to
+    // localhost. Sending the advertised 127.0.0.1 form at the token endpoint
+    // then violates RFC 6749 §4.1.3's exact-match rule and AuthKit answers
+    // invalid_grant — the failure lands on the very last step of first-run
+    // login, after the user has already signed in and paid.
+    const access = jwt({ exp: (NOW + 3_600_000) / 1000, sub: 'u' });
+    let sentRedirectUri: string | null = null;
+    const fetchFn = vi.fn(async (_url: string, init: RequestInit) => {
+      sentRedirectUri = new URLSearchParams(init.body as string).get('redirect_uri');
+      return jsonResponse(200, { access_token: access, refresh_token: 'r' });
+    });
+
+    const outcome = await runLogin({
+      connectUrl: CONNECT_URL,
+      store,
+      tokenClient: { clientId: 'client_test', fetchFn: fetchFn as unknown as typeof fetch },
+      openBrowser: browserThatCallsBack({ dialHost: 'localhost' }),
+      timeoutMs: 3000,
+    });
+
+    expect(outcome.kind).toBe('ok');
+    expect(sentRedirectUri).toMatch(/^http:\/\/localhost:\d+\/callback$/);
   });
 
   it('fails without storing anything when the callback state does not match', async () => {

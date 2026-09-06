@@ -1192,6 +1192,114 @@ is a WorkOS-dashboard task for the founder:
   the 1.76:1 quota rail, and `06-brand-identity.md`'s stale "Needs review" flag (predates the
   local-worker pivot, still says $1/mo).
 
+### Round 3 — the Production switch is off, and the bug that was blocking the paid run (2026-09-06)
+
+**Founder decision: do NOT switch WorkOS to Production.** It is paid, there are no customers
+yet, and every hour spent configuring it is thrown away the day Ocular ships its own auth.
+AuthKit's value right now is precisely that it provides real OAuth to test against without
+having to build OAuth. Staging stays. This **supersedes Round 2's "WorkOS should be
+Production"** item; the blocker recorded there is no longer a blocker, it is a non-goal.
+
+Longer-term direction stated at the same time: get the whole product working end to end
+first, then replace AuthKit with Ocular's own auth/OAuth. Not scheduled, not scoped — recorded
+so a later session does not re-open the Production question as if it were still pending.
+
+#### What the Production environment actually looked like
+
+Worth keeping, because Round 2's four-step list was incomplete and a future session may be
+tempted by the switch again. Verified live via the WorkOS MCP:
+
+|                         | Staging                                    | Production    |
+| ----------------------- | ------------------------------------------ | ------------- |
+| Redirect URIs           | 6 (both loopback wildcards)                | none          |
+| API keys                | 1                                          | none          |
+| MCP OAuth resource      | `https://mcp.ocular.io`                    | none          |
+| Google OAuth credential | real Google Cloud client, `Valid`          | none          |
+| Sign-in methods enabled | Google, GitHub, Apple, Microsoft, password | **all false** |
+| DCR / CIMD              | both on                                    | both off      |
+
+The row Round 2 missed is the second-to-last: Production AuthKit offers a visitor **no way to
+sign in at all**. DCR being off also matters — it is what lets MCP clients register against the
+cloud path. And `setAuthkitApplicationRedirectUris` is `Forbidden` for ADMIN against Production
+**even with `dryRun: true`**, so none of it is reachable from a session; it is all dashboard
+hand-work, plus a Google Cloud OAuth client for the Google row.
+
+Two things this audit turned up that outlive the decision:
+
+- **`AUTHKIT_RESOURCE_IDENTIFIER` is `https://mcp.ocular.io`** — a domain we do not own. Same
+  class of error as the `app.useocular.com` guess: a plausible constant invented at design time
+  and never checked. Still needs deciding.
+- The Staging client id lives in **three** `.env` files (`dashboard`, `mcp-server`,
+  `local-worker`) plus Vercel. Session 32's lesson was a two-of-three update staying broken for
+  14 sessions.
+
+#### THE BUG: Vercel rewrites `redirect_uri` 127.0.0.1 -> localhost
+
+This is why the paid run has never reached `✓ This machine is connected`, and it would have
+failed again on the next attempt.
+
+Found by pre-flighting the deployed `/connect` before handing the founder the run. Reproducible:
+
+| Request to                         | `redirect_uri` in                 | what the handler receives             |
+| ---------------------------------- | --------------------------------- | ------------------------------------- |
+| `localhost:3001` (`next dev`)      | `http://127.0.0.1:59999/callback` | unchanged                             |
+| `dashboard.useocular.dev` (Vercel) | `http://127.0.0.1:59999/callback` | **`http://localhost:59999/callback`** |
+
+Three controls pin it down:
+
+1. A parameter named `redirect_uri2` carrying the **identical value** passes through untouched —
+   so it is keyed on the parameter name, not on the value.
+2. A bare `127.0.0.1` in `state` is untouched — so it is not a blanket string rewrite.
+3. Same code, same Next version, same `authkitMiddleware` locally, no rewrite — so it is
+   **Vercel's edge, not our middleware and not `@workos-inc/authkit-nextjs`.** `getReturnPathname`
+   only re-serializes searchParams; nothing in the repo maps 127.0.0.1 to localhost.
+
+**Why Vercel does this is still unverified** — their MCP was timing out and the cause was not
+chased down. The behaviour is established; the reason is not. Do not write it up as if it were.
+
+The consequence: `/connect` hands AuthKit `redirect_uri=http://localhost:PORT/callback`, but
+`login.ts` sent `server.redirectUri` — the advertised `http://127.0.0.1:PORT/callback` — to the
+token endpoint. RFC 6749 §4.1.3 requires those to be identical, so AuthKit answers
+`invalid_grant`. The failure lands on the **last step of first-run login, after the user has
+already signed in and paid.**
+
+**Fix** (`loopback-server.ts`, `login.ts`): the callback now reports the host the browser
+actually dialled, read from the callback request's `Host` header and constrained to the loopback
+allowlist at the bound port, and `runLogin` exchanges with that instead of the advertised URI.
+Self-correcting in both directions — if Vercel ever stops rewriting, the same code sends
+127.0.0.1 again. The advertised URI stays the IP literal, which RFC 8252 §8.3 prefers precisely
+because `localhost` is resolver-dependent.
+
+Notes:
+
+- The `Host` header is client-controlled, hence the allowlist and port check. Forwarding a
+  hostile value could only ever fail the exchange — the authorization server compares it against
+  a value we never supplied it — but there is no reason to forward it.
+- Node's `URL.hostname` **keeps** the brackets on an IPv6 literal. The dashboard's
+  `loopback-redirect.ts` comment claims it strips them; that comment is wrong, though its set
+  lists both forms so the code is right. The worker's set lists both for the same reason.
+- Residual risk, now evidenced rather than assumed: the browser dials `localhost` while the
+  worker binds 127.0.0.1 only (unchanged — the bind rule is the invisibility requirement). The
+  new integration test dials `http://localhost:<port>` against that listener and passes on
+  Windows, so the resolver reaches it here.
+
+**401 tests green** (was 397; +4). Typecheck clean, lint clean, `dist` rebuilt.
+`detect_changes` reported `critical`/31 processes, which is symbol-name collision — the local
+`close` closure matches every unrelated `close` in the repo. Targeted `impact` on the same edit:
+LOW, exact, 2 direct callers, 3 real `login` processes.
+
+#### Still open after this round
+
+- **The paid run itself, on Staging.** Now unblocked and pre-flighted. One wrinkle: the
+  dogfooding account (`godwinjames670@gmail.com`) is already `pro_annual` / `active`, and
+  `/connect` skips straight past checkout when the subscription is active — so signing in as
+  yourself proves the PKCE/loopback/credential half but **not** the pay branch. Exercising
+  checkout needs a fresh identity; Staging has password auth enabled, so a `+alias` sign-up
+  works without a second Google account.
+- Everything in Round 2's "Still open" list except the Production switch, which is now closed as
+  a non-goal: item A's copy, removing `OCULAR_API_KEY`, the three UI items, and publishing
+  `useocular` to npm (`npx useocular` still 404s).
+
 ### Still open — everything else
 
 **A and D were designed and built later the same session — see the two sections above.** This

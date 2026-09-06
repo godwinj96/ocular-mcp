@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { LoginCancelledError, LoginTimeoutError, startLoopbackServer } from './loopback-server.js';
+import {
+  LoginCancelledError,
+  LoginTimeoutError,
+  resolveDialledRedirectUri,
+  startLoopbackServer,
+} from './loopback-server.js';
 
 const STATE = 'expected-state-value';
 
@@ -25,7 +30,27 @@ describe('startLoopbackServer', () => {
       const pending = server.waitForCode();
       const res = await hit(`${server.redirectUri}?code=auth-code-123&state=${STATE}`);
       expect(res.status).toBe(200);
-      await expect(pending).resolves.toBe('auth-code-123');
+      await expect(pending).resolves.toMatchObject({ code: 'auth-code-123' });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('reports the host the browser actually dialled, not the one advertised', async () => {
+    // The production case: Vercel's edge rewrites /connect's `redirect_uri`
+    // from 127.0.0.1 to localhost, so the authorize call records localhost
+    // and the token exchange has to match it. See LoopbackCallback.
+    const server = await startLoopbackServer({ expectedState: STATE });
+    try {
+      const pending = server.waitForCode();
+      const res = await hit(`http://localhost:${server.port}/callback?code=c1&state=${STATE}`);
+      expect(res.status).toBe(200);
+      await expect(pending).resolves.toEqual({
+        code: 'c1',
+        redirectUri: `http://localhost:${server.port}/callback`,
+      });
+      // The advertised URI is unchanged — RFC 8252 §8.3 prefers the literal.
+      expect(server.redirectUri).toBe(`http://127.0.0.1:${server.port}/callback`);
     } finally {
       await server.close();
     }
@@ -90,7 +115,7 @@ describe('startLoopbackServer', () => {
       // The login is still pending — a stray probe must not resolve it.
       const pending = server.waitForCode();
       await hit(`${server.redirectUri}?code=real-code&state=${STATE}`);
-      await expect(pending).resolves.toBe('real-code');
+      await expect(pending).resolves.toMatchObject({ code: 'real-code' });
     } finally {
       await server.close();
     }
@@ -102,7 +127,7 @@ describe('startLoopbackServer', () => {
       const pending = server.waitForCode();
       await hit(`${server.redirectUri}?code=first&state=${STATE}`);
       await hit(`${server.redirectUri}?code=second&state=${STATE}`);
-      await expect(pending).resolves.toBe('first');
+      await expect(pending).resolves.toMatchObject({ code: 'first' });
     } finally {
       await server.close();
     }
@@ -133,5 +158,34 @@ describe('startLoopbackServer', () => {
     const uri = server.redirectUri;
     await server.close();
     await expect(hit(`${uri}?code=x&state=${STATE}`)).rejects.toThrow();
+  });
+});
+
+describe('resolveDialledRedirectUri', () => {
+  const ADVERTISED = 'http://127.0.0.1:4000/callback';
+
+  it('keeps each loopback spelling the browser may have used', () => {
+    expect(resolveDialledRedirectUri('127.0.0.1:4000', 4000, ADVERTISED)).toBe(ADVERTISED);
+    expect(resolveDialledRedirectUri('localhost:4000', 4000, ADVERTISED)).toBe(
+      'http://localhost:4000/callback',
+    );
+    expect(resolveDialledRedirectUri('[::1]:4000', 4000, ADVERTISED)).toBe(
+      'http://[::1]:4000/callback',
+    );
+  });
+
+  it('falls back to the advertised URI for a host that is not our listener', () => {
+    // A Host header is client-controlled. Forwarding a hostile one could only
+    // ever fail the exchange — the authorization server compares it against a
+    // value we never supplied it — but there is no reason to forward it.
+    expect(resolveDialledRedirectUri('evil.example:4000', 4000, ADVERTISED)).toBe(ADVERTISED);
+    expect(resolveDialledRedirectUri('localhost.evil.example:4000', 4000, ADVERTISED)).toBe(
+      ADVERTISED,
+    );
+    expect(resolveDialledRedirectUri('user@evil.example:4000', 4000, ADVERTISED)).toBe(ADVERTISED);
+    expect(resolveDialledRedirectUri('localhost:9999', 4000, ADVERTISED)).toBe(ADVERTISED);
+    expect(resolveDialledRedirectUri('localhost', 4000, ADVERTISED)).toBe(ADVERTISED);
+    expect(resolveDialledRedirectUri('not a host', 4000, ADVERTISED)).toBe(ADVERTISED);
+    expect(resolveDialledRedirectUri(undefined, 4000, ADVERTISED)).toBe(ADVERTISED);
   });
 });
