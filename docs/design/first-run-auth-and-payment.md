@@ -143,6 +143,34 @@ sign-in, payment, and a silent redirect.
 **PKCE integrity is preserved:** the `code_verifier` never leaves the local worker. The
 dashboard only ever sees the `code_challenge`, which is the hash — it cannot mint tokens.
 
+### 4.2a Middleware ordering — a real production failure, fixed
+
+The first live run of this flow failed with `Invalid connect request: code_challenge is
+required`, and the cause is worth recording because it is invisible from the sequence above.
+
+The dashboard's `middleware.ts` runs `authkitMiddleware` with `middlewareAuth.enabled: true`,
+so **every** route is auth-gated before its handler runs. `/connect` was therefore bounced to
+AuthKit sign-in first, and the PKCE parameters had to survive that round trip inside AuthKit's
+`returnPathname` state — which carries a **pathname, not a query string**. They did not
+survive, so the handler eventually ran with no `code_challenge`.
+
+It also meant the validate-before-anything ordering §4.3 specifies was silently not happening:
+the bounce came first. There was no open-redirect exposure — the bounce target is AuthKit, and
+a hostile `redirect_uri` was only ever carried as opaque state and then rejected on return —
+but the guarantee in force was not the one written down, which is its own problem.
+
+Two changes fix it, and both are load-bearing:
+
+1. `/connect` is added to the middleware's `unauthenticatedPaths`. It is **not** public — the
+   handler still calls `getCurrentAccount()`, which requires a session. What changes is
+   ordering: the route now validates and persists the request _before_ any redirect.
+2. The request is written to the resume cookie _before_ `getCurrentAccount()`, and read back
+   when the query string is absent. The cookie was introduced for the checkout round-trip; it
+   turns out to be needed for the sign-in round-trip too.
+
+**Generalisable lesson:** any flow carrying state through a third-party auth redirect must own
+that state itself. `returnPathname` is a navigation convenience, not a state channel.
+
 ### 4.3 The new dashboard route
 
 `/connect` (Next.js, `packages/dashboard`). It is pure orchestration and issues no credential
