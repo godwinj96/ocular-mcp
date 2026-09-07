@@ -16,6 +16,12 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { Heartbeat } from '../heartbeat/heartbeat.js';
+import { loadWorkerId } from '../heartbeat/worker-identity.js';
+import { createBearerResolver } from '../auth/bearer.js';
+import { TokenProvider } from '../auth/access-token.js';
+import { defaultBaseDir } from '../auth/credential-store.js';
+import { config } from '../config.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
   extractAssetsInputSchema,
@@ -45,10 +51,16 @@ import { extractDesignTokens } from '../extractors/design-tokens.js';
 import { captureMotion } from '../extractors/motion-capture.js';
 import { defaultLocalCache, LocalCache } from '../cache/local-cache.js';
 
+// One version string for the process: the MCP handshake and the heartbeat
+// must never disagree about what is running on this machine.
+const LOCAL_SERVER_VERSION = '0.1.0';
+
 export interface LocalMcpServerDeps {
   supervisor: SupervisorClient;
   subscriptionValidator?: SubscriptionValidator;
   localCache?: LocalCache;
+  /** Injectable so tests never open a socket to the cloud. */
+  heartbeat?: Heartbeat;
 }
 
 function failureEnvelope(reason: FailureEnvelope['reason'], message: string): FailureEnvelope {
@@ -62,6 +74,32 @@ function failureEnvelope(reason: FailureEnvelope['reason'], message: string): Fa
 // naive `data ?? envelope` fallback instead of a proper MCP `image` content
 // block — found and fixed while wiring the a11y tree through here, since
 // that fallback would have swallowed the tree the same way.
+// Built here rather than in heartbeat.ts so that module stays free of the
+// credential stack and remains trivially testable with a fake fetch.
+async function createDefaultHeartbeat(): Promise<Heartbeat> {
+  const resolveBearer = createBearerResolver({
+    tokenProvider: new TokenProvider({
+      store: { baseDir: defaultBaseDir(), platform: process.platform },
+      tokenClient: { clientId: config.authClientId },
+    }),
+    staticApiKey: config.apiKey,
+  });
+
+  return new Heartbeat({
+    workerId: await loadWorkerId(),
+    version: LOCAL_SERVER_VERSION,
+    getToken: async () => {
+      const bearer = await resolveBearer();
+      if (bearer.kind !== 'ok') {
+        // Signed out or offline. Throwing here is caught by Heartbeat.send(),
+        // which restores the pending counts and waits for the next tick.
+        throw new Error(`no usable credential: ${bearer.kind}`);
+      }
+      return bearer.token;
+    },
+  });
+}
+
 export function toCallToolResult(envelope: ResultEnvelope): CallToolResult {
   if (!envelope.ok) {
     return { content: [{ type: 'text', text: envelope.message }], isError: true };
@@ -226,7 +264,13 @@ async function handleCaptureTool(
   }
 
   if (decision.route === 'cloud') {
-    return forwardToCloud(toolName, args);
+    // Cloud captures are metered server-side by the quota system; this count is
+    // for the dashboard's local/web split, not for enforcement.
+    const result = await forwardToCloud(toolName, args);
+    if (!result.isError) {
+      deps.heartbeat?.countCapture('cloud');
+    }
+    return result;
   }
 
   // Local path — unmetered, but must be subscription-gated (rules-13 §6).
@@ -266,6 +310,18 @@ async function handleCaptureTool(
     }
     const envelope = await renderLocally(toolName, args, captureStart.cdpUrl);
     await localCache.set(toolName as ToolName, args, envelope).catch(() => undefined);
+
+    // Counted here and nowhere else: a real render that actually happened. A
+    // cache hit is deliberately NOT counted -- it consumed no browser and no
+    // page, and counting it would inflate the number the dashboard shows into
+    // something that no longer means "captures Ocular performed for you".
+    //
+    // The count is an integer and nothing else. There is no branch here that
+    // could carry the URL, and there must never be one.
+    if (envelope.ok) {
+      deps.heartbeat?.countCapture('local');
+    }
+
     return toCallToolResult(envelope);
   } finally {
     await deps.supervisor.send('capture_end');
@@ -325,8 +381,14 @@ function registerTools(mcpServer: McpServer, deps: LocalMcpServerDeps): void {
 export async function startLocalMcpServer(
   deps: LocalMcpServerDeps,
 ): Promise<{ close(): Promise<void> }> {
-  const mcpServer = new McpServer({ name: 'ocular-local', version: '0.1.0' });
-  registerTools(mcpServer, deps);
+  const mcpServer = new McpServer({ name: 'ocular-local', version: LOCAL_SERVER_VERSION });
+
+  // Built BEFORE registerTools, and threaded through deps, because the capture
+  // handlers close over the deps object they are registered with -- creating it
+  // afterwards would leave deps.heartbeat undefined at capture time and every
+  // count would be silently dropped.
+  const heartbeat = deps.heartbeat ?? (await createDefaultHeartbeat());
+  registerTools(mcpServer, { ...deps, heartbeat });
 
   const transport = new StdioServerTransport();
   await mcpServer.connect(transport);
@@ -340,8 +402,20 @@ export async function startLocalMcpServer(
   // stdio session reuse across multiple agent connections ever becomes real.
   await deps.supervisor.send('warm');
 
+  // The heartbeat is what makes "connected but idle" a state the dashboard can
+  // report honestly. Without it the only signal reaching the cloud is
+  // subscription revalidation, which is capture-driven -- so a worker installed
+  // on a running machine that nobody has asked to look at anything is silent,
+  // and indistinguishable from one that was uninstalled last week.
+  //
+  // Started AFTER warm and never awaited: a failed heartbeat must never delay
+  // or block a capture, and the timer is unref'd so it cannot hold the process
+  // open past the lifecycle manager's decision to shut down.
+  heartbeat.start();
+
   return {
     close: async () => {
+      heartbeat.stop();
       await mcpServer.close();
     },
   };
