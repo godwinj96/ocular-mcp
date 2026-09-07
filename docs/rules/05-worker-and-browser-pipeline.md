@@ -113,7 +113,9 @@ Pixels and the accessibility tree each carry information the other structurally 
 
 **Rule:** annotate every node with its viewport position — in-view vs. below-fold, plus coordinates. Set-of-Mark style.
 
-**Rule: annotate, never filter to the viewport.** The tree's principal advantage over the screenshot is precisely that it exposes what is off-screen. Trimming it to the visible region discards the only reason to send it. This is a tempting "optimization" that destroys the feature — do not make it.
+**Rule, AMENDED 2026-09-07 — scope the default response, never silently omit.** The original rule here said "annotate, never filter to the viewport": trimming the tree to the visible region throws away its principal advantage over the screenshot, which is exposing what's off-screen. That reasoning was right and the implementation was unaffordable — measured against this project's own marketing page, a full walk serialises to ~107KB (~27k tokens), which overran a real client's response budget and got truncated at the transport layer. A tree the caller never receives annotates nothing.
+
+The amended rule keeps the guarantee and drops the cost: in-viewport nodes ship in full (role, name, coordinates, nesting), below-fold content ships as a cheap `outline` (every heading and landmark with its position, plus a per-role count of everything else down there), and the complete below-fold detail stays available on demand via the `get_tree` tool. What's still forbidden — this is the part that carried the original rule's weight — is silently omitting below-fold content altogether. A reader must always be able to tell that something exists past the fold, what kind of thing it is, and how to go and read it. See `packages/shared/src/schemas/a11y-tree.schema.ts` for the exact shape and the full rationale.
 
 **Rule:** the tree is size-capped like every other extractor output (§4). A pathological DOM must not blow the payload.
 

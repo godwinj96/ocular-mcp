@@ -67,6 +67,64 @@ Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M
 
 ## Session log
 
+### 2026-09-07 — Session 35 continued: dashboard favicon, and the a11y pruning invariant finally has a test
+
+Picked up three more items from the Session 34 brief's Pending list after §1 shipped (previous log
+entry).
+
+**§3 — dashboard favicon.** Confirmed the brief's read: no code change needed, just files. Copied
+`packages/website/public/favicon-32.png` → `packages/dashboard/app/icon.png` and
+`apple-touch-icon.png` → `app/apple-icon.png`; Next's App Router convention picked them up with zero
+wiring. Verified via a real `next build` — both now appear as real routes (`○ /icon.png`,
+`○ /apple-icon.png`) in the route table.
+
+**§5, the docs correction that turned out not to need a docs change.** The brief also named
+`docs/rules/03-shared-contracts.md §1` as describing the stale "annotate, never filter" a11y
+contract. Checked: §1 of that file is the Result envelope and has never mentioned the a11y tree —
+this specific claim in the brief was simply wrong, most likely written from memory without
+verification. Nothing to fix there. `docs/rules/05-worker-and-browser-pipeline.md §4a` _was_ stale
+and got the amendment (matching `packages/shared/src/schemas/a11y-tree.schema.ts`'s already-amended
+rule) — the "annotate, never filter" line now explains the 2026-09-07 amendment: in-viewport ships
+full, below-fold ships as a cheap `outline`, and `get_tree` carries the rest on demand.
+
+**§5, the highest-value test in the repo — now real.** The brief flagged that the safety property
+behind the viewport-split ("every element with non-zero area appears in `root` or `outline`")
+rested on one manual measurement, because the whole walk runs as a string inside
+`page.evaluateFn()` — code that only exists as text executed via CDP inside an isolated browser
+context, which by construction cannot be `import`ed into a test file.
+
+The fix, not a second hand-typed copy (that would be exactly the "two copies that can drift"
+problem `docs/rules/02-repo-structure.md` §0.6 — written earlier this session — exists to rule
+out): `packages/local-worker/src/extractors/a11y-scope.ts` now holds `scopeToViewport` as a real,
+self-contained, unit-tested function (10 tests in `a11y-scope.test.ts`, including the invariant
+itself as a direct assertion: `viewportCount + outline.nodeCount === total nodes`). `a11y-tree.ts`
+splices `scopeToViewport.toString()` directly into the CDP expression string it sends to the
+browser, so the function under test and the function that runs in production are the same
+object, not a copy kept in sync by convention.
+
+**This splice technique was actually verified, not just asserted to work:** built local-worker's
+real production bundle (`node scripts/bundle.cjs`, esbuild), extracted the _actual compiled_
+`scopeToViewport` text from `dist/main.js`, confirmed it's clean (no bundler-injected helpers —
+worth checking, because running the same extraction under `tsx` for a quick check first showed
+esbuild's dev-mode `keepNames` injecting `__name(...)` calls and renaming `LANDMARKS` to
+`LANDMARKS2`, which would have been a real bug if it had shipped; the actual `bundle.cjs` esbuild
+config doesn't set `keepNames`, so the real bundle has neither), ran the extracted function
+standalone via `new Function(...)` to confirm it works with zero external references, then ran the
+FULL composed expression (real compiled function, spliced into the exact string `a11y-tree.ts`
+builds) against a real page in a live browser via chrome-devtools' `evaluate_script`. It returned
+the correct split: in-viewport nodes in `root`, below-fold heading/nav/list/footer summarised into
+`outline`, and `nodeCount` (6) + `outline.nodeCount` (8) accounting for every node in the source
+document.
+
+All three packages typecheck; the full local-worker suite (169 tests) and the new dashboard build
+pass.
+
+**Still open from the Session 34 brief:** cloud a11y extractor parity (`packages/worker`'s extractor
+doesn't have the viewport-split/outline shape at all yet — this session's `scopeToViewport` module
+lives in `local-worker` only, and porting it to `worker` needs the same `.toString()`-splice
+treatment adapted to whatever `worker`'s own Patchright `page.evaluate` call shape is), `get_tree`
+cloud parity (no tool registered in `mcp-server` yet), §4 (nav prefetch), and `og-image.png`.
+
 ### 2026-09-07 — Session 35: quota/usage/audit ownership moves to the dashboard
 
 Picked up the Session 34 brief's §1 (the founder's separation-of-concerns complaint: quota logic
@@ -573,6 +631,9 @@ check independently — hiding a nav link is not authorization.
 
 #### 3. The dashboard has no favicon at all
 
+**✅ Done in Session 35.** `app/icon.png` + `app/apple-icon.png` copied over, no code change needed
+— see that session's log entry.
+
 Confirmed: `packages/dashboard` has **no `public/` directory** and no `app/icon.*` or
 `app/favicon.ico`. The website's icons were regenerated in Session 34 from the vector mark
 (`scripts/gen-favicons.mjs`); the dashboard was never given any.
@@ -619,21 +680,26 @@ surfaces read the same data.
 
 #### 5. Outstanding engineering debt from Session 34
 
-- **`packages/worker` still runs the old a11y extractor.** The cloud path therefore still returns the
+- ⬜ **`packages/worker` still runs the old a11y extractor.** The cloud path therefore still returns the
   full verbose tree, with no viewport split and no outline, while the local path returns the new
-  shape. Mirror `packages/local-worker/src/extractors/a11y-tree.ts` across.
-- **`get_tree` is local-path only.** A public URL currently returns a plain explanation rather than a
-  protocol error (deliberate), but the cloud `mcp-server` needs the tool for parity.
-- **No automated test guards the a11y pruning invariant.** The safety property — _every element with
-  non-zero area appears in `root` or `outline`_ — currently rests on one manual measurement. The walk
-  runs in-page via `evaluateFn`, so proving it needs the walk extracted into a pure, testable
-  function. This is the highest-value test in the repo right now: the first version of that pruning
-  silently deleted 154 visible nodes.
-- **`docs/rules/05-worker-and-browser-pipeline.md` §4a and `docs/rules/03-shared-contracts.md` §1**
-  still describe the old "annotate, never filter" contract. The amended rule is written into
-  `packages/shared/src/schemas/a11y-tree.schema.ts`; the rules files need to match.
-- **`og-image.png` does not exist.** Every social card the site produces is a broken image. Needs an
-  image designed, not a path change.
+  shape. Mirror `packages/local-worker/src/extractors/a11y-tree.ts` across. **Still open** — Session
+  35 built the viewport-split logic and its test for `local-worker` only; porting to `worker` needs
+  its own `.toString()`-splice treatment for however Patchright's `page.evaluate` shape differs.
+- ⬜ **`get_tree` is local-path only.** A public URL currently returns a plain explanation rather than a
+  protocol error (deliberate), but the cloud `mcp-server` needs the tool for parity. **Still open.**
+- ✅ **No automated test guards the a11y pruning invariant — done in Session 35.** The safety
+  property — _every element with non-zero area appears in `root` or `outline`_ — used to rest on one
+  manual measurement. `packages/local-worker/src/extractors/a11y-scope.ts` now holds the viewport-split
+  logic as a real, self-contained, unit-tested function (`a11y-scope.test.ts`, 10 tests, the invariant
+  itself asserted directly), spliced into the CDP expression via `.toString()` so the tested function
+  and the deployed function are provably the same object. Verified against the real production
+  bundle and a live browser — see that session's log entry for the full verification trail.
+- ✅ **`docs/rules/05-worker-and-browser-pipeline.md` §4a** — amended in Session 35 to match
+  `packages/shared/src/schemas/a11y-tree.schema.ts`. **`docs/rules/03-shared-contracts.md` §1**
+  turned out to need no fix — checked, and that section has never mentioned the a11y tree; this
+  specific claim in the brief was simply inaccurate.
+- ⬜ **`og-image.png` does not exist.** Every social card the site produces is a broken image. Needs an
+  image designed, not a path change. **Still open.**
 - **The `ocular` MCP server in a running session serves the build it started with.** Source changes
   to `packages/local-worker` are not live until it is rebuilt and the MCP connection restarted. Worth
   knowing before trying to verify any local-worker change through the tool itself.
