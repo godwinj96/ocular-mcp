@@ -20,7 +20,18 @@ export type AuditKind =
   | 'subscription.status_changed'
   | 'worker.connected'
   | 'worker.disconnected'
-  | 'session.signed_in';
+  | 'session.signed_in'
+  // Admin-driven mutations (infra/postgres/migrations/0003) — kept distinct
+  // from their customer-driven equivalents above so the trail can tell
+  // "the customer did this" from "an admin did this to them".
+  | 'account.banned'
+  | 'account.unbanned'
+  | 'plan.changed_by_admin'
+  | 'role.changed'
+  // Recorded, not just redirected -- see app/billing/checkout/route.ts's
+  // header for why the ?checkout=unavailable redirect alone left the
+  // Analytics page's "failed checkout" metric with no data behind it.
+  | 'checkout.unavailable';
 
 export type AuditActor = 'user' | 'worker' | 'system';
 
@@ -70,6 +81,56 @@ export async function listAuditEvents(accountId: string, limit = 50): Promise<Au
   }));
 }
 
+export interface CrossAccountAuditEvent extends AuditEvent {
+  accountEmail: string;
+}
+
+interface CrossAccountAuditRow extends AuditRow {
+  account_email: string;
+}
+
+export interface AuditFilters {
+  kind?: AuditKind;
+  actor?: AuditActor;
+  /** Substring match against the account's email — how an admin finds "this person's" events without knowing the account id. */
+  email?: string;
+}
+
+// The admin-wide view — same table listAuditEvents reads, unscoped, with the
+// account's email joined in so a row is identifiable without a second lookup.
+// Cursor-paginated on (created_at, id) rather than offset: an admin log is
+// append-only and grows continuously, so an offset would skip or repeat rows
+// as new events land between page loads.
+export async function listAuditEventsAcrossAccounts(
+  filters: AuditFilters,
+  limit = 50,
+  before?: { createdAt: string; id: string },
+): Promise<CrossAccountAuditEvent[]> {
+  const rows = (await sql`
+    select e.id, e.kind, e.detail, e.actor, e.created_at, a.email as account_email
+    from audit_events e
+    join accounts a on a.id = e.account_id
+    where (${filters.kind ?? null}::audit_event_kind is null or e.kind = ${filters.kind ?? null})
+      and (${filters.actor ?? null}::text is null or e.actor = ${filters.actor ?? null})
+      and (${filters.email ?? null}::text is null or a.email ilike ${filters.email ? '%' + filters.email + '%' : null})
+      and (
+        ${before?.createdAt ?? null}::timestamptz is null
+        or (e.created_at, e.id) < (${before?.createdAt ?? null}::timestamptz, ${before?.id ?? null}::uuid)
+      )
+    order by e.created_at desc, e.id desc
+    limit ${limit}
+  `) as CrossAccountAuditRow[];
+
+  return rows.map((row) => ({
+    id: row.id,
+    kind: row.kind,
+    detail: row.detail,
+    actor: row.actor,
+    createdAt: row.created_at,
+    accountEmail: row.account_email,
+  }));
+}
+
 // One sentence per event kind, written for the person who owns the account
 // rather than for an operator reading a log. The raw enum is never shown --
 // "key.revoked" is a database value, not a thing a user should have to parse.
@@ -84,6 +145,16 @@ export function describeAuditEvent(event: AuditEvent): string {
       return `Plan changed to ${String(d.plan ?? 'a new plan')}`;
     case 'subscription.status_changed':
       return `Subscription is now ${String(d.status ?? 'updated')}`;
+    case 'account.banned':
+      return d.reason ? `Account banned — ${String(d.reason)}` : 'Account banned';
+    case 'account.unbanned':
+      return 'Account unbanned';
+    case 'plan.changed_by_admin':
+      return `Plan changed to ${String(d.plan ?? 'a new plan')} by an admin`;
+    case 'role.changed':
+      return `Role changed to ${String(d.role ?? 'a new role')}`;
+    case 'checkout.unavailable':
+      return d.plan ? `Checkout unavailable — ${String(d.plan)}` : 'Checkout unavailable';
     case 'worker.connected':
       return d.label ? `${String(d.label)} connected` : 'A machine connected';
     case 'worker.disconnected':

@@ -1,174 +1,149 @@
-// Admin — support, not a team product.
-//
-// RBAC here is one bit: user or admin. There is no organization object, no
-// invites, no seats, no per-resource permissions, because Ocular is one
-// developer per account and building the machinery for teams the PRD does not
-// have would mean maintaining a migration path to undo later.
-//
-// What it is FOR: someone writes in saying "I paid and it isn't working", and
-// this answers that in one lookup -- do they have an active subscription, has a
-// machine ever checked in, when did it last report. Read-only by design: an
-// admin can see state, not change it. A support tool that can mutate a
-// stranger's billing is a support tool that will, eventually, mutate the wrong
-// stranger's billing.
-import { notFound } from 'next/navigation';
-import { getCurrentAccount } from '../../lib/current-account';
+// Admin Overview — the landing page. Headline metrics plus what needs a
+// human's attention right now, stats before actions (Refactoring UI's
+// hierarchy stack: size/position before anything else — the eye establishes
+// "what's true" before "what to do"). The metric SET here is the product of
+// real research, not memory — see DEVLOG's Session 35 admin entry for
+// sources and what was deliberately cut (conversion-by-plan: one plan tier
+// exists; churn rate: noise below dozens of subscribers, so a raw
+// cancellation count lives on /admin/analytics instead).
 import { sql } from '../../lib/postgres';
 import { PageHeader } from '../../components/ui/page-header';
-import { Table, Th, Td, Tr, Blank } from '../../components/ui/table';
+import { Stat, StatRow } from '../../components/ui/readouts';
 import { Notice } from '../../components/ui/notice';
 import { EmptyState } from '../../components/ui/empty-state';
-import { formatRelative, formatDay } from '../../lib/format';
-import { workerState } from '../../lib/workers';
-import { Lamp } from '../../components/ui/lamp';
+import {
+  getSignupCounts,
+  getActivationRate,
+  getCaptureActivity,
+  getFleetHealth,
+  getMrr,
+} from '../../lib/analytics';
 
-interface LookupRow {
+interface AttentionRow {
   id: string;
   email: string;
-  plan: string | null;
-  subscription_status: string;
-  created_at: string;
-  worker_count: number;
-  last_seen_at: string | null;
-  heartbeat_at: string | null;
 }
 
-export default async function AdminPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const account = await getCurrentAccount();
+async function getAccountsNeedingAttention(): Promise<AttentionRow[]> {
+  // Payment failing on an otherwise-active account is the one signal
+  // derivable from today's schema that's unambiguously "a human should look
+  // at this" without inventing new instrumentation.
+  const rows = (await sql`
+    select id, email from accounts where subscription_status = 'past_due' order by updated_at desc limit 10
+  `) as AttentionRow[];
+  return rows;
+}
 
-  // Authorization is enforced HERE, on the server, not by hiding the nav link.
-  // The bar omits the link for non-admins as a convenience; this is the check
-  // that matters. notFound() rather than a 403 page: an admin surface should
-  // not confirm its own existence to someone who cannot use it.
-  if (account.role !== 'admin') notFound();
-
-  const params = await searchParams;
-  const query = typeof params.q === 'string' ? params.q.trim() : '';
-
-  const results = query
-    ? ((await sql`
-        select
-          a.id,
-          a.email,
-          a.plan,
-          a.subscription_status,
-          a.created_at,
-          count(w.id)::int          as worker_count,
-          max(w.last_seen_at)       as last_seen_at,
-          max(w.heartbeat_at)       as heartbeat_at
-        from accounts a
-        left join workers w on w.account_id = a.id
-        where a.email ilike ${'%' + query + '%'}
-        group by a.id
-        order by a.created_at desc
-        limit 25
-      `) as LookupRow[])
-    : [];
+export default async function AdminOverviewPage() {
+  const [signups, activation, captures, fleet, mrr, attention] = await Promise.all([
+    getSignupCounts(),
+    getActivationRate(),
+    getCaptureActivity(),
+    getFleetHealth(),
+    getMrr(),
+    getAccountsNeedingAttention(),
+  ]);
 
   return (
     <>
       <PageHeader
         eyebrow="Admin"
-        title="Account lookup"
-        deck="Find an account by email to see its subscription and whether a machine has ever reported in."
+        title="Overview"
+        deck="Everything that matters at a glance — see docs/rules for why this set and not a longer one."
       />
 
-      <form method="get" className="flex flex-wrap items-center gap-3">
-        <label htmlFor="q" className="sr-only">
-          Email
-        </label>
-        <input
-          id="q"
-          name="q"
-          type="search"
-          defaultValue={query}
-          placeholder="someone@example.com"
-          className="h-9 w-full max-w-[360px] rounded border border-rule-mark bg-surface-elevated px-3 text-[13px] text-text-primary placeholder:text-text-quaternary"
+      <StatRow>
+        <Stat label="Signups (7d)" value={signups.last7d} detail={`${signups.last30d} in 30d`} />
+        <Stat
+          label="Activation"
+          value={`${Math.round(activation.rate * 100)}%`}
+          detail={`${activation.activatedAccounts} of ${activation.paidAccounts} paid`}
         />
-        <button
-          type="submit"
-          className="inline-flex h-9 items-center justify-center rounded-full border border-rule-mark px-4 font-brand text-[13px] font-semibold text-text-primary transition-colors duration-150 ease-base hover:border-accent hover:text-accent"
-        >
-          Look up
-        </button>
-      </form>
+        <Stat label="Captures" value={captures.dau} detail={`${captures.wau} in the last 7 days`} />
+        <Stat
+          label="Fleet"
+          value={fleet.connected}
+          detail={`${fleet.offline} offline · ${fleet.quiet} quiet`}
+          tone={fleet.offline > 0 ? 'caution' : 'default'}
+        />
+        <Stat label="MRR" value={`$${mrr.toFixed(2)}`} detail="monthly-equivalent, trend only" />
+      </StatRow>
 
-      <div className="mt-stack-3">
-        <Notice title="Read only">
-          This view can see account state and nothing else. It cannot change a plan, read a key, or
-          see anything Ocular has captured — no such record exists.
-        </Notice>
-      </div>
-
-      <div className="mt-stack-4">
-        {!query ? (
-          <EmptyState
-            title="Search for an account"
-            description="Enter a full or partial email address."
-          />
-        ) : results.length === 0 ? (
-          <EmptyState
-            title="No match"
-            description={`Nothing found for "${query}". They may have signed up with a different address.`}
-          />
-        ) : (
-          <Table>
-            <thead>
-              <tr>
-                <Th>Email</Th>
-                <Th>Plan</Th>
-                <Th>Status</Th>
-                <Th>Signed up</Th>
-                <Th numeric>Machines</Th>
-                <Th>Last report</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {results.map((row) => (
-                <Tr key={row.id}>
-                  <Td mono>{row.email}</Td>
-                  <Td mono>{row.plan ?? <Blank />}</Td>
-                  <Td>
-                    <Lamp
-                      state={
-                        row.subscription_status === 'active'
-                          ? 'live'
-                          : row.subscription_status === 'past_due'
-                            ? 'caution'
-                            : row.subscription_status === 'canceled'
-                              ? 'fault'
-                              : 'inactive'
-                      }
-                      label={row.subscription_status}
-                    />
-                  </Td>
-                  <Td mono>{formatDay(row.created_at)}</Td>
-                  <Td numeric>{row.worker_count}</Td>
-                  <Td mono>
-                    {row.last_seen_at ? (
-                      <>
-                        {formatRelative(row.heartbeat_at ?? row.last_seen_at)}
-                        <span className="ml-2 text-text-quaternary">
-                          {workerState({
-                            lastSeenAt: row.last_seen_at,
-                            heartbeatAt: row.heartbeat_at,
-                          })}
-                        </span>
-                      </>
-                    ) : (
-                      <Blank />
-                    )}
-                  </Td>
-                </Tr>
+      <div className="mt-stack-4 grid grid-cols-1 gap-8 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.16em] text-text-quaternary">
+            Needs attention
+          </p>
+          {attention.length === 0 ? (
+            <EmptyState
+              title="Nothing needs attention"
+              description="No accounts are flagged right now."
+            />
+          ) : (
+            <div className="flex flex-col gap-3">
+              {attention.map((row) => (
+                <Notice
+                  key={row.id}
+                  tone="caution"
+                  title="PAYMENT FAILING"
+                  action={
+                    <a
+                      href={`/admin/users?account=${row.id}`}
+                      className="font-mono text-[12px] text-accent hover:text-accent-hover"
+                    >
+                      View account →
+                    </a>
+                  }
+                >
+                  {row.email}
+                </Notice>
               ))}
-            </tbody>
-          </Table>
-        )}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.16em] text-text-quaternary">
+            Quick actions
+          </p>
+          <div className="divide-y divide-rule-divider">
+            <QuickAction
+              href="/admin/users"
+              title="Look up an account"
+              description="Search, filter, and manage subscriptions."
+            />
+            <QuickAction
+              href="/admin/waitlist"
+              title="Waitlist mode"
+              description="Toggle checkout vs. waitlist on the public site."
+            />
+            <QuickAction
+              href="/admin/audit"
+              title="Audit log"
+              description="Every account-changing event, across all accounts."
+            />
+          </div>
+        </div>
       </div>
     </>
+  );
+}
+
+function QuickAction({
+  href,
+  title,
+  description,
+}: {
+  href: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <a href={href} className="group block py-3 first:pt-0">
+      <p className="text-[14px] font-medium text-text-primary transition-colors duration-fast ease-base group-hover:text-accent">
+        {title}
+      </p>
+      <p className="mt-0.5 text-[12.5px] text-text-tertiary">{description}</p>
+    </a>
   );
 }

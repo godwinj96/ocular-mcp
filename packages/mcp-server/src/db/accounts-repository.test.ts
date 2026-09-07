@@ -30,19 +30,22 @@ describe('accountsRepository', () => {
     await pool.end();
   });
 
-  async function insertAccount(overrides: {
-    plan?: string | null;
-    subscriptionStatus?: 'none' | 'active' | 'past_due' | 'canceled';
-    quotaResetAt?: Date | null;
-  } = {}): Promise<{ id: string; oauthSubjectId: string }> {
+  async function insertAccount(
+    overrides: {
+      plan?: string | null;
+      subscriptionStatus?: 'none' | 'active' | 'past_due' | 'canceled';
+      quotaResetAt?: Date | null;
+      bannedAt?: Date | null;
+    } = {},
+  ): Promise<{ id: string; oauthSubjectId: string }> {
     const oauthSubjectId = `test-user-${randomUUID()}`;
     // `??` would collapse an explicit `plan: null` back to the 'starter'
     // default (null is nullish) — check presence instead so tests can assert
     // the "never subscribed" (plan is null) case.
     const plan = 'plan' in overrides ? overrides.plan : 'starter';
     const result = await pool.query<{ id: string }>(
-      `insert into accounts (oauth_subject_id, email, plan, subscription_status, quota_reset_at)
-       values ($1, $2, $3, $4, $5)
+      `insert into accounts (oauth_subject_id, email, plan, subscription_status, quota_reset_at, banned_at)
+       values ($1, $2, $3, $4, $5, $6)
        returning id`,
       [
         oauthSubjectId,
@@ -50,6 +53,7 @@ describe('accountsRepository', () => {
         plan,
         overrides.subscriptionStatus ?? 'active',
         overrides.quotaResetAt ?? null,
+        overrides.bannedAt ?? null,
       ],
     );
     const row = result.rows[0];
@@ -64,11 +68,19 @@ describe('accountsRepository', () => {
   });
 
   it('findByOauthSubject resolves an active account by oauth_subject_id', async () => {
-    const { id, oauthSubjectId } = await insertAccount({ plan: 'starter', subscriptionStatus: 'active' });
+    const { id, oauthSubjectId } = await insertAccount({
+      plan: 'starter',
+      subscriptionStatus: 'active',
+    });
 
     const result = await repo.findByOauthSubject(oauthSubjectId);
 
-    expect(result).toEqual({ id, plan: 'starter', subscriptionStatus: 'active', quotaResetAt: null });
+    expect(result).toEqual({
+      id,
+      plan: 'starter',
+      subscriptionStatus: 'active',
+      quotaResetAt: null,
+    });
   });
 
   it('findByOauthSubject still resolves a non-active account (caller decides UNAUTHORIZED)', async () => {
@@ -103,6 +115,29 @@ describe('accountsRepository', () => {
     const keyHash = `hash-${randomUUID()}`;
     await pool.query(
       `insert into static_api_keys (account_id, key_hash, key_prefix, revoked_at) values ($1, $2, $3, now())`,
+      [id, keyHash, keyHash.slice(0, 8)],
+    );
+
+    const result = await repo.findByApiKeyHash(keyHash);
+
+    expect(result).toBeNull();
+  });
+
+  it('findByOauthSubject returns null for a banned account, even with an active subscription', async () => {
+    const { oauthSubjectId } = await insertAccount({ bannedAt: new Date() });
+
+    const result = await repo.findByOauthSubject(oauthSubjectId);
+
+    expect(result).toBeNull();
+  });
+
+  it('findByApiKeyHash returns null for a banned account, even with an unrevoked key', async () => {
+    // Exercises the belt-and-suspenders account-level guard specifically —
+    // the key itself is NOT revoked here, only the account is banned.
+    const { id } = await insertAccount({ bannedAt: new Date() });
+    const keyHash = `hash-${randomUUID()}`;
+    await pool.query(
+      `insert into static_api_keys (account_id, key_hash, key_prefix) values ($1, $2, $3)`,
       [id, keyHash, keyHash.slice(0, 8)],
     );
 

@@ -27,12 +27,18 @@ export default authkitMiddleware({
     // authenticated by a static shared secret the route checks itself (see
     // app/api/internal/worker-heartbeat/route.ts). An AuthKit bounce would
     // just break it, the same way it would have broken /connect.
+    //
+    // /api/public/* is called by the website — a different origin, never a
+    // signed-in dashboard session — see lib/public-cors.ts for the CORS
+    // allowlist these two routes apply themselves.
     unauthenticatedPaths: [
       '/login',
       '/callback',
       '/webhooks/bachs',
       '/connect',
       '/api/internal/worker-heartbeat',
+      '/api/public/waitlist-status',
+      '/api/public/waitlist',
     ],
   },
 });

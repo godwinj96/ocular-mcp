@@ -67,6 +67,100 @@ Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M
 
 ## Session log
 
+### 2026-09-07 — Session 35 continued: the admin sub-app — §2 of the Session 34 brief, built out
+
+The largest single item from the Session 34 brief: the admin area was a search bar, and the founder
+wanted "a whole dashboard on its own" — sidebar, Overview, Analytics (research required), user
+management with real mutations, a waitlist toggle + CSV export, and a cross-account audit log.
+
+**Process, before the outcome.** Per standing instruction, both design agents ran before any UI code:
+`ui-design-intelligence` produced a full implementation-ready spec (sidebar dimensions/states, page
+layouts, a new `Toggle` primitive, the destructive-confirm interaction pattern) grounded in the
+existing component files rather than generic dashboard advice; `product-intelligence` did the
+Analytics research the brief explicitly demanded rather than letting a metric set get invented from
+memory, and separately flagged two ban-semantics decisions ("does ban touch billing?", "does ban
+revoke existing keys?") as things that shouldn't be guessed. Asked the founder both — he chose
+"block access only, don't touch billing" and "yes, revoke keys too" — before writing the ban mutation,
+so it shipped correct the first time instead of needing rework.
+
+**Schema** (`infra/postgres/migrations/0003_admin_waitlist_flags.sql`, applied directly via the Neon
+MCP tools against the live dev database, verified after each statement): `accounts.banned_at`, four
+new `audit_event_kind` values (`account.banned`/`unbanned`, `plan.changed_by_admin`, `role.changed` —
+kept distinct from their customer-driven equivalents so the trail can tell who did what), a generic
+`feature_flags` key/value table (not a dedicated boolean column — the next toggle shouldn't need its
+own migration), and `waitlist` (email + `created_at` + `invited_at`, the last one added on the
+product-research agent's own flag: without it, every CSV export shows the whole list again with no
+way to tell who's already been emailed). A fifth enum value, `checkout.unavailable`, got added
+mid-build once it became clear the brief's claim that failed checkouts are "now recorded" was false —
+`?checkout=unavailable` was only ever a redirect param, never persisted, so the Analytics page's
+"failed checkout" metric had no data behind it until `app/billing/checkout/route.ts` was given an
+actual `recordAuditEvent` call.
+
+**Ban enforcement is real, not cosmetic.** `packages/mcp-server/src/db/accounts-repository.ts`'s
+`findByOauthSubject`/`findByApiKeyHash` both got a `banned_at is null` guard in the same change that
+added the column — a "Ban" button that doesn't actually block the auth paths it's supposed to block
+would be worse than not shipping one. Two new live-DB tests added (can't run in this sandbox, same as
+every other test in that file — confirmed via reading, not assumed).
+
+**Analytics — the research verdict** (full sourcing in the agent's own output, condensed here):
+Overview gets 5 headline stats — signups (7d/30d), activation rate (paid → first heartbeat, now
+answerable since Session 35's heartbeat work), captures DAU/WAU (not dashboard visits — the sharpest
+correction the research offered), worker fleet health, and MRR as a trend figure. Analytics (a
+separate page) gets local-vs-cloud capture split, failed-checkout count, and an activation _funnel_
+(signup → checkout → first heartbeat) rather than one opaque rate. **Deliberately cut**, and why:
+conversion-by-plan (one plan tier exists; segmentation is meaningless with nothing to segment
+against) and churn _rate_ (noise below dozens of subscribers — a single cancellation swings a
+percentage wildly at this scale; a raw cancellation count is tracked instead, honest at any N).
+
+**What shipped, by file:** `lib/accounts.ts` (ban/unban/plan-change/role-change mutations +
+`listAccounts` for the filtered/paginated list), `lib/analytics.ts` (every query above), `lib/audit.ts`
+(cross-account listing + the new event descriptions), `lib/feature-flags.ts`, `lib/waitlist.ts`,
+`app/admin/actions.ts` (every mutation re-checks `role === 'admin'` itself — a Server Action is
+directly callable, so the layout-level gate below is defense in depth, not the only check), two public
+CORS-enabled endpoints (`app/api/public/waitlist-status`, `app/api/public/waitlist`) the website's
+`WaitlistCta` component polls/posts to at runtime (not build time — the website is a static Vite SPA
+with no server to bake a flag into, and the whole point of an admin toggle is not needing a
+redeploy), `app/admin/layout.tsx` (the one shared auth gate + sidebar shell), five pages (Overview,
+Analytics, Users, Waitlist, Audit log), a new `components/ui/toggle.tsx` (square thumb, not circular —
+the same ornament-not-mechanism move `lamp.tsx` already made), and `components/admin/*` (the rail,
+nav item, user detail panel with its two-step no-modal ban confirmation). `components/app-bar.tsx`'s
+"no sidebar" comment updated per the brief's own instruction, reconciled rather than left contradicting
+the new admin rail — the two arguments answer different questions (depth vs. scope) and both hold.
+
+**One real bug caught mid-build:** a client component (`user-detail-panel.tsx`) importing
+`PLAN_SLUGS` from `@ocular/shared`'s barrel — the only import path the repo's own rules allow — broke
+the production build outright, because that barrel also re-exports `cache-key.ts`, which uses
+`node:crypto`. A client bundle can't include that. Fixed by passing `planOptions` down as a prop from
+the server component instead of importing the barrel from client code — documented in the component's
+own header so it doesn't get "fixed" back later by someone who doesn't know why.
+
+**Verified:** clean typecheck across `mcp-server` and `dashboard`, a full `next build` (25 routes,
+all admin routes present, only pre-existing unrelated warnings), the existing dashboard test suite
+(46 tests) still green, two new `accounts-repository` tests written for the ban-enforcement path.
+Started the dev server and confirmed `/admin` and `/` both correctly bounce to WorkOS sign-in when
+unauthenticated (proving the new layout's auth gate fires before any admin code runs) — full
+authenticated click-through was NOT done in this session, honestly: it needs a real WorkOS login this
+sandbox has no credentials for, and scripting around that felt like the wrong thing to attempt blindly.
+
+**What's left, named rather than silently dropped:**
+
+- Full authenticated UI verification (see above) — the founder should click through this once, ideally
+  before relying on it for real support work.
+- Pagination is Next-only on Users and Audit log — no "Prev". True cursor-based Prev needs client
+  state a server component doesn't have cheaply; offset-based Prev/Next was considered and rejected
+  (the exact row-skip/repeat risk `lib/analytics.ts` and `lib/audit.ts`'s cursor approach was chosen
+  to avoid). Revisit if either list's actual size ever makes "start over and filter tighter" a real
+  burden — at pre-launch scale it isn't yet.
+- `components/ui/field.tsx` — the design agent's spec flagged that the `h-9 rounded border
+border-rule-mark bg-surface-elevated px-3 text-[13px]` input styling is now typed out ad hoc in
+  three places (the existing lookup pattern, Users filters, Audit filters). Worth consolidating before
+  a fourth copy drifts; not done here to keep this change to what the brief actually asked for.
+- The waitlist POST endpoint has no rate limiting (noted in its own file header) — acceptable for a
+  low-value target at current scale, worth real rate limiting (mcp-server's `redis-rate-limiter.ts`
+  is the pattern to lift) if the list ever becomes a target.
+- No email invite/notify system was built for the waitlist — the product-research agent confirmed
+  this is a reasonable scope trim at near-zero list size, not a gap.
+
 ### 2026-09-07 — Session 35 continued: og-image.png exists now
 
 Last item off the Session 34 engineering-debt list. `index.html`'s `og:image`/`twitter:image` have
@@ -668,6 +762,13 @@ token verification — the same shape `/connect` already uses for a related reas
 ---
 
 #### 2. The admin area is a product, not a search box
+
+**✅ Done in Session 35.** Sidebar, Overview, Analytics (real research behind the metric set — see
+that session's log entry), Users with real mutations, Waitlist toggle + CSV export, cross-account
+Audit log — all shipped. What's genuinely still open: full authenticated click-through (needs a real
+WorkOS login this environment doesn't have), Prev pagination on the two list pages, and a small
+`components/ui/field.tsx` consolidation the design spec flagged but scope didn't require. Read the
+rest of this subsection as historical context for _why_, not as a remaining task.
 
 **The founder's note:** _"In the admin area, all you added is a search bar for user management. The
 admin area is supposed to be a whole dashboard on its own."_ Correct — `app/admin/page.tsx` is a

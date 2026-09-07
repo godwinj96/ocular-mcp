@@ -1,4 +1,5 @@
 import { SectionHeader, BleedRule } from './section-header.js';
+import { WaitlistCta } from './waitlist-cta.js';
 
 // S5 · Pricing, with the cards deleted.
 //
@@ -17,8 +18,6 @@ import { SectionHeader, BleedRule } from './section-header.js';
 // tiers, no invented numbers (brand-identity.md §5). Copy says "web requests"
 // and "pages that block automated browsers", never "stealth ladder"/"rungs":
 // internal mechanism names stay out of customer-facing copy.
-const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL ?? 'http://localhost:3001';
-
 const PLANS = [
   {
     label: 'Basic',
@@ -96,12 +95,7 @@ export function Pricing() {
           </div>
 
           <div className="mt-group">
-            <a
-              href={DASHBOARD_URL}
-              className="inline-flex h-[42px] items-center rounded-full bg-accent px-[22px] font-brand text-[13.5px] font-semibold tracking-normal text-surface-base transition-[background-color,transform] duration-fast hover:-translate-y-px hover:bg-accent-hover active:translate-y-0 active:bg-accent-active"
-            >
-              Choose a plan
-            </a>
+            <WaitlistCta />
           </div>
 
           {/* The charge policy, stated plainly. Matches

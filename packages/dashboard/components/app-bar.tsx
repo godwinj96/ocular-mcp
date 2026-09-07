@@ -14,11 +14,19 @@ import { Wordmark } from './brand/wordmark';
 // those cards existed only because there was no navigation. With a bar, the
 // root is free to answer questions instead of routing.
 //
-// A TOP BAR, NOT A SIDEBAR. Linear, Vercel, Notion and Stripe all run a fixed
-// sidebar, and they are right to: dozens of destinations, real trees, many
-// context switches per session. Ocular has four destinations and no tree. A
-// 240px rail for four links spends a fifth of the column on chrome that never
-// changes, and invents a hierarchy the product does not have.
+// A TOP BAR, NOT A SIDEBAR, HERE. Linear, Vercel, Notion and Stripe all run a
+// fixed sidebar, and they are right to: dozens of destinations, real trees,
+// many context switches per session. This bar's five destinations are flat --
+// a 220px rail for five links spends a chunk of the column on chrome that
+// never changes, and invents a hierarchy the product does not have.
+//
+// This reasoning is scoped to THIS bar, not to the whole product: /admin/*
+// has its own sidebar (components/admin/admin-rail.tsx), and correctly so —
+// not because admin's five sections form a tree either (they don't), but
+// because a rail there is answering a different question. It's the signifier
+// that you've entered a distinct operational surface, independent of whether
+// that surface has depth under it. Two different navs, two different jobs;
+// neither comment's argument contradicts the other once the job is named.
 
 const LINKS = [
   { href: '/', label: 'Status' },

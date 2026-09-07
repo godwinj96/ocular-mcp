@@ -44,8 +44,14 @@ export function createAccountsRepository(dbPool: Pool) {
     },
 
     async findByOauthSubject(oauthSubjectId: string): Promise<AccountRecord | null> {
+      // banned_at is null: an admin ban (infra/postgres/migrations/0003)
+      // blocks this path outright — see accounts.ts's banAccount() in the
+      // dashboard, the only writer of this column. A banned account simply
+      // doesn't resolve, same as an unknown one; callers already treat a
+      // null return as UNAUTHORIZED, so no separate "banned" error path is
+      // needed here.
       const result = await dbPool.query<AccountRow>(
-        'select id, plan, subscription_status, quota_reset_at from accounts where oauth_subject_id = $1',
+        'select id, plan, subscription_status, quota_reset_at from accounts where oauth_subject_id = $1 and banned_at is null',
         [oauthSubjectId],
       );
       const row = result.rows[0];
@@ -53,11 +59,17 @@ export function createAccountsRepository(dbPool: Pool) {
     },
 
     async findByApiKeyHash(keyHash: string): Promise<AccountRecord | null> {
+      // Two independent gates, both required: the key's own revoked_at
+      // (unchanged — a user's own revoke, or banAccount() revoking every key
+      // on ban) AND the account's banned_at (belt-and-suspenders — banning
+      // revokes existing keys, but this also blocks a key issued or
+      // un-revoked after the ban somehow existed, which shouldn't happen but
+      // costs nothing to also guard against here).
       const result = await dbPool.query<AccountRow>(
         `select a.id, a.plan, a.subscription_status, a.quota_reset_at
          from static_api_keys k
          join accounts a on a.id = k.account_id
-         where k.key_hash = $1 and k.revoked_at is null`,
+         where k.key_hash = $1 and k.revoked_at is null and a.banned_at is null`,
         [keyHash],
       );
       const row = result.rows[0];
@@ -67,7 +79,9 @@ export function createAccountsRepository(dbPool: Pool) {
     // Best-effort — a failed update here must never block auth. Callers
     // should catch, not await-and-throw.
     async touchApiKeyLastUsed(keyHash: string): Promise<void> {
-      await dbPool.query('update static_api_keys set last_used_at = now() where key_hash = $1', [keyHash]);
+      await dbPool.query('update static_api_keys set last_used_at = now() where key_hash = $1', [
+        keyHash,
+      ]);
     },
   };
 }
