@@ -374,7 +374,195 @@ Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M
 
 ## Pending / Next Up
 
-### Session 33 addendum — the next session's brief. READ THIS FIRST.
+### Session 34 addendum — the next session's brief. READ THIS FIRST.
+
+Written 2026-09-07 at the founder's request so the next session can start from a clean context
+window. **Nothing in this section has been implemented.** It supersedes the Session 33 addendum
+below, which is now partly done — see §0 for exactly what survives from it.
+
+Read the Session 34 log entry first for what shipped and why; this section is only what comes next.
+
+---
+
+#### 0. What survives from the Session 33 brief
+
+| Item                                                       | State                                                                                                                                                                                      |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0 — `$2.50` copy into `setup-page.tsx` step 02             | ✅ Done. `.agents/product-marketing.md` §Goals updated too.                                                                                                                                |
+| 1 — Website copy overhaul (6th-grade level, scroll reveal) | ⬜ **Untouched.** Still needs both design agents, research first.                                                                                                                          |
+| 2 — three UI items                                         | 🟡 Two done (the 1.76:1 rail is fixed and measured at 0.429:1; `06-brand-identity.md` prices corrected and its stale flag rewritten). **`setup-page.tsx` internal spacing is still open.** |
+| 3 — Cache TTL research                                     | ⬜ **Untouched.** Still a research deliverable, not an implementation task.                                                                                                                |
+| 4 — Favicon                                                | ✅ Done for the website. **The dashboard has none at all — see §3 below.**                                                                                                                 |
+| 5 — Logout                                                 | ✅ Done, live in WorkOS.                                                                                                                                                                   |
+| 6 — Dashboard redesign                                     | ✅ Shipped, but the founder has since raised four substantial follow-ups. They are §1–§4 here.                                                                                             |
+
+---
+
+#### 1. Quota, usage and activity belong to the dashboard — this is a separation-of-concerns fix
+
+**The founder's position, verbatim in substance:** _"I still don't get why the usage and activity
+data isn't in the dashboard. It's improper separation of concerns. The quota logic should live in
+that dashboard app, not in either worker or mcp server. Then both workers report to the dashboard
+service and maintain it as the single source of truth."_
+
+He is right that the current layout is incoherent. Where things actually live today:
+
+| Concern                               | Lives in                                                                    | Note                                                                                                                |
+| ------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Quota reserve / decrement             | `packages/mcp-server/src/quota/redis-quota.ts`                              | The authoritative writer.                                                                                           |
+| Quota read                            | `packages/dashboard/lib/quota-reader.ts`                                    | A **deliberate duplicate** of the read half, with a comment citing `docs/rules/02-repo-structure.md` as the reason. |
+| Worker heartbeat ingest               | `packages/mcp-server/src/mcp/server.ts` → `POST /worker/heartbeat`          | Added Session 34.                                                                                                   |
+| Heartbeat / capture-count persistence | `packages/mcp-server/src/db/workers.ts`                                     | Added Session 34.                                                                                                   |
+| Audit events (write)                  | `packages/dashboard/lib/audit.ts` + `packages/mcp-server/src/db/workers.ts` | **Split across two packages.** This is the clearest symptom.                                                        |
+| Usage read                            | `packages/dashboard/lib/usage.ts`                                           |                                                                                                                     |
+
+So the same three concerns are each half-owned by two packages, and `audit_events` is literally
+written from both. The target state the founder wants: **the dashboard is the account-state service.
+Both workers report into it; nothing else owns quota, usage, or activity.**
+
+**Scope of the move:**
+
+- `POST /worker/heartbeat` moves from `mcp-server` to the dashboard (`app/api/worker/heartbeat/route.ts`).
+  `packages/local-worker/src/heartbeat/heartbeat.ts` currently derives its endpoint from
+  `config.cloudMcpUrl` — that becomes a dashboard base URL, and it needs its own config value.
+- Quota reserve/decrement moves to the dashboard behind an internal endpoint; `mcp-server` calls it
+  instead of touching Redis. `lib/quota-reader.ts`'s duplication then disappears, which is the whole
+  point of the exercise.
+- Audit writes consolidate into `lib/audit.ts` only.
+
+**Two objections to weigh before starting, neither fatal but both real:**
+
+1. **A network hop lands in the cloud render path.** `mcp-server` currently checks quota in-process
+   against Redis. Routing that through the dashboard puts an HTTP call in front of every cloud
+   capture, and the dashboard is a Vercel deployment with cold starts. Mitigations: keep the
+   _enforcement_ counter in Redis (which both services can reach) while moving _ownership of the
+   schema and the read/report surface_ to the dashboard; or have `mcp-server` write through to the
+   dashboard asynchronously and treat Redis as the hot path. Decide deliberately — the founder's
+   principle is about ownership, and it can be honoured without making a paid render depend on a
+   second service being warm.
+2. **`docs/rules/02-repo-structure.md` §8** is what the current duplication cites as justification.
+   That rule needs amending in the same change, or the next session will re-derive the duplicate.
+
+**Auth for worker→dashboard calls** needs designing: the heartbeat currently authenticates with the
+same bearer `mcp-server` accepts (`resolveAccount`, which handles both AuthKit JWTs and static
+keys). The dashboard has AuthKit middleware but no equivalent bearer path for machine callers.
+`middleware.ts`'s `unauthenticatedPaths` will need the new route, and the route must do its own
+token verification — the same shape `/connect` already uses for a related reason.
+
+---
+
+#### 2. The admin area is a product, not a search box
+
+**The founder's note:** _"In the admin area, all you added is a search bar for user management. The
+admin area is supposed to be a whole dashboard on its own."_ Correct — `app/admin/page.tsx` is a
+single lookup form and nothing else.
+
+**Navigation:** a **sidebar that appears only inside the admin tab**. Not in the main top bar, and
+not visible anywhere else in the product. The top bar keeps its `Admin` link (already role-gated);
+selecting it reveals the admin sub-app with its own left rail. Note this contradicts the
+"no sidebar" reasoning in `components/app-bar.tsx` — and correctly so: that argument was
+"five destinations, no tree", and the admin area genuinely _is_ a tree. Update that comment rather
+than leaving two contradictory rationales in the codebase.
+
+**Sections to build:**
+
+- **Overview** — the landing page. Important metrics and actions surfaced immediately.
+- **Analytics** — **research required** on which metrics actually matter for a product at this stage.
+  Do not invent a metric set from memory; the founder asked for research explicitly. Likely
+  candidates worth validating: signups, activation rate (paid → first worker heartbeat — the
+  dashboard can now answer this), conversion by plan/cycle, MRR and churn, DAU/WAU of _captures_
+  rather than of dashboard visits, local-vs-web capture split, failed-checkout count
+  (`?checkout=unavailable` is now recorded), worker fleet health (connected / offline / quiet).
+- **User management** — beyond single lookup: **list** users with filters and pagination, **ban**,
+  **change subscription tier**, **promote to admin**. Note today's `admin/page.tsx` is deliberately
+  read-only and says so on the page; that constraint is now lifted by the founder, so the
+  "Read only" notice must go and every mutation needs an audit event.
+- **Controls — the waitlist.** A toggle that, while **on**, changes the public CTA to add people to
+  a waitlist instead of starting checkout. The reason is concrete: the cloud worker has no hosting
+  yet. Requirements: view the waitlist in the admin area, and **export it as CSV or Excel**. This
+  touches `packages/website` (the CTA behaviour), needs a `waitlist` table, a public submit
+  endpoint, and a feature-flag mechanism the website can read at runtime — note the website is a
+  static Vite SPA, so "read a flag" means an API call or a build-time value; decide which.
+- **Audit log** — the admin-wide view. `audit_events` and `lib/audit.ts` already exist from Session
+  34 and are per-account; this is the cross-account view plus filtering.
+
+**RBAC reminder:** roles are `user | admin` on `accounts.role` (migration 0002, applied). The
+founder's own account is already `admin`. Authorization is enforced server-side in
+`app/admin/page.tsx` via `notFound()`; every new admin route and every new mutation must repeat that
+check independently — hiding a nav link is not authorization.
+
+---
+
+#### 3. The dashboard has no favicon at all
+
+Confirmed: `packages/dashboard` has **no `public/` directory** and no `app/icon.*` or
+`app/favicon.ico`. The website's icons were regenerated in Session 34 from the vector mark
+(`scripts/gen-favicons.mjs`); the dashboard was never given any.
+
+Fix: reuse the same generator output. Next's App Router picks up `app/icon.png` and
+`app/apple-icon.png` by convention, so this is a file copy plus nothing. Use the identical mark —
+the two surfaces are one product and a different icon would undo the point of the shared token work.
+
+---
+
+#### 4. Navigation feels slow — prefetch everything in the viewport, and invalidate carefully
+
+**The founder's note:** _"it takes a whole second to switch between the tabs on the navbar. It seems
+the content isn't being prefetched and cached. Every link on the viewport should be prefetched so
+that at any time when you click a link it feels instantaneous. Also be very careful to invalidate
+the cache properly on update."_
+
+**Why it is slow, and this needs confirming rather than assuming.** Every dashboard route builds as
+`ƒ (Dynamic) server-rendered on demand` — visible in the Session 34 build output — because each one
+calls `withAuth()` and hits Postgres/Redis. Next's `<Link>` prefetch behaves differently for dynamic
+routes than for static ones, and in `next dev` prefetching is weaker than in production, so **first
+measure a production build** before concluding anything: a whole second in dev may not reproduce
+under `next start`.
+
+Directions to evaluate, in rough order:
+
+- `experimental.staleTimes` in `next.config.mjs` to give the client router cache a real dynamic TTL.
+- Explicit `prefetch` on `<Link>` in `components/app-bar.tsx`, and prefetching on viewport entry
+  rather than only on hover.
+- Move the slow per-page reads behind the TanStack Query layer that already exists
+  (`components/query-provider.tsx`, `lib/queries.ts`) so a revisit paints from cache. Note the
+  provider is already tuned for this: 60s `staleTime`, 30min `gcTime`, `refetchOnWindowFocus: false`.
+- Consider a shared `/api/status`-style endpoint per surface so navigation is a cached fetch rather
+  than a full RSC round trip.
+
+**Invalidation is the risk half and the founder called it out.** Every mutation path must invalidate
+precisely: `app/access/actions.ts` already calls `revalidatePath('/access')`, and the equivalents
+for billing, admin mutations and the worker status must exist and be correct. A stale
+"connected" lamp or a stale plan after checkout is worse than a slow page. Pair each new cache with
+its invalidation in the same change, and prefer `revalidateTag` over path-guessing where several
+surfaces read the same data.
+
+---
+
+#### 5. Outstanding engineering debt from Session 34
+
+- **`packages/worker` still runs the old a11y extractor.** The cloud path therefore still returns the
+  full verbose tree, with no viewport split and no outline, while the local path returns the new
+  shape. Mirror `packages/local-worker/src/extractors/a11y-tree.ts` across.
+- **`get_tree` is local-path only.** A public URL currently returns a plain explanation rather than a
+  protocol error (deliberate), but the cloud `mcp-server` needs the tool for parity.
+- **No automated test guards the a11y pruning invariant.** The safety property — _every element with
+  non-zero area appears in `root` or `outline`_ — currently rests on one manual measurement. The walk
+  runs in-page via `evaluateFn`, so proving it needs the walk extracted into a pure, testable
+  function. This is the highest-value test in the repo right now: the first version of that pruning
+  silently deleted 154 visible nodes.
+- **`docs/rules/05-worker-and-browser-pipeline.md` §4a and `docs/rules/03-shared-contracts.md` §1**
+  still describe the old "annotate, never filter" contract. The amended rule is written into
+  `packages/shared/src/schemas/a11y-tree.schema.ts`; the rules files need to match.
+- **`og-image.png` does not exist.** Every social card the site produces is a broken image. Needs an
+  image designed, not a path change.
+- **The `ocular` MCP server in a running session serves the build it started with.** Source changes
+  to `packages/local-worker` are not live until it is rebuilt and the MCP connection restarted. Worth
+  knowing before trying to verify any local-worker change through the tool itself.
+
+---
+
+### Session 33 addendum — SUPERSEDED by the Session 34 brief above. Kept for the evidence in items 1 and 3, which are still open.
 
 Written 2026-09-06 at the founder's request, so the next session can start from a clean context
 window. **Nothing in this section has been implemented.** It is all scoped, evidenced and ready
@@ -1175,9 +1363,11 @@ update accounts set role = 'admin' where email = '<founder email>';
 
 ### Still open after this session
 
-- **Items 0-3 of the Session 33 brief are untouched**: the settled `$2.50` copy into
-  `setup-page.tsx` step 02, the reading-level/scroll-reveal copy overhaul, the three approved UI
-  items, and the cache-TTL research.
+- **Items 1 and 3 of the Session 33 brief are untouched**: the reading-level/scroll-reveal copy
+  overhaul and the cache-TTL research. Item 0 (the `$2.50` copy) and most of item 2 landed later in
+  the same session; `setup-page.tsx` internal spacing is the one piece of item 2 still open.
+  **The founder has since added four larger follow-ups — see the Session 34 addendum under
+  Pending / Next Up, which is now the current brief.**
 - **TanStack Query is installed and the provider is mounted, but nothing uses it yet.** Every
   surface is still server-rendered. The prefetching the founder asked for is the next step, not a
   done thing.
