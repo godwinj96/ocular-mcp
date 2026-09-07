@@ -179,9 +179,23 @@
 
 **Packaging: there is no trial. You pay before you try.** Founder, 2026-09-05: _"users must pay before they try it. The price is so low that it wouldn't make any sense."_ Decided, not a gap.
 
-**But the copy still has to say it.** The 2026-09-04 audit found that nothing on the site answers _"do I pay before I try?"_, and deciding the answer does not answer it for the visitor. The page currently replies with silence, and silence at a CTA reads as evasion — the one register this site otherwise avoids. Two places carry it: the CTA rows (which already say `cancel any time`, currently doing a trial's job honestly), and `setup-page.tsx` step 02 _"Sign in once"_, which a reader can easily take for free sign-up before hitting a paywall.
+**RESOLVED, 2026-09-07 (Session 34). This is no longer an open item.** The founder settled both the
+decision and the register, and the copy now says it. Two approved surfacings, both on-voice:
 
-**Write it in the cheap-product register, not the defensive one.** The argument for pay-first is that the price is too low for a trial to be worth anyone's time. That is a confident, ambient-pricing argument and it is on-voice. Anything that sounds like the page is justifying the price violates the "never premium, never best-in-class" guardrail.
+- **"$2.50 and you're in"**
+- **"...for $2.50"** — e.g. "give your agent eyes for $2.50"
+
+`setup-page.tsx` step 02 now reads **"Sign in once. $2.50 and you're in."** with a body that says
+"sign in, pick a plan, done", replacing the old "Sign in once, in the browser" that a reader could
+take for free sign-up before a paywall. The CTA rows keep `cancel any time`.
+
+Both surfacings pass CLAUDE.md's scope test — they stay true, and stay the point, when the page being
+looked at is one the agent did not write — and neither gives Ocular agency.
+
+**The register rule still binds for any future pricing copy.** The argument for pay-first is that the
+price is too low for a trial to be worth anyone's time. That is a confident, ambient-pricing argument.
+Anything that sounds like the page is justifying the price violates the "never premium, never
+best-in-class" guardrail.
 
 ---
 

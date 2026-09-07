@@ -19,7 +19,7 @@ import { getCurrentAccount } from '../lib/current-account';
 import { listWorkers } from '../lib/workers';
 import { getUsage } from '../lib/usage';
 import { getQuotaStatus } from '../lib/quota-reader';
-import { WorkerBlock } from '../components/worker-block';
+import { WorkerBlockLive } from '../components/worker-block-live';
 import { Rail, railTone } from '../components/ui/rail';
 import { Stat } from '../components/ui/readouts';
 import { Notice } from '../components/ui/notice';
@@ -68,7 +68,16 @@ export default async function StatusPage() {
         </Notice>
       )}
 
-      <WorkerBlock workers={workers} isSubscribed={isSubscribed} />
+      {/* The only live block on the page. Seeded from this render, then it
+          keeps itself honest -- see components/worker-block-live.tsx. */}
+      <WorkerBlockLive
+        initialStatus={{
+          workers,
+          usage,
+          quota: quota ? { remaining: quota.remaining, dailyQuota } : null,
+        }}
+        isSubscribed={isSubscribed}
+      />
 
       {/* Blocks below are absent, not empty, until there is something true to
           put in them. A row of zeros on a first run is noise, and this is the

@@ -14,8 +14,6 @@
 -- integer per account per path is the most that can be stored without building
 -- exactly the exfiltration surface the threat model exists to prevent.
 
-create type worker_kind as enum ('local', 'cloud');
-
 -- One row per machine running a local worker.
 --
 -- Identity is a client-generated uuid persisted in the worker's own config

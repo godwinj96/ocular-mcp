@@ -98,12 +98,11 @@ export function SetupPage() {
               02
             </p>
             <h2 className="mt-4 text-[24px] font-medium leading-[1.2] tracking-[-0.018em] text-text-primary">
-              Sign in once, in the browser
+              Sign in once. $2.50 and you&rsquo;re in.
             </h2>
             <p className="mt-4 max-w-[46ch] text-[16px] leading-[1.6] text-text-secondary">
-              The first time your agent asks to look at something, Ocular opens a browser tab and
-              asks who you are. One click, then it closes. You won&rsquo;t be asked again on this
-              machine.
+              The first time your agent asks to look at something, a browser tab opens: sign in,
+              pick a plan, done. It closes itself. You won&rsquo;t be asked again on this machine.
             </p>
             <div className="mt-7 divide-y divide-rule-divider border-y border-rule-divider font-mono text-[12.5px] leading-[2.2]">
               <div className="flex items-baseline justify-between gap-6 py-2">
@@ -112,7 +111,7 @@ export function SetupPage() {
               </div>
               <div className="flex items-baseline justify-between gap-6 py-2">
                 <span className="text-text-secondary">first capture</span>
-                <span className="text-text-quaternary">sign-in tab opens once</span>
+                <span className="text-text-quaternary">sign in, pick a plan</span>
               </div>
               <div className="flex items-baseline justify-between gap-6 py-2">
                 <span className="text-text-primary">every capture after</span>
