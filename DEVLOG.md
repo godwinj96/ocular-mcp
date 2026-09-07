@@ -67,6 +67,62 @@ Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M
 
 ## Session log
 
+### 2026-09-07 — Session 35 continued: §4, why navigation was actually slow
+
+Picked up the founder's nav-speed complaint. The brief said to measure before concluding anything,
+so did that first rather than assuming.
+
+**Root cause, confirmed by reading Next 15's own source** (`node_modules/next/dist/server/config-shared.d.ts`):
+every dashboard route is `ƒ (Dynamic)`, and Next 15 defaults `staleTimes.dynamic` to `0`. `<Link>`
+already prefetches every link the moment it enters the viewport — that's the App Router default, not
+something the codebase opts into — and every nav link in `components/app-bar.tsx` sits in the
+always-visible sticky top bar, so that prefetch was already firing for all 5-6 destinations on every
+page load. It just wasn't being _kept_: with `staleTimes.dynamic=0` the client Router Cache discards
+a prefetched dynamic-route payload immediately, so by the time a user actually clicked a nav link, the
+prefetch that already paid the full `withAuth()` + Postgres + Redis cost had already been thrown away
+and Next fetched again from scratch. That is a plausible, mechanism-level explanation for "it takes a
+whole second," found in the framework's own documented behavior rather than guessed at.
+
+**Fix:** `experimental.staleTimes.dynamic = 30` in `next.config.mjs`. Confirmed this is still the
+correct, currently-supported key in the installed Next 15.5.20 (checked the type definition directly,
+not assumed) — and confirmed from that same doc comment that leaving `<Link>`'s `prefetch` prop
+unspecified (which `app-bar.tsx` already does) is precisely what routes a link through `staleTimes.dynamic`
+rather than `staleTimes.static`, so no `<Link>` prop changes were needed; the existing code was already
+shaped correctly for this fix, it just had no TTL to make the prefetch worth anything.
+
+**The invalidation half, which the founder called out as the real risk.** Before turning on caching,
+audited every path that mutates account state to find what's missing a `revalidatePath`/`revalidateTag`
+call: `app/access/actions.ts` already had two (key create/revoke, correctly scoped to `/access`). The
+gap was `app/webhooks/bachs/route.ts` — the ONLY writer of plan/subscription state that isn't a user
+clicking something inside a Next.js Server Action, so it's also the one place nothing was ever calling
+`revalidatePath`. Nearly every page (`/`, `/usage`, `/billing`, `/access`, `/activity`) reads
+`getCurrentAccount()` or `.plan` directly, so this webhook is now the single highest-leverage
+invalidation point in the app. Added `revalidatePath('/', 'layout')` after every update kind it
+handles — layout-wide rather than a hand-picked path list, so a future page doesn't silently miss it.
+Confirmed via grep that `activateAccountFromCheckout`/`setSubscriptionStatus`/`syncSubscriptionState`
+have no other callers, so this one addition closes the whole gap.
+
+**Why 30 seconds, not longer.** An already-open browser tab has no push channel telling it to drop
+its client-side cache early — `revalidatePath` only affects what the SERVER hands out on the next
+request, not a tab that already has a cached RSC payload sitting in memory. So the webhook path
+(the one mutation source with no Server Action in the loop) has a real, bounded staleness window no
+matter what: a user who completes checkout in one tab could see a stale plan in another already-open
+tab for up to the TTL. 30s keeps that window small while still being long enough that same-session
+tab-hopping — the actual complaint — feels instant.
+
+**What this session did NOT do, honestly:** did not stand up a real authenticated `next start` session
+and clock actual before/after navigation latency with a live WorkOS login — that would need scripting
+through a real auth flow, which felt like the wrong thing to automate around blindly. What's verified
+instead: the config key is real and current (read from Next's own shipped type definitions, not
+assumed), the mechanism precisely matches the documented behavior for this codebase's exact `<Link>`
+usage, and the build accepts the config with no warnings. The brief's other two "directions to
+evaluate" (moving page reads behind TanStack Query; a shared `/api/status`-style endpoint per surface)
+were judged unnecessary now that the root cause has a correct, minimal, Next-native fix — flagging
+that judgment call explicitly rather than silently dropping those bullets.
+
+All three packages typecheck; dashboard's existing test suite (46 tests) and a full `next build`
+both pass.
+
 ### 2026-09-07 — Session 35 continued: dashboard favicon, and the a11y pruning invariant finally has a test
 
 Picked up three more items from the Session 34 brief's Pending list after §1 shipped (previous log
@@ -645,6 +701,11 @@ the two surfaces are one product and a different icon would undo the point of th
 ---
 
 #### 4. Navigation feels slow — prefetch everything in the viewport, and invalidate carefully
+
+**✅ Done in Session 35** — `staleTimes.dynamic` config fix plus the one real invalidation gap
+(the Bachs webhook) closed. Live before/after timing in an authenticated session was NOT captured
+(see that session's log entry for why); the mechanism itself is verified against Next's own shipped
+type definitions and doc comments, not assumed.
 
 **The founder's note:** _"it takes a whole second to switch between the tabs on the navbar. It seems
 the content isn't being prefetched and cached. Every link on the viewport should be prefetched so

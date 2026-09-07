@@ -4,6 +4,20 @@
 // X-Bachs-Signature/X-Bachs-Timestamp via bachs-sdk's own constructEvent
 // (HMAC-SHA256 over `${timestamp}.${rawBody}`, constant-time compare) before
 // trusting anything in the payload.
+//
+// REVALIDATION MATTERS HERE MORE THAN ANYWHERE ELSE IN THE APP. Every
+// server-rendered page reads plan/subscription state (`/`, `/usage`,
+// `/billing`, `/access`, `/activity` all call getCurrentAccount() or read
+// `.plan` directly), and this webhook is the ONLY writer of that state that
+// isn't a user clicking something inside a Next.js Server Action — so there
+// is no other place in the app where a revalidatePath call could plausibly
+// live. With next.config.mjs's staleTimes.dynamic now giving the client
+// router cache a real TTL (see that file's comment), a stale plan/status
+// server-rendered from an un-invalidated cache after a real checkout is
+// exactly the "worse than a slow page" failure the founder called out —
+// revalidatePath('/', 'layout') below invalidates every route under the root
+// layout in one call, so a page added later doesn't silently miss this.
+import { revalidatePath } from 'next/cache';
 import { BachsSignatureVerificationError } from 'bachs-sdk';
 import {
   activateAccountFromCheckout,
@@ -63,6 +77,9 @@ export async function POST(request: Request): Promise<Response> {
       await setSubscriptionStatus(update.bachsCustomerId, update.subscriptionStatus);
       break;
   }
+
+  // See this file's header for why layout-wide, not a hand-picked path list.
+  revalidatePath('/', 'layout');
 
   return new Response(null, { status: 200 });
 }
