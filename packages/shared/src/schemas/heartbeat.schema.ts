@@ -1,14 +1,21 @@
 import { z } from 'zod';
 
-// The heartbeat body. Validated at the boundary like every other external
-// input, and deliberately narrow: this endpoint accepts an identity and some
+// The worker heartbeat body — validated at the boundary like every other
+// external input, and deliberately narrow: this carries an identity and some
 // integers, and there is no field here that could carry a capture target even
-// if a future caller tried to send one.
+// if a future caller tried to send one. See CLAUDE.md's exfiltration-surface
+// boundary.
 //
 // `workerId` is opaque to us -- a client-generated uuid the supervisor persists
 // in its own config directory. Not a hardware id, not a MAC address, not
 // anything derived from the machine: a stable random token the user can delete
 // by deleting the file.
+//
+// Lives in `shared` (not mcp-server, where it started) because the body now
+// crosses a package boundary twice: mcp-server validates what the local
+// worker sends, then forwards the same validated shape to the dashboard's
+// internal heartbeat endpoint, which is the durable writer. One schema, two
+// consumers — see docs/rules/02-repo-structure.md §0.6.
 export const heartbeatBodySchema = z.object({
   workerId: z.string().min(8).max(128),
   /** Hostname, so a user with two machines can tell them apart. */

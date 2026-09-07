@@ -32,6 +32,15 @@ AUTHKIT_JWKS_CACHE_TTL_S=
 # context does), so the default (empty = reject any request that carries
 # Origin) is correct until there's an actual browser-based caller to allow.
 MCP_ALLOWED_ORIGINS=
+# Where /worker/heartbeat forwards to after authenticating the caller — the
+# dashboard, which owns worker/audit persistence (see
+# docs/rules/02-repo-structure.md §0.6). Not necessarily the public dashboard
+# URL; a deployment-internal address is fine.
+DASHBOARD_INTERNAL_URL=
+# Shared secret between mcp-server and dashboard's /api/internal/* routes —
+# the SAME value in both packages' env. Proves the caller is mcp-server, not
+# the end user's own bearer token verified a second time.
+INTERNAL_SERVICE_SECRET=
 
 # dashboard — Bachs lives here, not mcp-server: dashboard is the only
 # package that talks to Bachs (see docs/rules/11-billing-and-quota.md §3;
@@ -39,6 +48,9 @@ MCP_ALLOWED_ORIGINS=
 # Four product IDs, not one — Basic/Pro x Monthly/Annual (see plans.ts in
 # @ocular/shared for the plan-slug scheme these map to).
 NEXT_PUBLIC_APP_URL=
+# Same value as mcp-server's INTERNAL_SERVICE_SECRET above — verifies
+# app/api/internal/* callers are mcp-server, not a browser.
+INTERNAL_SERVICE_SECRET=
 BACHS_API_KEY=
 BACHS_WEBHOOK_SECRET=
 BACHS_BASIC_MONTHLY_PRICE_ID=

@@ -24,9 +24,9 @@ import {
   viewPageInputSchema,
 } from '@ocular/shared';
 import type { FailureEnvelope, ResultEnvelope, ToolName } from '@ocular/shared';
+import { heartbeatBodySchema } from '@ocular/shared';
 import { resolveAccount } from '../auth/resolve-account.js';
-import { recordHeartbeat, recordWorkerConnected } from '../db/workers.js';
-import { heartbeatBodySchema } from './heartbeat-schema.js';
+import { reportHeartbeatToDashboard } from '../internal/dashboard-client.js';
 import { config as appConfig } from '../config.js';
 import { getCachedEnvelope } from '../cache/redis-cache.js';
 import { checkAndReserveQuota } from '../quota/redis-quota.js';
@@ -297,7 +297,11 @@ export async function startMcpServer(config: McpServerConfig): Promise<McpServer
   // one uninstalled last week were both simply silent, and the dashboard could
   // not honestly tell a user their machine was ready.
   //
-  // Body carries counts only. See db/workers.ts for the privacy boundary.
+  // mcp-server's job stops at "authenticate and validate" -- persistence
+  // (workers, capture_counters, audit_events) is the dashboard's, which is the
+  // only writer of any of those tables now. See dashboard-client.ts and
+  // docs/rules/02-repo-structure.md §0.6. Body carries counts only; see
+  // @ocular/shared's heartbeat.schema.ts for the privacy boundary.
   fastify.post('/worker/heartbeat', async (request, reply) => {
     let auth;
     try {
@@ -311,21 +315,13 @@ export async function startMcpServer(config: McpServerConfig): Promise<McpServer
       return reply.code(400).send({ ok: false, error: 'INVALID_BODY' });
     }
 
-    const { firstSeen } = await recordHeartbeat({
-      accountId: auth.accountId,
-      workerId: parsed.data.workerId,
-      label: parsed.data.label ?? null,
-      version: parsed.data.version ?? null,
-      platform: parsed.data.platform ?? null,
-      localCaptures: parsed.data.localCaptures,
-      cloudCaptures: parsed.data.cloudCaptures,
-    });
-
-    // One audit line the first time a machine ever reports, and never again --
-    // a heartbeat every few minutes would otherwise bury the activity log in
-    // the least interesting event it has.
-    if (firstSeen) {
-      await recordWorkerConnected(auth.accountId, parsed.data.label ?? null);
+    const { ok } = await reportHeartbeatToDashboard(auth.accountId, parsed.data);
+    if (!ok) {
+      // The dashboard rejected or was unreachable -- surfaced as a normal
+      // failure response so the local worker's own retry/restore logic (see
+      // heartbeat.ts) puts the counts back and tries again next tick, exactly
+      // as it already does for any other non-ok response.
+      return reply.code(502).send({ ok: false, error: 'DASHBOARD_UNAVAILABLE' });
     }
 
     return reply.send({ ok: true });

@@ -67,6 +67,75 @@ Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M
 
 ## Session log
 
+### 2026-09-07 — Session 35: quota/usage/audit ownership moves to the dashboard
+
+Picked up the Session 34 brief's §1 (the founder's separation-of-concerns complaint: quota logic
+was split between `mcp-server` and `dashboard`, with `dashboard/lib/quota-reader.ts` citing
+`docs/rules/02-repo-structure.md` as justification for duplicating `mcp-server`'s quota-read logic
+rather than importing it). That citation didn't actually say what it was used to justify —
+principle 1 ("package boundaries are the primary boundary") bans cross-package runtime imports, it
+never blessed re-deriving the same contract twice. Fixed that reading and the underlying
+duplication in the same change.
+
+**Architecture decision, made explicit with the founder before building anything:** he initially
+wanted quota ownership moved to the dashboard outright ("both workers report to the dashboard
+service"). Asked him to weigh three shapes — full move behind a dashboard endpoint, an async
+write-through, or dashboard-owns-schema/Redis-stays-hot — and walked through why "async" doesn't
+mean "can overspend" (enforcement stays synchronous against Redis either way; only _reporting_ is
+async) and why a full move puts a Vercel cold start in front of every paid capture. He agreed to the
+third shape. **What actually shipped is a slight refinement of that, decided unilaterally once the
+auth implications became clear:** moving `/worker/heartbeat`'s writes to the dashboard would have
+required either duplicating AuthKit JWT verification into a second package (a real security-surface
+increase) or accepting the resource-audience token in two services. Heartbeats are a background
+timer tick, never render-path-critical, so instead `mcp-server` keeps its existing auth (unchanged)
+and **forwards** the validated body to a new dashboard-owned internal endpoint over a static shared
+secret — no new user-facing auth code anywhere, and the dashboard still ends up the sole writer.
+
+**What moved:**
+
+- `packages/shared/src/quota.ts` (new) — `quotaKey` + `createQuotaReader`, the read/peek contract
+  both `mcp-server/src/quota/redis-quota.ts` and `dashboard/lib/quota-reader.ts` now import instead
+  of each defining their own. Enforcement (`checkAndReserveQuota`, the atomic Lua reserve) stays in
+  `mcp-server` untouched — it was never duplicated, and it's the actual render-path hot code.
+- `packages/shared/src/schemas/heartbeat.schema.ts` (moved from `mcp-server/src/mcp/heartbeat-schema.ts`)
+  — the same validated shape now crosses two package boundaries (local worker → mcp-server →
+  dashboard), so it needed one home.
+- `packages/mcp-server/src/db/workers.ts` — **deleted**. mcp-server no longer touches Postgres for
+  worker/audit data at all.
+- `packages/mcp-server/src/internal/dashboard-client.ts` (new) — `reportHeartbeatToDashboard`,
+  authenticated with a new `INTERNAL_SERVICE_SECRET` shared between the two packages.
+- `packages/dashboard/app/api/internal/worker-heartbeat/route.ts` (new) — the only writer of
+  `workers`, `capture_counters`, and `audit_events` now. Verifies the shared secret with a
+  constant-time digest compare, not a raw-string compare. Listed in `middleware.ts`'s
+  `unauthenticatedPaths` for the same reason `/connect` is — it authenticates itself.
+- `packages/dashboard/lib/workers.ts` gained the write side (`recordHeartbeat`), next to the read
+  side (`listWorkers`) that already lived there.
+- `docs/rules/02-repo-structure.md` — new §0.6 codifying the contract-vs-driver distinction (a
+  shared _contract_ — key shapes, defaulting semantics, verification logic — belongs in `shared`
+  and is imported; a genuinely per-package _I/O driver choice_, like `pg` vs
+  `@neondatabase/serverless`, is the one thing allowed to differ) and the concrete quota/worker/audit
+  ownership split. `docs/rules/12-environment-and-secrets.md` got the two new env vars.
+
+**Verified, not just typed:** all three packages (`shared`, `mcp-server`, `dashboard`) typecheck and
+build clean, including a real `next build` that confirms the new route compiles into the route
+table. New unit tests for `createQuotaReader` pass. Ran the existing mcp-server suite minus the
+live-Redis-only file (`redis-quota.test.ts`, which needs a real Upstash connection this sandbox
+doesn't have) — 64/67 passed; the 3 failures are pre-existing live-Postgres/Redis network
+dependencies (`ENOTFOUND` on the Neon host, a Redis connect timeout), confirmed unrelated by diff
+(none of the failing tests' files were touched). `detect_changes` flagged `risk: high`, entirely
+from `startMcpServer` being one large graph symbol that every route lives inside — the actual diff
+inside it is scoped to the heartbeat handler alone (confirmed by reading the diff directly); no
+other tool route changed.
+
+**What's still open from the Session 34 brief, unstarted:** §2 (admin sub-app), §3 (dashboard
+favicon), §4 (nav prefetch — needs a production-build measurement first), §5 (Session 34's
+engineering debt: cloud a11y extractor parity, `get_tree` for cloud, the pruning-invariant test,
+stale rules-file wording, missing `og-image.png`). None of §1's remaining scope was picked up
+either: `AUTHKIT_RESOURCE_IDENTIFIER`-based service-to-service auth was deliberately avoided this
+session (see the architecture decision above), so if a future session wants machine callers other
+than mcp-server hitting dashboard internal routes directly, that JWT-verification-portability
+question is still unresolved and worth reading this entry before re-deriving it.
+
 ### 2026-07-10 — Session 1: Research & planning foundation
 
 - Read the founder's full project brief for Ocular (pasted into chat, not yet saved as a repo file — consider adding it to the repo, e.g. `research & planning/00-original-brief.md`, if you want it version-controlled alongside the plan).
@@ -399,6 +468,15 @@ Read the Session 34 log entry first for what shipped and why; this section is on
 ---
 
 #### 1. Quota, usage and activity belong to the dashboard — this is a separation-of-concerns fix
+
+**✅ Done in Session 35, with one deliberate deviation from the literal ask — see that session's log
+entry for the reasoning.** Quota schema/read surface and worker/audit persistence now live in the
+dashboard; `mcp-server/src/db/workers.ts` is gone. What did NOT happen: the local worker still talks
+to `mcp-server` first, which forwards to the dashboard over a service secret, rather than local-worker
+posting straight to a dashboard URL — moving the actual auth verification into a second package was
+judged a worse trade than keeping mcp-server as a thin authenticate-and-forward hop for a
+background-only heartbeat. Read the rest of this subsection as historical context for _why_, not as
+a remaining task.
 
 **The founder's position, verbatim in substance:** _"I still don't get why the usage and activity
 data isn't in the dashboard. It's improper separation of concerns. The quota logic should live in

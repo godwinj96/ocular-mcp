@@ -22,7 +22,18 @@ export default authkitMiddleware({
     // route lets it validate and persist the request BEFORE any redirect,
     // which is what the design specified and what makes the parameters
     // survive.
-    unauthenticatedPaths: ['/login', '/callback', '/webhooks/bachs', '/connect'],
+    //
+    // /api/internal/* is service-to-service — mcp-server, never a browser —
+    // authenticated by a static shared secret the route checks itself (see
+    // app/api/internal/worker-heartbeat/route.ts). An AuthKit bounce would
+    // just break it, the same way it would have broken /connect.
+    unauthenticatedPaths: [
+      '/login',
+      '/callback',
+      '/webhooks/bachs',
+      '/connect',
+      '/api/internal/worker-heartbeat',
+    ],
   },
 });
 

@@ -1,4 +1,12 @@
-// Worker liveness — the data behind the dashboard's headline block.
+// Worker liveness — read AND write. This package is the only writer of the
+// `workers` and `capture_counters` tables (see recordHeartbeat below and
+// app/api/internal/worker-heartbeat/route.ts) as well as the reader behind
+// the dashboard's headline block, per docs/rules/02-repo-structure.md §0.6.
+//
+// WHAT THIS FILE MUST NOT STORE, same boundary as the route that calls it: an
+// opaque client-generated worker id, a hostname label, a version, a platform,
+// and integer capture counts. Never a URL, never a page title, never a
+// per-capture timestamp — see CLAUDE.md's exfiltration-surface boundary.
 //
 // WHAT "CONNECTED" ACTUALLY MEANS, because it is easy to overstate. Two
 // different signals land in this table:
@@ -87,4 +95,51 @@ export async function listWorkers(accountId: string): Promise<Worker[]> {
   `) as WorkerRow[];
 
   return rows.map(toWorker);
+}
+
+// The write side. Moved here from mcp-server/src/db/workers.ts — this table
+// (and capture_counters, and the worker.connected audit line) now has exactly
+// one writer, reached only via app/api/internal/worker-heartbeat/route.ts.
+// See docs/rules/02-repo-structure.md §0.6.
+export interface HeartbeatInput {
+  accountId: string;
+  workerId: string;
+  label: string | null;
+  version: string | null;
+  platform: string | null;
+  /** Captures completed since the last heartbeat, by path. Counts only. */
+  localCaptures?: number;
+  cloudCaptures?: number;
+}
+
+export async function recordHeartbeat(input: HeartbeatInput): Promise<{ firstSeen: boolean }> {
+  const rows = (await sql`
+    insert into workers (account_id, worker_id, label, version, platform, heartbeat_at, last_seen_at)
+    values (${input.accountId}, ${input.workerId}, ${input.label}, ${input.version}, ${input.platform}, now(), now())
+    on conflict (account_id, worker_id) do update
+      set heartbeat_at = now(),
+          last_seen_at = now(),
+          label    = coalesce(excluded.label, workers.label),
+          version  = coalesce(excluded.version, workers.version),
+          platform = coalesce(excluded.platform, workers.platform)
+    returning (xmax = 0) as inserted
+  `) as { inserted: boolean }[];
+
+  const local = Math.max(0, Math.trunc(input.localCaptures ?? 0));
+  const cloud = Math.max(0, Math.trunc(input.cloudCaptures ?? 0));
+
+  if (local > 0 || cloud > 0) {
+    // The day boundary is UTC, matching the Redis quota counter's reset — see
+    // @ocular/shared's quota.ts — so a row here and the enforcement counter
+    // never disagree about which day it is.
+    await sql`
+      insert into capture_counters (account_id, day, local_count, cloud_count)
+      values (${input.accountId}, (now() at time zone 'utc')::date, ${local}, ${cloud})
+      on conflict (account_id, day) do update
+        set local_count = capture_counters.local_count + excluded.local_count,
+            cloud_count = capture_counters.cloud_count + excluded.cloud_count
+    `;
+  }
+
+  return { firstSeen: rows[0]?.inserted ?? false };
 }

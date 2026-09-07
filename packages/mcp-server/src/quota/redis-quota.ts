@@ -11,7 +11,7 @@
 // resolves and refunds the difference — see settle-quota.ts.
 
 import type { Redis } from 'ioredis';
-import { MAX_RESERVE_CHARGE } from '@ocular/shared';
+import { MAX_RESERVE_CHARGE, createQuotaReader, quotaKey } from '@ocular/shared';
 import { redis } from '../db/redis.js';
 
 export interface QuotaCheckResult {
@@ -58,10 +58,6 @@ return {1, tostring(remaining)}
 
 const MIN_TTL_S = 60;
 
-function quotaKey(accountId: string): string {
-  return `quota:${accountId}`;
-}
-
 // Daily cap resets at UTC midnight — deliberately independent of the
 // account's Bachs billing-cycle boundary (docs/rules/11-billing-and-quota.md
 // §0b amendment: the daily render cap and the monthly billing cycle are two
@@ -107,19 +103,10 @@ export function createQuotaChecker(client: Redis) {
 
 export const checkAndReserveQuota = createQuotaChecker(redis);
 
-// Read-only peek for get_quota — never reserves/decrements. A missing key
-// means the account hasn't made a chargeable cloud call yet today, so its
-// full plan-tier dailyQuota is still available (matches checkAndReserveQuota's
-// own "no key yet" initialization value). CLOUD PATH ONLY — see get-quota.ts
-// for the response framing that makes this explicit to the calling agent.
-export function createQuotaReader(client: Redis) {
-  return async function getQuotaStatus(
-    accountId: string,
-    dailyQuota: number,
-  ): Promise<{ remaining: number }> {
-    const raw = await client.get(quotaKey(accountId));
-    return { remaining: raw === null ? dailyQuota : Number(raw) };
-  };
-}
-
+// Read-only peek for get_quota — never reserves/decrements. The key shape and
+// "missing key = full dailyQuota" semantics are the shared contract in
+// @ocular/shared's quota.ts (the dashboard's usage surface reads the exact
+// same thing); only the Redis client itself is supplied locally. CLOUD PATH
+// ONLY — see get-quota.ts for the response framing that makes this explicit
+// to the calling agent.
 export const getQuotaStatus = createQuotaReader(redis);

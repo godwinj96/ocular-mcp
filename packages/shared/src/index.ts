@@ -8,6 +8,8 @@ export * from './constants.js';
 export * from './errors.js';
 export * from './job.js';
 export * from './plans.js';
+export * from './quota.js';
+export * from './schemas/heartbeat.schema.js';
 export * from './schemas/view-page.schema.js';
 export * from './schemas/inspect-ui.schema.js';
 export * from './schemas/extract-assets.schema.js';

@@ -22,6 +22,8 @@ const required = [
   'AUTHKIT_JWKS_CACHE_TTL_S',
   'REDIS_URL',
   'POSTGRES_URL',
+  'DASHBOARD_INTERNAL_URL',
+  'INTERNAL_SERVICE_SECRET',
 ];
 
 for (const key of required) {
@@ -48,6 +50,17 @@ export const config = {
   authkitJwksCacheTtlS: Number(process.env.AUTHKIT_JWKS_CACHE_TTL_S),
   redisUrl: process.env.REDIS_URL!,
   postgresUrl: process.env.POSTGRES_URL!,
+  // Where /worker/heartbeat forwards to. The dashboard owns the workers,
+  // capture_counters, and audit_events tables — see
+  // docs/rules/02-repo-structure.md §0.6. Not the public dashboard URL a
+  // browser would use; a deployment-internal address is fine (and preferred)
+  // once one exists.
+  dashboardInternalUrl: process.env.DASHBOARD_INTERNAL_URL!,
+  // Shared secret between mcp-server and the dashboard's /api/internal/*
+  // routes — proves the caller is mcp-server, not the end user's own bearer
+  // token verified a second time. mcp-server already verified the caller
+  // once via resolveAccount() before this is ever used.
+  internalServiceSecret: process.env.INTERNAL_SERVICE_SECRET!,
   allowedOrigins,
   nodeEnv: (process.env.NODE_ENV ?? 'development') as 'development' | 'staging' | 'production',
   isProd: process.env.NODE_ENV === 'production',
