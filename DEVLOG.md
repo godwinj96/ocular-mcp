@@ -41,6 +41,7 @@
 | M8 — Observability + load test                                                                                                            | ⬜ Pending                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | M9 — Launch polish                                                                                                                        | ⬜ Pending                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | M10 — Local worker pivot (PRD v0.2, two execution paths)                                                                                  | ✅ Code-complete (Sessions 16-25) — `packages/local-worker` (Go supervisor + `chrome-headless-shell`/CDP) built end-to-end alongside the retained cloud path: all 5 tools on both paths (`view_page`/`inspect_ui`/`extract_assets`/`motion_capture`/`get_quota`), a11y tree on `view_page`+`motion_capture` on both paths, two-tier caching, daily cloud quota + rung multipliers, routing/dual-surface integration live-proven end-to-end, website rewritten to "local-led, cloud as amplifier." Two items remain genuinely blocked on external inputs, not engineering: `DAILY_CLOUD_QUOTA`/rung-multiplier final sign-off (needs real M3 vendor cost data) and a cache-TTL-volatility classifier (needs a product decision on what "volatile" means for a target page). See Sessions 16-25 below for the full build log. |
+| **Dashboard (brand pass + real IA)**                                                                                                      | 🟢 Rebuilt (Session 34) — shell, shared design tokens, worker status, usage, activity/audit, role-gated admin. **BLOCKED on applying migration 0002** before it can run; see Session 34.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M10 is this pivot's own addition, tracked here rather than in that doc since it postdates it.
 
@@ -1049,6 +1050,140 @@ build, not a claim. Both are now persisted memory rules. Multi-client copy is in
     `6d52969`. Graph went from 1,845/3,470/119 to **2,858 nodes / 5,381 edges / 153 flows**.
     The tool rewrote its own block in `CLAUDE.md`; note the new rule that `risk: UNKNOWN` from
     `impact` means _the walk could not answer_, not _safe to change_.
+
+---
+
+## Session 34 — 2026-09-07 · the logout dead-end, the favicon, and the dashboard becomes a dashboard
+
+Picked up the Session 33 brief cold. Items 4, 5 and 6 are done; 0-3 are not started.
+
+### Item 5 — logout (DONE, live in WorkOS, no code change)
+
+Confirmed the diagnosis exactly as written: every URL field on the Staging AuthKit app
+(`app_01KX873JQ2DKJDHAJZC2JXT2JN`) was null. Set `appHomepageUrl` = `https://useocular.dev` and
+`initiateLoginUri` = `https://dashboard.useocular.dev/login`, and renamed the app from its
+auto-generated **"gmail.com's Application"** to **"Ocular"** — that name surfaces in AuthKit's own
+hosted UI.
+
+**Deliberately did NOT set `signUpUrl` / `passwordResetUrl`**, against the brief's advice. Those two
+OVERRIDE AuthKit's hosted pages; we have no custom pages to point them at, so setting them would
+create the bug rather than close it. Only `appHomepageUrl` has no default, and it was the broken one.
+
+### Item 4 — favicon (DONE)
+
+The brief guessed the asset was stale. It wasn't — it was the RIGHT glyph, but a ragged raster
+_trace_ of it on `#0A0E14`, a ground belonging to no palette in the product, handed to the browser
+to downscale to 16px. Regenerated from `src/components/mark.tsx` (the vector source of truth):
+`favicon.svg` + 16/32/180/512 PNGs, in `--text-primary` on `--surface-base`. Two optical sizes, not
+one: at 16px the crescent — the detail that makes the glyph an eye rather than an O — is sub-pixel,
+so the 16 is drawn at a tighter inset. Generator kept at `scripts/gen-favicons.mjs`.
+
+### Three live bugs found en route, all verified before fixing
+
+1. **`index.html` said "$1 a month" and `ocular.io`** in the title, description and both social
+   cards. That is the copy that appeared every time anyone shared the link. Facts corrected; the
+   register left alone, since it belongs to the copy overhaul.
+2. **`setup-page.tsx:76,129` used `py-sec-lg`, which does not exist** in the spacing scale.
+   Confirmed absent from the built CSS — those two sections had ZERO vertical padding, live. This is
+   the same class of bug that made rounds 5 and 6 misdiagnose spacing. Now `pb-sec-tail pt-sec`.
+3. **`og-image.png` does not exist in `public/`.** Every social card image is a 404. STILL OPEN —
+   needs an image designed, not a path changed.
+
+### Item 6 — the dashboard (DONE, and much larger than "redesign in the brand style")
+
+Ran both design agents per the standing rule. They worked independently and converged on the same
+root cause, which is not styling: **`app/layout.tsx` rendered `<AuthKitProvider>{children}</...>` and
+nothing else.** No header, no nav, no shell. So all four pages hand-rolled the identical
+`mx-auto max-w-3xl px-6 py-16` container, three hand-rolled their own `← Back`, and the root HAD to
+be a card grid — with no navigation, the cards WERE the navigation. That is the whole of "3 cards
+floating in darkness".
+
+Founder expanded scope mid-session: TanStack Router + Query, audit log, analytics, usage, RBAC.
+**TanStack Router was a hard conflict** — it is a client-side SPA router and cannot coexist with Next
+App Router, `middleware.ts` auth, or `@workos-inc/authkit-nextjs`; adopting it means rebuilding the
+dashboard as a Vite SPA. Surfaced that rather than half-doing it. Founder chose: **keep Next, add
+TanStack Query**; **admin/user roles, not teams**; **audit log = account actions + capture counts,
+never capture targets**.
+
+What shipped (`0d39076`):
+
+- **`packages/design-tokens`** — tokens.css + Tailwind preset, shared by website and dashboard.
+  The duplication is what let them drift, so the duplication is gone. Build-time only, ships no JS;
+  the dashboard already imports `@ocular/shared` at runtime, which is strictly stronger coupling.
+  `docs/rules/02-repo-structure.md` should get the amendment noted below.
+- **The violet dies.** `#8C7DFF` → the silver ladder. It is the archetypal 2021-SaaS tell the
+  Instrument concept exists to avoid, and the dashboard is where a subscriber actually spends time.
+  All five near-miss surface/text values snap to the website's exact hexes.
+- **The teal survives, narrowly** — renamed `--signal`, scoped to ONE element in the entire product:
+  the worker lamp. Note the visual agent found `setup-page.tsx:119` already renders `connected` in
+  teal on our own dark chrome, so the signal was never marketing-only; `nav.tsx`'s doctrine comment
+  is under-specified and should be rewritten to say so.
+- **App layer added in-concept**, not imported: `--caution` / `--fault` as the instrument's other two
+  lamps (a tinted alert card is a HUE shift, which the doctrine forbids; a 2px rule in the lamp
+  colour is not), `--stack-0` / `--stack-4`, app layout tokens, fixed rail-slot geometry.
+- **The dashboard loaded ZERO font files.** `font-display` → "Geist Sans" → never fetched anywhere in
+  the package, so every surface has been rendering in system-ui this whole time.
+- New shell (top bar, not a sidebar — five destinations, no tree), new root that answers is-it-
+  working / am-I-paying / how-much-have-I-used, `/activity` (audit trail), `/admin` (role-gated,
+  read-only), `/quota`→`/usage`, `/keys`→`/access` with redirects.
+
+Bugs fixed in the dashboard, each verified in code first: `?checkout=unavailable` was written by the
+checkout route and **never read** (a failed payment bounced you to an identical screen in silence);
+key generation was `try/finally` with no `catch` (a failed generate did nothing, indistinguishable
+from a broken button); `lastUsedAt` was fetched and thrown away; **"rungs 0-1"** and **"full stealth
+ladder"** shipped to the purchase surface (the second breaks CLAUDE.md's never-imply-every-site
+guardrail); `subscriptionStatus` rendered raw, so a lapsed user read "Past_due"; the quota rail would
+have repeated the 1.76:1 bug WORSE (1.64:1 in the narrower column).
+
+### The heartbeat (`dc7ca62`) — and the correction that made it necessary
+
+The product agent proposed reusing the local worker's 15-minute subscription refresh as a heartbeat.
+**I checked before building on it, and it is not one.** `isActive()` is called from exactly one
+place — `mcp/server.ts`, the capture path — and there is no `setInterval` anywhere in the package.
+The 15 minutes is a CACHE TTL: revalidation happens lazily, only when a capture forces it. An
+installed worker nobody is using never contacts the server at all, so "connected and idle" and
+"uninstalled last week" were both simply silence.
+
+Founder approved a real heartbeat. Five-minute timer, independent of captures, posting to a plain
+HTTP route on the cloud server — **not** an MCP tool, since every registered tool appears in the
+calling agent's list and `heartbeat` there is noise an agent cannot use. Identity is an opaque uuid
+in `~/.ocular/worker-id`, never a MAC/serial/machine-id; delete the file and it becomes a new
+machine. Capture counts ride along as integers, cache hits deliberately uncounted.
+
+**The stated cost:** an idle install now makes one small HTTPS request every five minutes forever.
+No window, no dock icon, no firewall prompt, no measurable CPU — a deliberate trade for a dashboard
+that can tell the truth.
+
+### BLOCKING — the migration is written but NOT APPLIED
+
+`infra/postgres/migrations/0002_workers_activity_roles.sql` adds `workers`, `capture_counters`,
+`audit_events` and `accounts.role`. **Applying it was blocked by the auto-mode permission
+classifier**, so it is committed but not run against Neon (project `shy-field-01057403`).
+
+Until it is applied, the dashboard's root, `/activity` and `/admin` will error — every one of them
+queries a table that does not exist yet. Apply with:
+
+```
+psql "$NEON_DATABASE_URL" -f infra/postgres/migrations/0002_workers_activity_roles.sql
+```
+
+Then grant yourself admin, which nothing in the UI can do (by design):
+
+```sql
+update accounts set role = 'admin' where email = '<founder email>';
+```
+
+### Still open after this session
+
+- **Items 0-3 of the Session 33 brief are untouched**: the settled `$2.50` copy into
+  `setup-page.tsx` step 02, the reading-level/scroll-reveal copy overhaul, the three approved UI
+  items, and the cache-TTL research.
+- **TanStack Query is installed and the provider is mounted, but nothing uses it yet.** Every
+  surface is still server-rendered. The prefetching the founder asked for is the next step, not a
+  done thing.
+- `og-image.png` is a 404 on every social card.
+- `docs/rules/02-repo-structure.md` needs the design-tokens amendment written into it.
+- 422 tests green, typecheck clean across 8 packages, lint clean, both packages build.
 
 ---
 
