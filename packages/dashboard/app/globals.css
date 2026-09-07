@@ -2,11 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* The ground and the ink come from the tokens now. They used to be hardcoded
+   here as #0a0a0b / #f2f2f0, which is how the dashboard drifted off the
+   website's palette in the first place -- a literal in a stylesheet cannot
+   drift toward anything, it just sits there being wrong. */
 html {
   color-scheme: dark;
 }
 
 body {
-  background-color: #0a0a0b;
-  color: #f2f2f0;
+  background-color: var(--surface-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numbers in this product are read in columns -- allowance counts, capture
+   totals, dates in a table. Lining figures by default rather than per-element
+   is cheaper than remembering to ask for them. */
+.tabular {
+  font-variant-numeric: tabular-nums;
 }

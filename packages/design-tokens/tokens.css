@@ -1,0 +1,243 @@
+/*
+ * Design tokens — "Instrument" concept (research & planning/moodboards/
+ * 2026-09-02-ocular-visual-identity.html): cold precision, value-shift depth
+ * only, no shadow / gradient / texture.
+ *
+ * Round 4 expansion. The single-value border token (#232326) is retired in
+ * favour of a three-weight rule system: one border colour across a whole page
+ * reads as a framework default, three graded ones read as a drawn line
+ * system. Under a no-decoration doctrine the rules ARE the design, so they
+ * get the same care a shadow scale would get elsewhere.
+ *
+ * Text is likewise a closed ladder of four values plus one inactive. Nine
+ * improvised greys read as a mockup; four exact ones read as a system. The
+ * hero subhead moved from #86868c (5.4:1) to #a1a1a8 (7.8:1) — it is the
+ * second most important element on the page and was reading muddy.
+ */
+:root {
+  --surface-base: #09090b;
+  --surface-elevated: #121214;
+  --surface-raised: #1a1a1d;
+
+  --text-primary: #f4f4f2;
+  --text-secondary: #a1a1a8;
+  --text-tertiary: #86868c;
+  /* Fails AA for body copy by design — scoped to >=11px non-essential
+     metadata and decorative dim spans whose meaning survives without them. */
+  --text-quaternary: #6c6c72;
+  --text-inactive: #3a3a40;
+
+  /* Full-bleed band separators, nav underline, spec-strip rules. */
+  --rule-structural: #202024;
+  /* List-row dividers, panel-internal dividers, feature-row tops. */
+  --rule-divider: #17171a;
+  /* Registration ticks, divider hover, panel frame. */
+  --rule-mark: #2c2c31;
+
+  /* Primary. Silver, not violet: #8c7dff was the archetypal 2021-SaaS accent,
+     which is the generic tell the Instrument concept exists to avoid. The +7
+     blue offset (R=G, B=R+7) is the same one every other grey on this page
+     carries (#a1a1a8, #86868c, #6c6c72, #3a3a40) — a neutral silver would be
+     the single grey not in the family.
+
+     The objection to grey is that it has only lightness to spend on states.
+     That was measured and is false at this end of the scale: this ladder
+     spans 18.4 L*, where the violet it replaces spanned 11.3. The states are
+     a WIDER perceptual step than before, and every rung holds >=8.7:1
+     against the near-black pill label. */
+  --accent: #c7c7ce;
+  --accent-hover: #dedee4;
+  --accent-active: #ababb4;
+
+  /* The instrument signal — "this is being read" — as a closed two-value
+     ladder indexed by the ground it is drawn on, exactly like the rule and
+     text ladders. It is NOT two meanings: no element ever crosses grounds.
+     --signal is for our own near-black chrome; --signal-ink is for the light
+     specimen pages the demos now render inside.
+
+     Why not one value for both, which is possible: a single colour clearing
+     3:1 on #09090b and on #f2f2f4 lands near #189b8b, which gives the 10px
+     overlay labels only 3.08:1 on light — under AA for text, and these labels
+     ARE the payload — while halving the on-dark signal from 13.45:1 to
+     5.78:1. That is the difference between a scan line that reads as emissive
+     and one that reads as merely coloured.
+
+     Same hue at both weights (170.6deg / 173.1deg) so they read as one
+     colour. Renamed from --accent-glow: it is not a variant of the primary
+     and never was, and once the primary went silver the old name actively
+     misled. */
+  --signal: #5eead4;
+  --signal-ink: #0b6b60;
+
+  /* The only non-pill radius on the site. Mixed radii is the loudest
+     template tell available, so there are exactly two values. */
+  --radius: 6px;
+
+  /* One easing for the entire site, and two durations. Measured off
+     linear.app, which runs essentially everything on this single curve at
+     0.1s / 0.16s — the discipline is itself the premium signal, and a page
+     carrying a dozen easings reads cheap no matter how good each one is.
+     The readout sequence is the sole exception, and being the only exception
+     is what makes it read as signature rather than as more of the same. */
+  --ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --dur-fast: 100ms;
+  --dur: 160ms;
+
+  /* Below-fold vertical rhythm.
+     Rounds 5 and 6 both tuned this against a dev server whose Tailwind build
+     was stale: pt-sec-major was rendering as padding-top: 0, so the page under
+     review had NO section padding at all and the section eyebrow began exactly
+     at the boundary. That — not the token values — is what "the tiny mono
+     heading sits very close to the element above it" was describing. The
+     numbers reported in those rounds were computed, not observed. Restart the
+     dev server before judging any spacing change here.
+
+     Two structural changes survive that correction on their own merits.
+
+     ONE: sections get a tail again. Round 6 moved every boundary onto the next
+     section's padding-top, which is clean but leaves a section ending in a
+     heavy demo frame with no buffer of its own — and leaves three of the four
+     full-bleed chapter rules sitting at 0px clearance, touching the caption
+     above them. Terminal space belongs to the section that ENDS; attaching it
+     to the eyebrow instead would fix neither the rules nor the two sections
+     that have no eyebrow (FAQ, the bridge statement).
+
+     TWO: major/minor collapses to one gap. To stop a weightless 11px eyebrow
+     sticking to a demo slab, the minor boundary has to read at ~150px at 1440.
+     Hold the 2:1 this file used to specify and major becomes ~300px — worse
+     than the 272px already rejected as "a hole". Cap major at 200 and the pair
+     is 200:148, i.e. 1.35x, which is precisely the band this file already
+     identifies as the worst place to sit. No pair of values satisfies both
+     constraints, so air stops carrying the chapter distinction and the four
+     <BleedRule> hairlines carry it instead — a stronger signal that costs no
+     page height and finally gives those rules a job. */
+  --sec-tail: 48px;
+  --sec-gap: clamp(80px, 8.3vw, 120px);
+
+  /* Between component groups inside a section — header to demo, demo to its
+     trailing paragraph, pricing columns to their CTA. Near-constant by
+     design: it is the boundary between sections that should breathe with the
+     viewport, not the inside of one. */
+  --group: clamp(56px, 4.4vw, 64px);
+
+  /* The closed internal ladder. At 375px the page previously ran 12/20/28/32/
+     40/52 — six values inside a 40px range, which is why nothing at that width
+     grouped. Three exact values read as a system for the same reason four
+     exact greys do. */
+  --stack-1: 12px; /* inside one text unit */
+  --stack-2: 20px; /* the parts of one element; an element and its caption */
+  --stack-3: 32px; /* a rank change; a list row's own padding */
+
+  /* The site's second and final easing, scoped to the instrument loops.
+     --ease is symmetric and correct for a state flipping between two values;
+     a drawing stroke is a length ARRIVING and has to decelerate, or it reads
+     as a skeleton filling rather than an instrument acquiring — which is
+     exactly the note the founder gave on round 4. This curve was already in
+     capture-readout.tsx as an inline literal (twice), so naming it takes the
+     site from three curves to two rather than adding a third. Retraction
+     replays it with animation-direction: reverse; there is deliberately no
+     --ease-retract.
+
+     Renamed from --ease-draw when the hero stopped drawing its boxes and
+     started converging them onto their targets: an ease-out-cubic is still
+     exactly right for a value ARRIVING, but the old name described a
+     behaviour the site no longer has. */
+  --ease-acquire: cubic-bezier(0.33, 1, 0.68, 1);
+
+  --page-inset: clamp(24px, 5vw, 88px);
+
+  /* ------------------------------------------------------------------
+     APP LAYER — added when the dashboard came onto this system.
+
+     The marketing site has no errors, no destructive controls and no data,
+     so its token set was complete for a page and incomplete for a product.
+     Everything below is designed INSIDE the doctrine rather than imported
+     from a reference app: the test applied throughout was "is this a value
+     shift or a hue shift", because a tinted alert card is a hue shift and
+     the concept forbids it.
+     ------------------------------------------------------------------ */
+
+  /* The instrument's remaining two lamps. --signal (live) is the first.
+     Three lamps, closed, in DESCENDING contrast on --surface-base:
+
+       13.45 : 1   --signal    the instrument is live
+       10.79 : 1   --caution   attention; nothing is broken
+        7.18 : 1   --fault     something failed, or this control destroys data
+
+     Contrast descends deliberately. --fault is the only lamp that ever lands
+     on a control (Revoke), and a lamp brighter than the primary silver on a
+     control would out-shout every safe action on the page. Every rung clears
+     AA at 12px; the lowest clears AAA at 14px and up.
+
+     Hues are unmistakably apart from --signal's 170.6deg and from every grey
+     in the family: --fault sits at 8.8deg, --caution at 44deg. Neither is a
+     framework default -- Tailwind's stock red-400 (#f87171) is exactly the
+     template tell this system exists to avoid, and it is what the dashboard's
+     Revoke control used before this pass. */
+  --caution: #e8b84b;
+  --fault: #ee7a66;
+
+  /* Two rungs the site's closed 3-step stack ladder has no room for, and an
+     app cannot do without: nothing between 0 and 12px for a label sitting on
+     its value inside one readout, and nothing between 32px and --group's
+     56-64px for the gap between top-level blocks on a dashboard page.
+
+     --stack-4 is deliberately EQUAL to --sec-tail rather than a new number:
+     given the choice between a sixth value and a shared one, the ladder stays
+     closed. */
+  --stack-0: 6px; /* label to value inside one readout; field to its error */
+  --stack-4: 48px; /* between top-level blocks on an app page */
+
+  /* App layout. Denser than the marketing page on both axes: --page-inset's
+     24-88px and the 1240px text measure are tuned for prose that wants air,
+     and four status blocks in a 1240px column read as content that got lost
+     rather than as a panel. */
+  --app-inset: clamp(20px, 4vw, 48px);
+  --app-measure: 1080px;
+  --app-bar-h: 56px;
+
+  /* The allowance rail's slot geometry, as FIXED dimensions rather than the
+     site's flex-1.
+
+     Measured off a live render at 1440px, the site's rail slots are
+     18.15 x 10px = 1.82:1 -- a slot nearly twice as wide as it is tall stops
+     reading as a tick and starts reading as a dash, which is the founder's
+     "1.76:1" note. A naive port into the dashboard's narrower column is
+     WORSE, not better: (1032 - 39*3) / 40 = 22.9px per slot at 14px tall,
+     i.e. 1.64:1.
+
+     Fixing the slot and letting the row wrap makes the proportion independent
+     of both the container width and the cap: 40 slots is one row, 150 is
+     three. Wrapped rows read as a punch card, which is squarely in register. */
+  --rail-slot-w: 6px;
+  --rail-slot-h: 14px;
+  --rail-gap: 3px;
+  --rail-row-gap: 4px;
+  --rail-max: 636px;
+}
+
+/* A crisp 0.5px hairline reads sharper — and more expensive — than a 1px one.
+   The crispness is the tell. 1dppx displays keep the 1px fallback. */
+@media (min-resolution: 2dppx) {
+  .rule-hairline {
+    border-width: 0.5px;
+  }
+}
+
+/* One focus ring for the whole site, in the system's "instrument is reading
+   this" colour, so the signifier means the same thing everywhere it appears. */
+:where(a, button, [role='button'], input, select, textarea):focus-visible {
+  outline: 1px solid var(--signal);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,24 +1,14 @@
 import type { Config } from 'tailwindcss';
+import { ocularPreset } from '@ocular/design-tokens/preset';
 
-// Mirrors packages/website/tailwind.config.ts so the dashboard reads as the
-// same product, not a bolted-on separate app. Kept as its own file (not
-// imported cross-package) per docs/rules/02-repo-structure.md — website and
-// dashboard are separate deployables that never share runtime code.
+// The theme is the shared preset, not a hand-copied mirror of it. It used to
+// be the latter, and it drifted: #0A0A0B / #131315 / #1C1C1F / #F2F2F0 /
+// #8F8F94 against the site's #09090b / #121214 / #1a1a1d / #F4F4F2 / #A1A1A8.
+// Near-misses, every one -- close enough that nobody spotted them, far enough
+// that moving between the two surfaces in one session felt wrong without being
+// nameable. The violet accent and the teal "glow" went the same way; see
+// @ocular/design-tokens for what replaced them and why.
 export default {
+  presets: [ocularPreset],
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
-  theme: {
-    extend: {
-      colors: {
-        surface: { base: '#0A0A0B', elevated: '#131315', raised: '#1C1C1F' },
-        text: { primary: '#F2F2F0', secondary: '#8F8F94' },
-        border: { DEFAULT: '#2A2A2E' },
-        accent: { DEFAULT: '#8C7DFF', glow: '#5EEAD4' },
-      },
-      fontFamily: {
-        display: ['"Geist Sans"', '"General Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['"Geist Mono"', '"JetBrains Mono"', 'ui-monospace', 'monospace'],
-      },
-    },
-  },
-  plugins: [],
 } satisfies Config;

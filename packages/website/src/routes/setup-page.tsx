@@ -73,7 +73,7 @@ export function SetupPage() {
       <BleedRule />
 
       <section
-        className="py-sec-lg"
+        className="pb-sec-tail pt-sec"
         style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
       >
         <div className="mx-auto grid max-w-[1240px] grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-16">
@@ -126,7 +126,7 @@ export function SetupPage() {
       <BleedRule />
 
       <section
-        className="py-sec-lg"
+        className="pb-sec-tail pt-sec"
         style={{ paddingLeft: 'var(--page-inset)', paddingRight: 'var(--page-inset)' }}
       >
         <div className="mx-auto max-w-[1240px]">

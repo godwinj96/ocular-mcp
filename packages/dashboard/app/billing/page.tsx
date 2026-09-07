@@ -1,98 +1,178 @@
-import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import {
+  PLAN_PRICE_USD,
+  DAILY_CLOUD_QUOTA_BY_TIER,
+  tierOfPlanSlug,
+  cycleOfPlanSlug,
+} from '@ocular/shared';
 import { getCurrentAccount } from '../../lib/current-account';
 import { bachs, bachsClient } from '../../lib/bachs';
 import { RESUME_COOKIE, resumeConnectUrl } from '../../lib/connect-resume';
-import { PLAN_PRICE_USD, tierOfPlanSlug, type PlanCycle, type PlanTier } from '@ocular/shared';
+import { PageHeader } from '../../components/ui/page-header';
+import { Notice } from '../../components/ui/notice';
+import { KeyValues } from '../../components/ui/readouts';
+import { ButtonLink } from '../../components/ui/button';
+import { PlanChooser, type PlanOption } from './plan-chooser';
+import { formatMonthDay } from '../../lib/format';
 
-const PLAN_CARDS: Array<{ tier: PlanTier; label: string; blurb: string }> = [
-  { tier: 'basic', label: 'Basic', blurb: 'Unlimited local, 40 cloud renders/day, rungs 0-1.' },
+// Read on the SERVER and handed to the client component as plain data. The
+// chooser cannot import these itself: @ocular/shared's barrel reaches
+// node:crypto, which does not belong in a browser bundle.
+//
+// The reach lines carry no ladder vocabulary. What shipped here before was
+// "rungs 0-1" and "full stealth ladder" -- the first is raw internal jargon on
+// a purchase surface, and the second breaks CLAUDE.md's guardrail by implying
+// every site is reachable.
+const PLAN_OPTIONS: PlanOption[] = [
+  {
+    tier: 'basic',
+    label: 'Basic',
+    monthly: PLAN_PRICE_USD.basic_monthly,
+    annual: PLAN_PRICE_USD.basic_annual,
+    dailyWebCaptures: DAILY_CLOUD_QUOTA_BY_TIER.basic,
+    reach: 'Your dev server and the open web',
+  },
   {
     tier: 'pro',
     label: 'Pro',
-    blurb: 'Unlimited local, 150 cloud renders/day, full stealth ladder.',
+    monthly: PLAN_PRICE_USD.pro_monthly,
+    annual: PLAN_PRICE_USD.pro_annual,
+    dailyWebCaptures: DAILY_CLOUD_QUOTA_BY_TIER.pro,
+    reach: 'Plus sites that push back on automated visits',
   },
 ];
 
-export default async function BillingPage() {
+// The subscription status enum is a database value, not a sentence. The old
+// page rendered it raw with `capitalize`, so a user whose card had failed read
+// the word "Past_due" on their own billing page.
+const STATUS_COPY: Record<string, string> = {
+  active: 'Active',
+  past_due: "Payment didn't go through",
+  canceled: 'Cancelled',
+  none: '',
+};
+
+export default async function BillingPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const account = await getCurrentAccount();
+  const params = await searchParams;
 
   // First-run connect flow resuming after checkout. Bachs returns a paying
   // user here rather than to /connect, so without this hop the "one browser
-  // visit" promise would break at the moment they have just paid. Only
-  // resumes once the subscription is actually active, so a cancelled or
-  // still-processing checkout falls through to the normal billing page.
-  // See docs/design/first-run-auth-and-payment.md §4.2.
+  // visit" promise would break at the moment they have just paid.
   if (account.subscriptionStatus === 'active') {
     const pending = resumeConnectUrl((await cookies()).get(RESUME_COOKIE)?.value);
     if (pending) redirect(pending);
   }
 
-  // An active subscriber manages an existing plan (Bachs's own hosted
-  // portal — invoices, payment method, cancellation); anyone else picks a
-  // plan below and starts a new checkout from there.
   const isActive = account.subscriptionStatus === 'active' && account.bachsCustomerId;
   const portalSession = isActive
     ? await bachsClient.createPortalSession(account.bachsCustomerId!)
     : null;
-  const currentTier = tierOfPlanSlug(account.plan);
+
+  const tier = tierOfPlanSlug(account.plan);
+  const cycle = cycleOfPlanSlug(account.plan);
+  const resuming = Boolean((await cookies()).get(RESUME_COOKIE)?.value);
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16">
-      <Link href="/" className="text-sm text-text-secondary hover:text-text-primary">
-        ← Back
-      </Link>
-      <h1 className="mt-4 text-3xl font-bold text-text-primary">Billing</h1>
+    <>
+      <PageHeader eyebrow="Billing" title={isActive ? 'Plan and billing' : 'Pick a plan'} />
 
-      <div className="mt-8 rounded-xl border border-border bg-surface-elevated p-6">
-        <p className="text-sm text-text-secondary">Current plan</p>
-        <p className="mt-1 text-xl font-semibold text-text-primary">
-          {currentTier ? PLAN_CARDS.find((p) => p.tier === currentTier)?.label : 'No active plan'}
-        </p>
-        <p className="mt-1 text-sm text-text-secondary capitalize">{account.subscriptionStatus}</p>
-
-        {isActive && portalSession && (
-          <a
-            href={portalSession.url}
-            className="mt-6 inline-block rounded-full bg-accent px-6 py-3 font-semibold text-surface-base transition hover:brightness-110"
+      <div className="space-y-stack-3">
+        {/* The checkout route has always redirected here with this parameter
+            when Bachs can't be reached -- and this page never read it. A user
+            clicked a price, got bounced back to an identical screen, and was
+            told nothing, at the exact moment of payment intent. */}
+        {params.checkout === 'unavailable' && (
+          <Notice
+            tone="fault"
+            title="Checkout didn't start"
+            action={
+              <ButtonLink href="/billing" variant="secondary">
+                Try again
+              </ButtonLink>
+            }
           >
-            Manage billing
-          </a>
+            We couldn&apos;t reach the payment provider, and nothing was charged. Try again in a
+            minute — if it keeps failing, reply to your sign-in email and we&apos;ll sort it.
+          </Notice>
+        )}
+
+        {account.subscriptionStatus === 'past_due' && (
+          <Notice tone="caution" title="Payment didn't go through">
+            Update your card and Ocular picks up where it left off. Nothing has been deleted.
+          </Notice>
+        )}
+
+        {account.subscriptionStatus === 'canceled' && (
+          <Notice tone="fault" title="Subscription ended">
+            Ocular has stopped capturing on this account. Your keys are still here if you come back.
+          </Notice>
+        )}
+
+        {/* Replaces a dashed-border box -- the one border style that appears
+            nowhere else in the product -- which also told a user pushed here by
+            the connect flow that "no action is needed on your end" while
+            leaving them no way to finish. */}
+        {!bachs && (
+          <Notice tone="fault" title="Can't sign up right now">
+            Something is wrong on our end and checkout is unavailable. Nothing has been charged. Try
+            again shortly.
+          </Notice>
+        )}
+
+        {resuming && !isActive && (
+          <Notice tone="neutral" title="Finishing setup">
+            Pick a plan and you&apos;ll go straight back to connecting your machine — you won&apos;t
+            need to run the command again.
+          </Notice>
+        )}
+
+        {isActive && tier ? (
+          <section>
+            <h2 className="text-[20px] font-medium tracking-[-0.015em] text-text-primary">
+              {tier[0]!.toUpperCase()}
+              {tier.slice(1)} · {cycle === 'annual' ? 'Annual' : 'Monthly'}
+            </h2>
+
+            <KeyValues
+              className="mt-stack-2 max-w-[480px]"
+              rows={[
+                {
+                  key: 'price',
+                  value: `$${PLAN_PRICE_USD[account.plan as keyof typeof PLAN_PRICE_USD]?.toFixed(2)} ${
+                    cycle === 'annual' ? 'a year' : 'a month'
+                  }`,
+                },
+                {
+                  key: 'web allowance',
+                  value: `${DAILY_CLOUD_QUOTA_BY_TIER[tier]} a day`,
+                },
+                { key: 'your machine', value: 'unlimited' },
+                {
+                  key: 'renews',
+                  value: account.quotaResetAt ? formatMonthDay(account.quotaResetAt) : '—',
+                },
+                { key: 'status', value: STATUS_COPY[account.subscriptionStatus] ?? '—' },
+              ]}
+            />
+
+            {portalSession && (
+              <div className="mt-stack-3 flex flex-wrap items-center gap-4">
+                <ButtonLink href={portalSession.url} variant="primary">
+                  Manage billing
+                </ButtonLink>
+              </div>
+            )}
+          </section>
+        ) : (
+          bachs && <PlanChooser plans={PLAN_OPTIONS} currentTier={tier} />
         )}
       </div>
-
-      {!bachs && (
-        <div className="mt-6 rounded-lg border border-dashed border-border bg-surface-raised p-4">
-          <p className="text-sm text-text-secondary">
-            Billing isn't live yet — checkout will appear here once it's connected. No action needed
-            on your end.
-          </p>
-        </div>
-      )}
-
-      {bachs && !isActive && (
-        <div className="mt-8 grid gap-6 sm:grid-cols-2">
-          {PLAN_CARDS.map(({ tier, label, blurb }) => (
-            <div key={tier} className="rounded-xl border border-border bg-surface-elevated p-6">
-              <p className="text-lg font-semibold text-text-primary">{label}</p>
-              <p className="mt-1 text-sm text-text-secondary">{blurb}</p>
-              <div className="mt-4 flex flex-col gap-2">
-                {(['monthly', 'annual'] as PlanCycle[]).map((cycle) => (
-                  <a
-                    key={cycle}
-                    href={`/billing/checkout?tier=${tier}&cycle=${cycle}`}
-                    className="rounded-full border border-border px-5 py-2.5 text-center font-semibold text-text-primary transition hover:border-accent hover:text-accent"
-                  >
-                    ${PLAN_PRICE_USD[`${tier}_${cycle}`]}
-                    {cycle === 'monthly' ? '/mo' : '/yr'}
-                  </a>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </main>
+    </>
   );
 }

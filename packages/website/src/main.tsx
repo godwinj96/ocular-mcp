@@ -39,6 +39,7 @@ import '@fontsource/geist-mono/latin-400.css';
 import '@fontsource/geist-mono/latin-500.css';
 import '@fontsource/outfit/latin-400.css';
 import '@fontsource/outfit/latin-600.css';
+import '@ocular/design-tokens/tokens.css';
 import './styles/tokens.css';
 import './styles/specimen.css';
 

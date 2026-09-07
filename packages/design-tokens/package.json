@@ -1,0 +1,15 @@
+{
+  "name": "@ocular/design-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The Instrument design system: one canonical token file and one Tailwind preset, shared by every presentational package.",
+  "exports": {
+    "./tokens.css": "./tokens.css",
+    "./preset": "./tailwind-preset.ts"
+  },
+  "files": [
+    "tokens.css",
+    "tailwind-preset.ts"
+  ]
+}

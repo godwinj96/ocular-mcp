@@ -25,6 +25,8 @@ import {
 } from '@ocular/shared';
 import type { FailureEnvelope, ResultEnvelope, ToolName } from '@ocular/shared';
 import { resolveAccount } from '../auth/resolve-account.js';
+import { recordHeartbeat, recordWorkerConnected } from '../db/workers.js';
+import { heartbeatBodySchema } from './heartbeat-schema.js';
 import { config as appConfig } from '../config.js';
 import { getCachedEnvelope } from '../cache/redis-cache.js';
 import { checkAndReserveQuota } from '../quota/redis-quota.js';
@@ -283,6 +285,51 @@ export async function startMcpServer(config: McpServerConfig): Promise<McpServer
       return protectedResourceMetadata;
     });
   }
+
+  // Worker heartbeat. NOT an MCP tool, deliberately: every registered tool
+  // shows up in the calling agent's tool list, and `heartbeat` there would be
+  // noise an agent can neither use nor act on. The supervisor posts here with
+  // the same bearer credential it already holds.
+  //
+  // This is what makes "connected but idle" a real state rather than an
+  // inference. Before it existed the only signal was subscription revalidation,
+  // which is CAPTURE-driven -- so a worker sitting idle on a running laptop and
+  // one uninstalled last week were both simply silent, and the dashboard could
+  // not honestly tell a user their machine was ready.
+  //
+  // Body carries counts only. See db/workers.ts for the privacy boundary.
+  fastify.post('/worker/heartbeat', async (request, reply) => {
+    let auth;
+    try {
+      auth = await resolveAccount(request.headers.authorization);
+    } catch {
+      return reply.code(401).send({ ok: false, error: 'UNAUTHORIZED' });
+    }
+
+    const parsed = heartbeatBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ ok: false, error: 'INVALID_BODY' });
+    }
+
+    const { firstSeen } = await recordHeartbeat({
+      accountId: auth.accountId,
+      workerId: parsed.data.workerId,
+      label: parsed.data.label ?? null,
+      version: parsed.data.version ?? null,
+      platform: parsed.data.platform ?? null,
+      localCaptures: parsed.data.localCaptures,
+      cloudCaptures: parsed.data.cloudCaptures,
+    });
+
+    // One audit line the first time a machine ever reports, and never again --
+    // a heartbeat every few minutes would otherwise bury the activity log in
+    // the least interesting event it has.
+    if (firstSeen) {
+      await recordWorkerConnected(auth.accountId, parsed.data.label ?? null);
+    }
+
+    return reply.send({ ok: true });
+  });
 
   // The transport speaks directly to Node's raw IncomingMessage/ServerResponse
   // (it writes the SSE/JSON response itself), so this route hands off to it
