@@ -23,7 +23,7 @@ describe('SubscriptionValidator', () => {
     const validator = new SubscriptionValidator(check, fakeClock(0), REFRESH_MS, GRACE_MS);
 
     const result = await validator.isActive();
-    expect(result).toEqual({ active: true, fromOfflineGrace: false });
+    expect(result).toEqual({ active: true, fromOfflineGrace: false, reason: 'active' });
     expect(check).toHaveBeenCalledTimes(1);
   });
 
@@ -77,7 +77,7 @@ describe('SubscriptionValidator', () => {
     clock.advance(REFRESH_MS + 1000); // force a re-check attempt
     const result = await validator.isActive(); // network error this time
 
-    expect(result).toEqual({ active: true, fromOfflineGrace: true });
+    expect(result).toEqual({ active: true, fromOfflineGrace: true, reason: 'active' });
   });
 
   it('fails closed once the offline-grace window is exceeded — a developer on a plane loses local rendering, not gets it free forever', async () => {
@@ -100,7 +100,38 @@ describe('SubscriptionValidator', () => {
     const validator = new SubscriptionValidator(check, fakeClock(0), REFRESH_MS, GRACE_MS);
 
     const result = await validator.isActive();
-    expect(result).toEqual({ active: false, fromOfflineGrace: false });
+    // Fails closed, but reports WHY. Reported as 'inactive' this sends a paying
+    // user to their billing page looking for a fault that is not there -- the
+    // cloud server simply did not answer.
+    expect(result).toEqual({ active: false, fromOfflineGrace: false, reason: 'unreachable' });
+  });
+
+  it('distinguishes an unreachable server from a genuinely inactive subscription', async () => {
+    const unreachable = vi
+      .fn<[], Promise<CheckOutcome>>()
+      .mockResolvedValue({ kind: 'network_error' });
+    const declined = vi
+      .fn<[], Promise<CheckOutcome>>()
+      .mockResolvedValue({ kind: 'definitive', active: false });
+
+    const offline = await new SubscriptionValidator(
+      unreachable,
+      fakeClock(0),
+      REFRESH_MS,
+      GRACE_MS,
+    ).isActive();
+    const lapsed = await new SubscriptionValidator(
+      declined,
+      fakeClock(0),
+      REFRESH_MS,
+      GRACE_MS,
+    ).isActive();
+
+    // Both stop capture. They are not the same problem and must not read as one.
+    expect(offline.active).toBe(false);
+    expect(lapsed.active).toBe(false);
+    expect(offline.reason).toBe('unreachable');
+    expect(lapsed.reason).toBe('inactive');
   });
 
   it('a definitive inactive result overrides a previously-cached active grace state — no stale positive survives a real answer', async () => {
@@ -115,6 +146,6 @@ describe('SubscriptionValidator', () => {
     clock.advance(REFRESH_MS + 1000);
     const result = await validator.isActive();
 
-    expect(result).toEqual({ active: false, fromOfflineGrace: false });
+    expect(result).toEqual({ active: false, fromOfflineGrace: false, reason: 'inactive' });
   });
 });

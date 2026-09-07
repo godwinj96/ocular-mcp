@@ -19,6 +19,17 @@ export interface SubscriptionStatus {
   active: boolean;
   /** True when this result came from cache under the offline-grace window, not a fresh check. */
   fromOfflineGrace: boolean;
+  /**
+   * WHY the answer is what it is, so the caller can say something true.
+   *
+   * These two used to be indistinguishable to a caller, and the message it
+   * produced for both was "No active Ocular subscription". That is actively
+   * misleading in the `unreachable` case: it sends a paying user to check
+   * their billing when the real problem is that the cloud server could not be
+   * reached at all. Failing closed is correct; blaming the subscription for it
+   * is not.
+   */
+  reason: 'active' | 'inactive' | 'unreachable';
 }
 
 // Distinguishes "the server gave a definitive answer" (trust it, cache it,
@@ -55,14 +66,22 @@ export class SubscriptionValidator {
     const now = this.clock.now();
 
     if (this.cache && now - this.cache.checkedAt < this.refreshMs) {
-      return { active: this.cache.active, fromOfflineGrace: false };
+      return {
+        active: this.cache.active,
+        fromOfflineGrace: false,
+        reason: this.cache.active ? 'active' : 'inactive',
+      };
     }
 
     const outcome = await this.check();
 
     if (outcome.kind === 'definitive') {
       this.cache = { active: outcome.active, checkedAt: now, everConfirmed: true };
-      return { active: outcome.active, fromOfflineGrace: false };
+      return {
+        active: outcome.active,
+        fromOfflineGrace: false,
+        reason: outcome.active ? 'active' : 'inactive',
+      };
     }
 
     // Network error — fall back to a still-fresh cached result if one
@@ -72,11 +91,18 @@ export class SubscriptionValidator {
     // treated as active by default, which is exactly the "never a default
     // free tier" rule this file exists to uphold.
     if (this.cache?.everConfirmed && now - this.cache.checkedAt < this.graceMs) {
-      return { active: this.cache.active, fromOfflineGrace: true };
+      return {
+        active: this.cache.active,
+        fromOfflineGrace: true,
+        reason: this.cache.active ? 'active' : 'inactive',
+      };
     }
 
-    // No usable cache and the network is unreachable — fail closed.
-    return { active: false, fromOfflineGrace: false };
+    // No usable cache and the network is unreachable — fail closed, but say so
+    // honestly. This is the path a first run takes when the cloud server is
+    // down or unreachable, and calling it a subscription problem costs the user
+    // a trip through their billing page looking for a fault that isn't there.
+    return { active: false, fromOfflineGrace: false, reason: 'unreachable' };
   }
 }
 

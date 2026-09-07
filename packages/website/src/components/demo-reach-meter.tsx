@@ -92,19 +92,38 @@ export function DemoReachMeter() {
               <p className="w-[280px] shrink-0 truncate font-mono text-[13px] leading-none tracking-[0.01em] text-text-primary">
                 https://stripe.com/pricing
               </p>
-              <div className="flex min-w-0 flex-1 items-center gap-[3px]">
+              {/* FIXED slots that wrap, not flex-1.
+                  Dividing the track by the slot count makes the proportion a
+                  function of the container: measured at 1440px these rendered
+                  18.15 x 10px = 1.82:1, which is the founder's note that the
+                  rail reads wrong. A slot nearly twice as wide as it is tall
+                  stops reading as a tick and starts reading as a dash, and a
+                  row of dashes reads as a dashed line rather than as something
+                  countable -- which is the whole job of this row.
+
+                  At 6 x 14 (0.43:1) the shape no longer depends on the
+                  container or the cap, and the row wraps instead of stretching.
+                  Only the geometry changes: slot-fill animates
+                  background-color and nothing else, so the sequence is
+                  untouched. */}
+              <div
+                className="flex min-w-0 flex-1 flex-wrap content-center items-center"
+                style={{ gap: 'var(--rail-row-gap) var(--rail-gap)' }}
+              >
                 {Array.from({ length: BASIC_QUOTA }, (_, i) => (
                   <span
                     key={i}
-                    className="h-[10px] min-w-[2px] flex-1 bg-text-inactive"
-                    style={
-                      i < CLOUD_USED
+                    className="bg-text-inactive"
+                    style={{
+                      width: 'var(--rail-slot-w)',
+                      height: 'var(--rail-slot-h)',
+                      ...(i < CLOUD_USED
                         ? {
                             animation: `slot-fill ${CLOUD_CYCLE_MS}ms linear infinite`,
                             animationDelay: `${i * CLOUD_STAGGER_MS}ms`,
                           }
-                        : undefined
-                    }
+                        : {}),
+                    }}
                   />
                 ))}
               </div>

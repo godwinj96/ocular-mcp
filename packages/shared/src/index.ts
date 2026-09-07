@@ -12,5 +12,6 @@ export * from './schemas/view-page.schema.js';
 export * from './schemas/inspect-ui.schema.js';
 export * from './schemas/extract-assets.schema.js';
 export * from './schemas/get-quota.schema.js';
+export * from './schemas/get-tree.schema.js';
 export * from './schemas/a11y-tree.schema.js';
 export * from './schemas/motion-capture.schema.js';

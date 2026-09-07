@@ -2,7 +2,7 @@
 
 **Status:** ✅ Locked — 2026-07-11. Source of truth for `packages/website` and any future brand-touching surface (dashboard, docs, social).
 
-> **🟡 Needs review (flagged 2026-09-01, not yet actioned):** `docs/Ocular_PRD_v0.2.md` §8 calls for a positioning shift to "local-led, cloud as amplifier" ("sees your dev server _and_ the live web") now that a local worker exists alongside the cloud path this document was written against. This document predates that pivot and has not been re-read end-to-end against the new positioning — someone who owns brand voice should confirm whether the JTBD framing, visual system, and messaging in this doc still hold, or need a revision pass, before `packages/website`'s copy (Phase 9 of the local-worker implementation plan) is finalized. Not rewritten here on purpose — this is a brand-voice call, not a mechanical doc sync.
+> **🟡 Partially actioned (updated 2026-09-07). Read this before trusting any number below.** Two things have moved since this document was written against the cloud-only product. **Positioning:** PRD v0.2 § 8's shift to "local-led, cloud as amplifier" is no longer pending — `packages/website` was rewritten to it in Session 25 and has been through eight review rounds since, so the SITE is current even though this document's framing is not. **Pricing:** every `$1/mo` in this file is wrong; the price is **$2.50/mo** (`PLAN_PRICE_USD.basic_monthly` in `packages/shared/src/plans.ts`), and the monthly render quota it describes was replaced by unlimited local capture plus a DAILY cloud allowance. Those figures are corrected inline below as of this date. **What genuinely still needs an owner:** whether the JTBD framing and messaging pillars here still hold under local-led positioning. That is a brand-voice call and is deliberately not made here.
 
 **Method note:** This document applies frameworks from two Cursor-native knowledge bases the founder pointed at directly — `~/.cursor/product-intelligence/docs/` (Jobs-to-be-Done, Fogg Behavior Model, Octalysis, Self-Determination Theory, Prospect Theory, Goal Gradient, Hooked Model, design ethics) and `~/.cursor/ui-design-intelligence/docs/` (Müller-Brockmann grid doctrine, Bringhurst typography, Refactoring UI craft, emotional design, WCAG, and teardowns of Apple/Linear/Vercel/Stripe/Arc marketing and dashboard surfaces). These are Cursor agent-persona definitions, not natively invocable as Claude Code subagents — their documented frameworks and cited KB entries are applied directly throughout this document rather than through a subagent call, and cited inline so the reasoning is traceable back to source.
 
@@ -29,14 +29,14 @@ What transfers directly to a single-visit marketing page:
 
 **Emotional job:** Relief from owning fragile infra; confidence it will just work; the specific, slightly uncanny satisfaction of watching an agent that couldn't see suddenly see.
 
-**Social job:** Being the developer who found the effortless, absurdly cheap way to do this — "$1/mo and my agent has real eyes" is a legitimately shareable line.
+**Social job:** Being the developer who found the effortless, absurdly cheap way to do this — "$2.50 and my agent has real eyes" is a legitimately shareable line.
 
 ### Forces of Progress
 
 | Force   | What it looks like for Ocular                                                                                                | Product/page lever                             |
 | ------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
 | Push    | Rolling your own Playwright + proxy + screenshot pipeline is fragile, expensive, and constantly breaks against bot detection | Name the pain directly in "Why it's reliable"  |
-| Pull    | One MCP connection, real stealth, flat $1/mo                                                                                 | Hero value prop + how-it-works                 |
+| Pull    | One MCP connection, real stealth, flat $2.50/mo                                                                              | Hero value prop + how-it-works                 |
 | Anxiety | "Will it actually get past bot detection? Is it secure? Will the bill balloon?"                                              | FAQ answers these directly, doesn't dodge them |
 | Habit   | Either hand-rolled scripts, or not doing agent web-vision at all yet                                                         | Low-friction connect flow (Fogg Ability)       |
 
@@ -44,7 +44,7 @@ What transfers directly to a single-visit marketing page:
 
 ### Positioning statement
 
-> Ocular gives AI agents real eyes on the web — enterprise-grade stealth browsing, for $1 a month. No infrastructure to run, no blocks to fight. Connect once; your agent sees everything a human would.
+> Ocular gives AI agents real eyes on the web — your own dev server and the open web, for $2.50 a month. No infrastructure to run, no blocks to fight. Connect once; your agent sees everything a human would.
 
 ---
 
@@ -64,7 +64,7 @@ Confident, precise, restrained — closer to the Linear/Vercel/Stripe marketing 
 
 - No "happy talk," no filler adjectives, short declarative sentences (Krug, `design-principles/usability-clarity.md`).
 - Real em dashes (—) and en dashes (–), curly quotes (" " ' '), never `--` or straight ASCII quotes in shipped copy (Bringhurst, `books/elements-of-typographic-style.md` §6).
-- Claims are specific and checkable (300 renders/mo, $1/mo, 4 tools, charge-on-success) rather than vague superlatives ("blazing fast," "revolutionary").
+- Claims are specific and checkable (unlimited local capture, a daily cloud allowance, $2.50/mo, 5 tools) rather than vague superlatives ("blazing fast," "revolutionary").
 
 ---
 
@@ -76,7 +76,7 @@ Single long-scroll page. Section order follows Fogg B=MAP (ability-first — red
 2. **Hero** — positioning statement + the signature scan-line reveal animation (§6) + primary CTA. The epic-meaning moment.
 3. **How it works** — one tile per real tool: `view_page`, `inspect_ui`, `extract_assets`, `get_quota` (exact names and behavior from `packages/shared/src/schemas/`, not invented).
 4. **Why it's reliable** — the stealth-ladder story: proxy/stealth escalation exists because modern sites detect and block naive automation. Names the Push force directly.
-5. **Pricing** — `$1/mo`, 300 renders/month, full charge only on a clean render, half-charge if every stealth escalation is exhausted and it still fails, nothing charged on error. (Real values: `MONTHLY_QUOTA=300`, `SUCCESS_CHARGE=1.0`, `EXHAUSTED_FAILURE_CHARGE=0.5` in `packages/shared/src/constants.ts`.) ⚠️ **Stale (2026-09-01):** these are the pre-pivot cloud-only figures. PRD v0.2 splits pricing into local (unlimited, subscription-gated) + cloud (daily cap, not monthly; tiered pricing) — see `docs/rules/11-billing-and-quota.md` §0/§0a/§0b. Covered by this doc's top-of-file needs-review flag; don't treat this bullet's numbers as current.
+5. **Pricing** — `$2.50/mo`, unlimited capture on the user's own machine, plus a daily cloud allowance (40/day on Basic, 150/day on Pro). Real values: `PLAN_PRICE_USD` and `DAILY_CLOUD_QUOTA_BY_TIER` in `packages/shared/src/plans.ts`. _Corrected 2026-09-07._ The figures this bullet used to carry — `$1/mo`, 300 renders/month, and the charge-on-success / half-charge-on-exhausted split — were the pre-pivot cloud-only model, where every render cost real money. Local capture has no marginal cost, so there is nothing to charge per render and the whole charge-policy framing stopped applying to the path most users are on. See `docs/rules/11-billing-and-quota.md` §0/§0a/§0b.
 6. **FAQ** — answers the Anxiety force directly: security posture, what happens when a site blocks the request, cost predictability.
 7. **CTA strip + footer** — one action per viewport (Stripe teardown rule).
 
@@ -106,7 +106,7 @@ Contrast for every text/surface pairing verified against WCAG AA (4.5:1 body, 3:
 ### 6.2 Typography — counterpoint pairing (Bringhurst, `ui-patterns/typeface-pairing-ui.md`)
 
 - **Display/UI sans:** Geist Sans (or General Sans as fallback) — geometric rounded sans matching the logo's letterforms. Used for headings and all UI chrome. Max two families total (Bringhurst §3.3).
-- **Monospace:** Geist Mono (or JetBrains Mono) — reserved for tool names (`view_page`, `inspect_ui`, `extract_assets`, `get_quota`), the price (`$1/mo`), and quota figures. Tabular figures for anything numeric (Bringhurst §7.2 — tabular lining figures for tables/stats, never proportional).
+- **Monospace:** Geist Mono (or JetBrains Mono) — reserved for tool names (`view_page`, `inspect_ui`, `extract_assets`, `get_quota`), the price (`$2.50/mo`), and quota figures. Tabular figures for anything numeric (Bringhurst §7.2 — tabular lining figures for tables/stats, never proportional).
 - Body measure ≤75 characters, line-height 1.5 (Bringhurst §2.1–2.2).
 
 ### 6.3 Layout — modular bento grid (Müller-Brockmann, `books/grid-systems-in-graphic-design.md`)

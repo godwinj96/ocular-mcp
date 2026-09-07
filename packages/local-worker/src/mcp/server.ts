@@ -29,6 +29,8 @@ import {
   inspectUiInputSchema,
   motionCaptureInputSchema,
   viewPageInputSchema,
+  getTreeInputSchema,
+  type GetTreeInput,
   JOB_DEADLINE_MS,
 } from '@ocular/shared';
 import type {
@@ -45,7 +47,7 @@ import { SubscriptionValidator, createCloudSubscriptionCheck } from '../subscrip
 import type { SupervisorClient } from '../supervisor/client.js';
 import { getBrowserSession } from '../browser/session.js';
 import { encodeScreenshot } from '../image/pipeline.js';
-import { extractA11yTree } from '../extractors/a11y-tree.js';
+import { extractA11yTree, extractFullA11yTree } from '../extractors/a11y-tree.js';
 import { extractAssets } from '../extractors/assets.js';
 import { extractDesignTokens } from '../extractors/design-tokens.js';
 import { captureMotion } from '../extractors/motion-capture.js';
@@ -214,6 +216,22 @@ async function renderLocally(
       };
     }
 
+    if (toolName === 'get_tree') {
+      // No image, deliberately. This answers a structural question, and a
+      // caller reaching for it already has the screenshot -- returning a second
+      // copy would spend its budget twice for nothing.
+      const input = args as unknown as GetTreeInput;
+      const tree = await extractFullA11yTree(page, {
+        fromY: input.from_y,
+        limit: input.limit,
+      });
+      return {
+        ok: true,
+        meta: { requestId: '', rungReached: 0, durationMs: Date.now() - startedAt },
+        a11yTree: tree,
+      };
+    }
+
     if (toolName === 'inspect_ui') {
       const tokens = await extractDesignTokens(page);
       return { ok: true, meta: { requestId: '', rungReached: 0, durationMs: 0 }, data: tokens };
@@ -264,6 +282,20 @@ async function handleCaptureTool(
   }
 
   if (decision.route === 'cloud') {
+    // get_tree is local-only for now. The cloud mcp-server has not been given
+    // the tool yet, so forwarding would surface as an opaque "unknown tool"
+    // from a server the user cannot see. Saying so plainly is better than a
+    // protocol error, and it names the workaround.
+    if (toolName === 'get_tree') {
+      return toCallToolResult(
+        failureEnvelope(
+          'RENDER_ERROR',
+          'get_tree currently works for pages on this machine only. For a page on the open web, ' +
+            'view_page returns the visible elements plus an outline of what lies below the fold.',
+        ),
+      );
+    }
+
     // Cloud captures are metered server-side by the quota system; this count is
     // for the dashboard's local/web split, not for enforcement.
     const result = await forwardToCloud(toolName, args);
@@ -278,11 +310,27 @@ async function handleCaptureTool(
     deps.subscriptionValidator ?? new SubscriptionValidator(createCloudSubscriptionCheck());
   const status = await validator.isActive();
   if (!status.active) {
+    // Two very different failures, and they used to print the same sentence.
+    // "unreachable" means we never got an answer -- the cloud server is down,
+    // unreachable, or not running at the configured address. Reporting that as
+    // a subscription problem sends a paying user to their billing page hunting
+    // for a fault that is not there.
     return toCallToolResult(
-      failureEnvelope(
-        'UNAUTHORIZED',
-        'No active Ocular subscription — local rendering requires one.',
-      ),
+      status.reason === 'unreachable'
+        ? failureEnvelope(
+            // UPSTREAM_5XX, not a new code: the error set in @ocular/shared is
+            // closed by contract and widening it requires updating
+            // docs/rules/09 and /03 in the same change. "Our upstream did not
+            // answer" is what this is.
+            'UPSTREAM_5XX',
+            "Couldn't reach Ocular to check this machine's subscription, so capture is paused. " +
+              'This is a connection problem, not a billing one — your subscription has not been ' +
+              'checked, let alone found wanting.',
+          )
+        : failureEnvelope(
+            'UNAUTHORIZED',
+            'No active Ocular subscription — local rendering requires one.',
+          ),
     );
   }
 
@@ -338,6 +386,17 @@ function registerTools(mcpServer: McpServer, deps: LocalMcpServerDeps): void {
     async (args) => handleCaptureTool('view_page', args, deps),
   );
 
+  mcpServer.registerTool(
+    'get_tree',
+    {
+      description:
+        'Read the full element tree of a page, including everything below the fold. ' +
+        'view_page returns the visible part plus an outline of what lies past it; ' +
+        'use this when that outline says there is more worth reading.',
+      inputSchema: getTreeInputSchema.shape,
+    },
+    async (args) => handleCaptureTool('get_tree', args, deps),
+  );
   mcpServer.registerTool(
     'inspect_ui',
     {
