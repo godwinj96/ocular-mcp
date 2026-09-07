@@ -67,6 +67,30 @@ Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M
 
 ## Session log
 
+### 2026-09-07 — Session 35 continued: og-image.png exists now
+
+Last item off the Session 34 engineering-debt list. `index.html`'s `og:image`/`twitter:image` have
+pointed at `/og-image.png` since the copy shipped; the file never existed, so every social card the
+site produces has been broken.
+
+`scripts/gen-og-image.mjs` (same directory and convention as `scripts/gen-favicons.mjs`): a 1200×630
+card, `--surface-base` (`#09090b`) ground, the wordmark rendered in `--accent` (`#c7c7ce`, the same
+silver `nav.tsx` already wraps it in on the live site) — the six glyph paths extracted straight out
+of `src/components/wordmark.tsx` by regex, with a hard `throw` if the count isn't exactly 6, so a
+future edit to that file can't silently produce a corrupted card.
+
+**Deliberately no headline text drawn into the image**, and this was a real decision, not a
+shortcut: `sharp` rasterises via librsvg, which has no access to the self-hosted Geist Sans this
+project ships (it reaches a browser through `@fontsource`'s CSS, never installed as a system font
+on whatever machine runs this script) — text would have silently fallen back to a generic system
+sans, which is exactly the kind of broken-in-a-different-way result this task exists to fix. Every
+platform that reads `og:image` already renders `og:title`/`og:description` as real text next to the
+image using its own font, so the image's actual job — being recognisably Ocular's — doesn't need
+the headline duplicated as pixels.
+
+Verified: real `npm run build` for `packages/website`, confirmed `og-image.png` (16KB) lands in
+`dist/`, and read the rendered PNG back to eyeball it before calling this done.
+
 ### 2026-09-07 — Session 35 continued: §4, why navigation was actually slow
 
 Picked up the founder's nav-speed complaint. The brief said to measure before concluding anything,
@@ -759,8 +783,9 @@ surfaces read the same data.
   `packages/shared/src/schemas/a11y-tree.schema.ts`. **`docs/rules/03-shared-contracts.md` §1**
   turned out to need no fix — checked, and that section has never mentioned the a11y tree; this
   specific claim in the brief was simply inaccurate.
-- ⬜ **`og-image.png` does not exist.** Every social card the site produces is a broken image. Needs an
-  image designed, not a path change. **Still open.**
+- ✅ **`og-image.png` does not exist — done in Session 35.** `scripts/gen-og-image.mjs` generates a
+  1200×630 brand card (wordmark on `--surface-base`, deliberately text-free — see that session's log
+  entry for why). Verified in a real `packages/website` build.
 - **The `ocular` MCP server in a running session serves the build it started with.** Source changes
   to `packages/local-worker` are not live until it is rebuilt and the MCP connection restarted. Worth
   knowing before trying to verify any local-worker change through the tool itself.
