@@ -43,7 +43,7 @@ export function BridgeStatement() {
         <div className="mx-auto max-w-[1240px]">
           <p className="max-w-[28ch] text-[clamp(1.75rem,1rem+2.9vw,3rem)] leading-[1.08] tracking-[-0.022em] [text-wrap:balance]">
             <span className="block font-medium text-text-quaternary">
-              One line to set up. No cold start.
+              One line to set up. Nothing to wait for.
             </span>
             <span className="block font-semibold text-text-primary">
               Your dev server and the open web, from the same connection.

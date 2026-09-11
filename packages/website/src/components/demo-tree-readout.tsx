@@ -77,8 +77,8 @@ export function DemoTreeReadout() {
       <div className="mx-auto max-w-[1240px]">
         <SectionHeader
           eyebrow="The capture"
-          heading="Two readings of the same frame"
-          deck="Every capture comes back twice: the rendered pixels, and the element tree behind them — annotated with what's in view, what's below the fold, and where each thing sits."
+          heading="Two readings of the same page"
+          deck="Every capture comes back twice. You get a picture of the page, and a list of everything on it — what you can see, what's scrolled out of view, and exactly where each thing sits."
         />
       </div>
 

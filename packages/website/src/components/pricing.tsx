@@ -54,7 +54,7 @@ export function Pricing() {
           <SectionHeader
             eyebrow="Pricing"
             heading="From $2.50 a month"
-            deck="Your own dev server is unmetered on every plan: it's your machine doing the work, so there's nothing for us to meter. The daily allowance is for the open web, where each render costs a real amount of money."
+            deck="Your own dev server is unmetered on every plan. It's your machine doing the work, so there's nothing for us to meter. The daily allowance is for the open web, where each capture costs us a real amount of money."
           />
 
           <div className="mt-group grid grid-cols-1 gap-12 md:grid-cols-2 md:gap-0">
@@ -101,13 +101,13 @@ export function Pricing() {
           {/* The charge policy, stated plainly. Matches
               docs/rules/11-billing-and-quota.md §1 exactly. */}
           <p className="mt-group font-mono text-[11.5px] leading-[1.7] tracking-[0.02em] text-text-quaternary">
-            A clean render costs one request. A render that comes back empty after every approach
-            has been tried costs half. An error costs nothing.
+            A successful capture costs one request. One that comes back empty, after Ocular has
+            tried everything, costs half. An error costs nothing.
           </p>
           <p className="mt-stack-3 max-w-[64ch] text-[15px] leading-[1.6] text-text-tertiary [text-wrap:pretty]">
-            Basic clears most of the open web, not all of it. If your work is mostly against sites
-            with serious bot defences, that&rsquo;s what Pro is for. And if it&rsquo;s mostly your
-            own dev server, Basic&rsquo;s cap will never come up.
+            Basic clears most of the open web, not all of it. If you mostly work against sites that
+            work hard to keep automated browsers out, that&rsquo;s what Pro is for. And if
+            it&rsquo;s mostly your own dev server, Basic&rsquo;s cap will never come up.
           </p>
         </div>
       </section>

@@ -63,7 +63,7 @@ const LOOP = [
   {
     n: '→',
     label: 'Your agent decides when to look',
-    body: "You don't call a tool and you don't paste a screenshot. You describe what you're building, and your agent calls Ocular when it needs to see the result.",
+    body: "You don't call a tool and you don't paste a screenshot. You just describe what you're building. Your agent calls Ocular on its own, whenever it needs to see the result.",
   },
   {
     n: '→',
@@ -111,8 +111,8 @@ export function HowItWorks() {
           heading="Two steps, then it's automatic"
           deck={
             <>
-              One line in your config and one sign-in. After that <BrandName /> comes up with every
-              session, your agent looks whenever it needs to, and you never touch it again.
+              One line in your config and one sign-in. After that, <BrandName /> comes up with every
+              session. Your agent looks whenever it needs to. You never touch it again.
             </>
           }
         />

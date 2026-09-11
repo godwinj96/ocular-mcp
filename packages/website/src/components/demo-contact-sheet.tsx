@@ -58,7 +58,7 @@ export function DemoContactSheet() {
         <SectionHeader
           eyebrow="Motion"
           heading="Your agent sees it move"
-          deck="Animation, transitions, and scroll-driven UI come back as a sheet of frames. The whole sequence in a single image, so your agent can see the motion without paying for a video."
+          deck="Animations, transitions, anything that moves when you scroll — they all come back as a strip of still pictures in one image. Your agent can see the whole sequence without needing video."
         />
       </div>
 

@@ -88,10 +88,10 @@ export function DemoBoundary() {
             and CLAUDE.md forbids the claim it would otherwise invite. */}
         <p className="mt-group max-w-[66ch] text-[15px] leading-[1.6] text-text-tertiary [text-wrap:pretty]">
           What that removes is the risk of your agent doing something on a page. Read-only
-          doesn&rsquo;t make the page&rsquo;s contents safe: whatever Ocular captures lands in your
-          agent&rsquo;s context, same as anything else it reads from the web, and a page can carry
-          text written to steer an agent that reads it. Read-only is a real guarantee about actions,
-          and only about actions.
+          doesn&rsquo;t make the page itself safe to read. Whatever Ocular captures still becomes
+          part of what your agent sees — the same as anything else it reads from the web. And a page
+          can contain text written to trick an agent that reads it. Read-only is a real promise
+          about actions. It isn&rsquo;t a promise about the words on a page.
         </p>
       </div>
     </section>

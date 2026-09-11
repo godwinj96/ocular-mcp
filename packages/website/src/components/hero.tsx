@@ -89,9 +89,9 @@ export function Hero() {
                 nor the Tailwind config, at 6.12:1 where the token it should
                 have been using is 7.75:1. */}
             <p className="max-w-[52ch] font-brand text-[16px] font-normal leading-[1.55] tracking-[-0.005em] text-text-secondary [text-wrap:pretty]">
-              So it guesses at layout, can&rsquo;t tell whether the canvas ever painted, and asks
-              you whether it looks right. <BrandName /> gives it sight — starting with your dev
-              server.
+              So it guesses at layout. It can&rsquo;t tell whether anything actually showed up on
+              the screen. And it asks you whether it looks right. <BrandName /> gives it sight —
+              starting with your dev server.
             </p>
             <p className="shrink-0 font-mono text-[11.5px] leading-none tracking-[0.02em] text-text-quaternary">
               from $2.50/mo · unmetered on localhost · cancel any time

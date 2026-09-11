@@ -55,7 +55,7 @@ export function DemoReachMeter() {
           <SectionHeader
             eyebrow="Two paths"
             heading="Both, from one connection"
-            deck="Your dev server renders on your machine and isn't metered. Public pages go out through Ocular against a daily allowance you can see. Your agent doesn't have to know in advance which one it will need, and a public page rendered recently comes straight back."
+            deck="Your own dev server runs on your machine, so there's no daily limit on it. Pages on the open web use a daily allowance you can see. Your agent doesn't need to know which one it's about to use. A page captured recently comes straight back."
           />
         </div>
 
@@ -138,8 +138,9 @@ export function DemoReachMeter() {
               reader forms the expectation rather than buried in the FAQ. */}
           <p className="mt-group max-w-[66ch] text-[15px] leading-[1.6] text-text-tertiary [text-wrap:pretty]">
             Most of the open web comes back fine. Some sites work hard to keep automated browsers
-            out, and against those a request can still fail. When it does you get a clear failure
-            with a reason rather than a hang, and the allowance isn&rsquo;t spent on nothing.
+            out, and a request against one of those can still fail. When it does, you get a clear
+            failure with a reason instead of a hang — and it costs half as much as a normal request,
+            not the full amount.
           </p>
         </div>
       </section>

@@ -17,10 +17,11 @@ const FAQS: { q: string; a: ReactNode }[] = [
     q: 'Does it slow my agent down?',
     a: (
       <>
-        <BrandName /> comes up when your agent connects, not when it first asks to look, so the wait
-        people usually associate with this is spent before you notice it. A capture of your own dev
-        server after that is a local render with no network round trip. Open-web captures take as
-        long as the site takes to load.
+        <BrandName /> starts up the moment your agent connects, not when it first asks to look. So
+        the slow first-time wait people worry about happens before you&rsquo;d ever notice it. After
+        that, capturing your own dev server happens right on your machine — nothing has to travel
+        over the internet. Capturing a page on the open web takes as long as that page takes to
+        load.
       </>
     ),
   },
@@ -36,7 +37,7 @@ const FAQS: { q: string; a: ReactNode }[] = [
     // one, and the population it disqualifies is small: per PRD 8.2, "most DIY
     // setups never finish or maintain past first-working-version."
     q: 'I already have something that takes screenshots. What does this add?',
-    a: 'Reach, and not thinking about it. The same connection covers your dev server and pages on the open web, so your agent never has to hand the job back to you because the target was on the wrong side of a line. It comes up with the session rather than on the call that needs it, and it sits at ten-odd megabytes when nothing is happening. If what you have does all of that and you haven’t touched it in six months, you don’t need this.',
+    a: 'Reach, and not thinking about it. The same connection covers your dev server and pages on the open web. Your agent never has to hand the job back to you because the target was on the wrong side of a line. It comes up with the session rather than on the call that needs it, and it sits at ten-odd megabytes when nothing is happening. If what you have does all of that and you haven’t touched it in six months, you don’t need this.',
   },
   {
     q: 'Which clients does it work with?',
@@ -44,19 +45,19 @@ const FAQS: { q: string; a: ReactNode }[] = [
   },
   {
     q: "What happens when a site can't be reached?",
-    a: 'You get a failure with a reason: the site blocked automated access, or the site itself was down. Those are different problems, and your agent is told which one it hit, so it can decide whether retrying is worth anything. It never hangs, and it never quietly returns a blank page as if it worked. Your own dev server doesn’t fail this way; nothing there is trying to block you.',
+    a: 'You get a failure with a reason: the site blocked automated access, or the site itself was down. Those are different problems. Ocular tells your agent which one it hit, so your agent can decide whether retrying is worth anything. It never hangs, and it never quietly returns a blank page as if it worked. Your own dev server doesn’t fail this way. Nothing there is trying to block you.',
   },
   {
     q: 'Is this safe?',
-    a: 'Ocular cannot act on your browser — there is no click, type, or navigate to be triggered, by you or by a page. That is a real guarantee and it is the one worth making. Here is what it isn’t: captured page content enters your agent’s context, and a page can contain text written to steer an agent that reads it. That risk is the same as with any tool that reads the web, and read-only doesn’t touch it.',
+    a: 'Ocular cannot act on your browser. Neither you nor a page it looks at can make it click, type, or navigate. That is a real promise, and it is the one worth making. Here is what it isn’t: whatever Ocular captures still reaches your agent, the same as anything else pulled from the web. And a page can contain text written to trick an agent that reads it. That risk exists with any tool that reads the web. Read-only doesn’t remove it.',
   },
   {
     q: 'Is something running on my machine all the time?',
-    a: 'Yes, and it is meant to be dull. Ten to fifteen megabytes, no window, no dock icon. It starts a browser when your agent connects and shuts that browser down after about half an hour of nothing happening, so the part sitting there between sessions is the small part. It listens on loopback only, so you won’t see a firewall prompt. You will find it in Activity Monitor if you go looking; that’s the honest answer, and it’s why the idle number is the one worth quoting.',
+    a: 'Yes, and it is meant to be dull. Ten to fifteen megabytes, no window, no dock icon. The moment your agent connects, it starts a browser. After about half an hour of nothing happening, that browser shuts down, so what’s left sitting there between sessions is small. It only accepts connections from your own computer, never from outside, so you won’t see a firewall prompt. You will find it in Activity Monitor if you go looking. That’s the honest answer, and it’s why the idle number is the one worth quoting.',
   },
   {
     q: 'What about pages I have to be logged into?',
-    a: 'On your own machine, that’s coming: you sign into a site once, in Ocular’s own browser profile, and the session stays on your device. Ocular never receives a password and never stores a credential. On the open web Ocular doesn’t do this, and it isn’t planned. Moving someone’s session off the device it was created on is a permanently worse idea, and browsers are actively killing it anyway.',
+    a: 'On your own machine, that’s coming. You’ll sign into a site once, in Ocular’s own browser profile, and the session stays on your device. Ocular never receives a password and never stores a credential. On the open web, Ocular doesn’t do this, and it isn’t planned. Moving a session off the device where it was created is always a worse idea, not a temporary one — and browsers are already shutting that door anyway.',
   },
   {
     q: 'Who built this?',

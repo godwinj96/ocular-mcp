@@ -40,11 +40,11 @@ import { SectionHeader } from './section-header.js';
 const CASES = [
   {
     label: 'Canvas, WebGL, and anything drawn instead of marked up',
-    body: 'A chart, a 3D scene, a map, a game view. The element tree can tell your agent that a canvas is there and nothing at all about what it drew. There is no structure to read, only something to look at.',
+    body: "A chart, a 3D scene, a map, a game view. The element tree can tell your agent a canvas is there. It can't tell your agent anything about what the canvas drew. There is no structure to read, only something to look at.",
   },
   {
     label: "A component that compiles but doesn't render",
-    body: 'The build is green, the test passes, and the thing on screen is an empty div. Your agent looks at the page it just changed and finds out in the same turn, instead of asking you.',
+    body: 'The build is green, the test passes, and the screen is empty. Your agent looks at the page it just changed and finds out in the same turn, instead of asking you.',
   },
   {
     label: "An animation that's supposed to run",
@@ -55,7 +55,7 @@ const CASES = [
     body: 'The desktop view is fine and the 390px view is a stack of overlapping boxes. Your agent can look at both without you resizing anything or taking a screenshot.',
   },
   {
-    label: 'A page on the open web your agent needs to read',
+    label: 'A page on the open web that your agent needs to read',
     body: "A component in someone else's docs, a pricing table you're matching, the reference your client sent as a link. Same connection as your dev server, no second tool, no handing the job back to you.",
   },
 ] as const;
