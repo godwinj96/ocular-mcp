@@ -1,124 +1,121 @@
 ---
 title: 'Ocular vs Chrome DevTools MCP'
-description: 'chrome-devtools-mcp drives a browser your agent can already reach. Ocular shows it the pages it can’t: a competitor’s site, a staging link, documentation you’re implementing against, and your own dev server, from one connection.'
+description: 'Chrome DevTools MCP lets your AI look at pages your own browser can already open. Ocular also shows it the ones it can’t: a rival’s site, a link a workmate sent, or the guide you’re building from.'
 publishedAt: '2026-09-11'
 targetKeyword: 'chrome devtools mcp alternative'
-closingNote: 'If what you have does all of that and you haven’t touched it in six months, you don’t need this.'
+closingNote: 'If what you use today already does all of this, and you haven’t had to fix it in six months, you don’t need this.'
 comparedAgainst: 'chrome-devtools-mcp as of September 2026'
 ---
 
 <Verdict
   items={[
     {
-      label: 'Use chrome-devtools-mcp if',
+      label: 'Pick Chrome DevTools MCP if',
       children:
-        'you’re debugging a page you can already reach in your own browser and you want your agent driving it: clicking, filling forms, reading the network panel, running a performance trace.',
+        'you want your AI to poke at a page that is already open on your computer. Click the buttons, fill in the forms, and watch what happens.',
     },
     {
-      label: 'Use Ocular if',
+      label: 'Pick Ocular if',
       children:
-        'your agent needs to look at a page it can’t drive to. A competitor’s pricing page, a staging link a teammate sent, documentation you’re implementing against, and your own dev server, from one connection.',
+        'you want your AI to look at a page it cannot open by itself. A rival’s pricing page, a link a workmate sent, the guide you are building from. It covers the site on your own computer too.',
     },
   ]}
 />
 
-## One line between them
+## The one thing that splits them
 
-[chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) and Ocular both give an
-AI coding agent a way to see a web page. They split on one question: whether that page is one your
-own browser can already open.
+Both tools do the same basic job. They let an AI helper see a web page.
 
-chrome-devtools-mcp drives your local Chrome. Ocular renders the page and hands back what it saw,
-including pages your local Chrome was never going to reach.
+They split on one question. Can your own browser already open that page?
 
-That is the comparison. Everything below is detail.
+[Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) uses the Chrome
+browser that is already on your computer. So it can only see what that browser can already get to.
+
+Ocular opens the page itself and sends back a picture of it. That includes pages your own browser
+was never going to reach.
+
+That is the whole difference. The rest is detail.
 
 ## What Ocular does differently
 
-**One connection covers both sides of the line.** Your dev server on localhost and pages out on the
-open web come through the same MCP server, with the same four tools. There is no second tool to
-install for the half your local browser can’t open, and nothing to decide at call time about which
-one to reach for. Base tier clears most of the open web. Most, not all.
+**One setup covers both sides.** The site you are building on your own computer. And pages out on
+the wider internet. Same tool either way. You do not install a second thing for the half your
+browser cannot open. The cheap plan reaches most of the wider internet. Most of it, not all.
 
-**What comes back is the render, with structure attached.** A screenshot, plus the element tree
-behind it, annotated with what is in view, what sits below the fold, and where each thing is. Not a
-DOM dump for the agent to infer a layout from. The thing that actually painted, and the structure
-underneath it, in one reply.
+**You get a picture, plus a map of what is on it.** Not a pile of code for the AI to guess from. You
+get the page the way it really looks. With it comes a list of everything on the page, what you can
+see right now, what you would have to scroll down to reach, and where each thing sits.
 
-**Motion arrives as stills it can actually read.** Claude accepts no video, and an animated GIF is
-read as its first frame only. An animation or a scroll effect comes back as a tiled contact sheet,
-which costs one image and shows the whole sequence.
+**Moving things come back as a strip of pictures.** Claude cannot watch video. Show it a moving
+image and it only sees the first frame. So an animation comes back as one picture with the frames
+laid side by side. It costs the same as any other picture, and it shows the whole thing.
 
-**It never touches the page.** There is no click, type or navigate anywhere in the tool surface,
-which means there is nothing to trigger by accident and nothing to switch off. On localhost it is
-unmetered, because that is your own machine doing the work.
+**It can look, but it cannot touch.** There is no clicking, no typing, no jumping to another page.
+Nothing can go wrong by accident. There is nothing to switch off. On your own computer there is no
+cap on how much you use it.
 
-|                  | chrome-devtools-mcp             | Ocular                   |
-| ---------------- | ------------------------------- | ------------------------ |
-| Coverage         | Local Chrome only               | Localhost + the open web |
-| Acts on the page | Yes: clicks, types, fills forms | No, by design            |
-| Tools            | ~58                             | 4, all read-only         |
-| Made by          | Google                          | One developer            |
-| Price            | Free                            | From $2.50/mo            |
+|                            | Chrome DevTools MCP                | Ocular                                    |
+| -------------------------- | ---------------------------------- | ----------------------------------------- |
+| What it can see            | Only pages your browser can open   | Your own computer, and the wider internet |
+| Can it change the page?    | Yes. Clicks, types, fills in forms | No                                        |
+| Things it can do           | About 58                           | 4, all look-only                          |
+| Made by                    | Google                             | One developer                             |
+| Price                      | Free                               | From $2.50 a month                        |
 
-## Where chrome-devtools-mcp is the better tool
+## Where Chrome DevTools MCP is the better pick
 
-It is Google’s own, it is free, and it is not a niche project: 51.6k GitHub stars and 1.43 million
-npm installs a week. If your agent has touched a browser recently, there is a good chance this is
-what it reached for.
+It is made by Google. It is free. And a lot of people use it: 1.43 million downloads a week. If your
+AI has looked at a web page lately, there is a good chance it used this.
 
-It also does something Ocular structurally cannot. Ten of its tools handle input alone, plus
-navigation, waiting, Lighthouse, traces, and the console and network panels. It can run an
-interaction end to end. If the job is “click through this checkout flow and tell me what broke,”
-that is the tool, and Ocular was never trying to be it.
+It also does something Ocular cannot. Ten of its commands are for doing things to a page. Clicking,
+typing, filling in forms. It can move between pages, wait for things to load, and check how fast a
+page runs. If you want your AI to click through a checkout and tell you what broke, that is the
+tool. Ocular was never built for that.
 
-Read-only isn’t fifty-four tools short. It is a different job: eyes on something rather than hands
-on it. A driving seat left open on a page you were never going to operate is not a feature you
-asked for, and a tool that can act on a live page can also modify one. That is a property of what a
-driving seat is for, not a claim about which tool is safer to point at any given page. Whatever
-either one renders still lands in your agent’s context.
+Ocular is not a cut-down version of it. It is built for a different job. Looking, not touching. You
+do not need something that can click around on a page you were only ever going to read.
 
-## The boundary, in their own words
+And anything that can change a page can also break one. That is simply what that kind of tool is
+for. It does not mean one is safe and the other is not. Whatever either tool sees gets handed
+straight to your AI.
 
-chrome-devtools-mcp’s documentation is direct about its shape. It drives **your own local Chrome**,
-“designed to run on the same machine as the browser.” Remote Chrome appears there as a possible
-future direction, not a feature. That isn’t a limitation the project is hiding. It is what a
-debugging tool for the browser you already have open is supposed to be.
+## Their own words on the limit
 
-It does mean the boundary is real. Point it at a page that isn’t running on your machine and you are
-back to describing that page to your agent instead of showing it.
+The Chrome DevTools MCP guide is clear about this. It runs on **your own computer**, and it says so:
+it is “designed to run on the same machine as the browser.” Reaching a browser somewhere else is
+listed as something they might add one day. It is not there now.
 
-## Setup, and what it costs to keep running
+So the limit is real. Point it at a page that is not running on your computer, and you are back to
+describing that page to your AI instead of showing it.
 
-Both are a few lines in an MCP client config with nothing else to install. chrome-devtools-mcp
-launches via `npx`. Ocular’s local worker does the same, then asks for a one-time sign-in, the way
-any CLI tool authenticates once and remembers.
+## What it takes to set up, and what it costs
 
-chrome-devtools-mcp is free, with no ceiling to run into. Ocular is $2.50 a month: unmetered on
-localhost, and 40 renders a day on the open web, because that half runs through infrastructure that
-isn’t free.
+Both take a few lines in a settings file. Nothing else to install.
 
-## Where this earns its keep
+Chrome DevTools MCP is free. There is no cap to run into.
 
-Three ordinary moments, all of which end the same way today. Your agent asks you to go look, or it
-works from your description of what it can’t see.
+Ocular costs $2.50 a month. There is no cap on the site running on your own computer. Out on the
+wider internet you get 40 page views a day, because that half runs on servers that cost money.
 
-**A competitor built something and you want to know how.** Their page runs on their machine, not
-yours. Nothing local opens it for your agent.
+## When it pays for itself
 
-**A teammate drops a staging link in Slack.** It sits behind a URL your local Chrome profile has
-never seen.
+Three ordinary moments. All of them end the same way today. Your AI asks you to go and look. Or it
+guesses from your description.
 
-**Your agent needs the current documentation**, not the version that was in its training data the
-day it shipped.
+**A rival built something and you want to know how.** Their page runs on their machine, not yours.
+Nothing on your computer can open it for your AI.
 
-None of these are exotic. They are the ordinary shape of a working week, and every one of them is a
-point where a localhost-bound tool runs out of road.
+**A workmate drops a test link in chat.** Your browser has never seen that page.
+
+**Your AI needs today’s guide**, not the version it learned months ago.
+
+None of this is unusual. It is the ordinary shape of a working week. Every one of them is a point
+where a tool stuck on your own computer runs out of road.
 
 ## Which one you want
 
-If your agent only ever looks at pages running on your own machine, and you want it driving them,
-chrome-devtools-mcp is the right answer and it is free.
+If your AI only ever looks at pages on your own computer, and you want it clicking around in them,
+Chrome DevTools MCP is the right answer. And it is free.
 
-Ocular is for the other half of the job: the page your agent can’t drive to, and your dev server,
-from one connection. Four tools that only look, $2.50 a month, unmetered on localhost.
+Ocular is for the other half of the job. The page your AI cannot open by itself, and the site on
+your own computer, from one setup. It looks, it does not touch. $2.50 a month.
