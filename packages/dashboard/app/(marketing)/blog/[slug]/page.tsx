@@ -184,16 +184,24 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
               before it had argued anything. A sourcing note earns trust when it
               follows the claims it covers; ahead of them it just reads
               defensive. */}
-          {post.disclosure ? (
+          {post.comparedAgainst || post.disclosure ? (
             <div className="mt-group border-t border-rule-divider pt-stack-3">
+              {/* A dated version stamp, not a disclaimer. A comparison against
+                  a moving target silently rots without one, and every real
+                  example of this genre worth copying (PostHog, Plausible,
+                  Supabase) carries a date or a byline and no bias notice at
+                  all -- so the apologetic prose that used to sit here is gone
+                  and only the checkable fact remains. */}
               {post.comparedAgainst ? (
                 <p className="font-mono text-[12px] leading-[1.5] tracking-[0.02em] text-text-quaternary">
                   Compared against {post.comparedAgainst}.
                 </p>
               ) : null}
-              <p className="mt-stack-2 max-w-answer text-[14px] leading-[1.6] text-text-tertiary [text-wrap:pretty]">
-                {post.disclosure}
-              </p>
+              {post.disclosure ? (
+                <p className="mt-stack-2 max-w-answer text-[14px] leading-[1.6] text-text-tertiary [text-wrap:pretty]">
+                  {post.disclosure}
+                </p>
+              ) : null}
             </div>
           ) : null}
 
