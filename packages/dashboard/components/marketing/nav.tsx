@@ -38,7 +38,16 @@ export function Nav() {
   // Was useRouterState({ select: s => s.location.pathname === '/' }) under
   // TanStack Router. usePathname is the Next equivalent and the only thing
   // this component ever asked the router for.
-  const onHome = usePathname() === '/';
+  const pathname = usePathname();
+  const onHome = pathname === '/';
+  // Scoped to /blog specifically, not "any non-home page" -- /setup's nav
+  // already resolves its section links to `/#id`, which is a real if
+  // imperfect answer, and that page has been through founder review at that
+  // behaviour. Blog is different in kind: LINKS is a scroll-spy contract over
+  // homepage sections, and a post can run to thousands of words, which is
+  // where five permanently-inactive anchors above an article reads as
+  // broken rather than as a nav that simply doesn't apply here.
+  const onBlog = pathname.startsWith('/blog');
   const waitlistMode = useWaitlistMode();
 
   useEffect(() => {
@@ -126,42 +135,59 @@ export function Nav() {
         {/* Hidden below lg: four links plus a logo plus a CTA does not fit a
             phone bar, and a hamburger for a four-anchor page is more chrome
             than the links are worth. */}
-        <nav aria-label="Sections" className="hidden lg:flex lg:items-center lg:gap-8">
-          {LINKS.map(({ id, label }) => {
-            const isActive = active === id;
-            return (
-              <a
-                key={id}
-                // Off the home page a bare `#id` resolves to nothing, so the
-                // href carries the route. Under TanStack Router this also
-                // needed an onClick calling navigate({ to: '/', hash: id }) to
-                // keep it an SPA navigation; Next resolves `/#id` natively and
-                // scrolls to the anchor on arrival, so the handler is gone
-                // rather than reimplemented. Plain <a> and not next/link on
-                // purpose: same-document hash jumps are the browser's job, and
-                // Link would prefetch `/` from every one of these on hover.
-                href={onHome ? `#${id}` : `/#${id}`}
-                aria-current={isActive ? 'true' : undefined}
-                className={`relative font-mono text-[14px] tracking-[-0.01em] transition-colors duration-fast ease-base ${
-                  isActive ? 'text-text-primary' : 'text-text-tertiary hover:text-text-primary'
-                }`}
-              >
-                {label}
-                {/* The active mark is the primary, NOT the instrument signal.
-                    This comment used to claim they were the same signifier;
-                    they never were — the demos read in teal and this rule was
-                    always the violet primary. The signal deliberately stays
-                    out of the chrome: it means "the instrument is reading
-                    this", and a nav link is not something being read. */}
-                <span
-                  aria-hidden="true"
-                  className="absolute -bottom-1.5 left-0 h-px w-full origin-left bg-accent transition-transform duration-fast ease-base"
-                  style={{ transform: `scaleX(${isActive ? 1 : 0})` }}
-                />
-              </a>
-            );
-          })}
-        </nav>
+        {onBlog ? (
+          // LINKS is a scroll-spy contract over sections that exist on THIS
+          // page. On /blog they don't, and rendering all five as permanently-
+          // inactive dead anchors above a long article reads as broken chrome
+          // rather than as a nav that simply doesn't apply here -- five links
+          // that can never highlight is a worse signal than one link that
+          // always can. "Writing" is the whole section's own name (see
+          // app/(marketing)/blog/page.tsx's H1), so the label matches
+          // wherever it points.
+          <Link
+            href="/blog"
+            className="hidden font-mono text-[14px] tracking-[-0.01em] text-text-tertiary transition-colors duration-fast ease-base hover:text-text-primary lg:block"
+          >
+            Writing
+          </Link>
+        ) : (
+          <nav aria-label="Sections" className="hidden lg:flex lg:items-center lg:gap-8">
+            {LINKS.map(({ id, label }) => {
+              const isActive = active === id;
+              return (
+                <a
+                  key={id}
+                  // Off the home page a bare `#id` resolves to nothing, so the
+                  // href carries the route. Under TanStack Router this also
+                  // needed an onClick calling navigate({ to: '/', hash: id }) to
+                  // keep it an SPA navigation; Next resolves `/#id` natively and
+                  // scrolls to the anchor on arrival, so the handler is gone
+                  // rather than reimplemented. Plain <a> and not next/link on
+                  // purpose: same-document hash jumps are the browser's job, and
+                  // Link would prefetch `/` from every one of these on hover.
+                  href={onHome ? `#${id}` : `/#${id}`}
+                  aria-current={isActive ? 'true' : undefined}
+                  className={`relative font-mono text-[14px] tracking-[-0.01em] transition-colors duration-fast ease-base ${
+                    isActive ? 'text-text-primary' : 'text-text-tertiary hover:text-text-primary'
+                  }`}
+                >
+                  {label}
+                  {/* The active mark is the primary, NOT the instrument signal.
+                      This comment used to claim they were the same signifier;
+                      they never were — the demos read in teal and this rule was
+                      always the violet primary. The signal deliberately stays
+                      out of the chrome: it means "the instrument is reading
+                      this", and a nav link is not something being read. */}
+                  <span
+                    aria-hidden="true"
+                    className="absolute -bottom-1.5 left-0 h-px w-full origin-left bg-accent transition-transform duration-fast ease-base"
+                    style={{ transform: `scaleX(${isActive ? 1 : 0})` }}
+                  />
+                </a>
+              );
+            })}
+          </nav>
+        )}
 
         {waitlistMode ? (
           // Same onHome-aware anchor + intercept pattern as the section
