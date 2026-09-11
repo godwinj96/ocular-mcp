@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import { SITE_URL } from '../lib/site';
+
 // THE FONTS. This package shipped zero font files: layout.tsx asked for
 // `font-display`, which resolves to "Geist Sans", which was never fetched
 // anywhere in the dashboard -- so every surface has been rendering in
@@ -70,8 +72,17 @@ export const viewport = {
 // host: it is what lets per-page `openGraph.images: '/og-image.png'` resolve
 // to an absolute URL, which OG and Twitter cards require. Without it Next
 // warns and emits a relative path that no crawler can fetch.
+//
+// www, not the apex, and that is settled by evidence rather than taste: the
+// apex 308-redirects to www (confirmed live -- see lib/public-cors.ts, which
+// had to allowlist both origins for exactly this reason). A canonical tag
+// must name the URL that actually serves, never one that redirects, and the
+// per-page `alternates.canonical` values in (marketing)/page.tsx and
+// (marketing)/setup/page.tsx are relative -- so they resolve against this one
+// line. Getting it wrong here is one line now and a re-indexing problem once
+// the marketing pages are live on this host.
 export const metadata = {
-  metadataBase: new URL('https://useocular.dev'),
+  metadataBase: new URL(SITE_URL),
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
