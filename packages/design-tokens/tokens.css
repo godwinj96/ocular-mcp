@@ -248,6 +248,16 @@
                        floor and a horizontal scrollbar mid-article is a
                        reading failure. Wide figures use the existing 1240px
                        container instead. Two escapes, no third. */
+  /* The three families, as variables, because prose.css needs them in plain
+     CSS and the Tailwind preset needs them for its class generator. They were
+     only in the preset, which meant any hand-written CSS had to retype the
+     stack -- exactly the duplication that let the dashboard and the site drift
+     to near-miss greys before this package existed. The preset now points
+     here. */
+  --font-display: 'Geist Sans', 'General Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --font-brand: 'Outfit', 'Geist Sans', ui-sans-serif, system-ui, sans-serif;
+
   --measure-prose: 536px;
   --measure-answer: 667px;
   --prose-bleed: 720px;

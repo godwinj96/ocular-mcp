@@ -42,7 +42,10 @@ The SSRF split must be **explicit and documented**, never a bypass flag — it w
 
 - **Three-tier lifecycle.** Idle >~30min → browser fully shut down, supervisor only (~10-15MB). Recent → warm browser, contexts closed (~150-200MB). Active → warm + live context. **The idle number is the one that matters** — it's what a developer sees in Activity Monitor when not using the product.
 - **Supervisor in Go**, not Rust. Native concurrency for the wait/timer/socket pattern, stdlib covers process management, reviewable without deep familiarity. Rust's ~5MB baseline saving is immaterial here and its lifetimes/async make AI-assisted iteration and review much harder.
-- **Warm the browser on MCP `initialize`**, not first capture — converts cold start from per-call cost (chrome-devtools-mcp's core problem) to once-per-session, invisible to the user.
+- **Warm the browser on MCP `initialize`**, not first capture — moves the cold start off the first capture and onto session setup, where the user never sees it. Good engineering; keep it.
+
+  **Corrected 2026-09-11 (Session 38), and do not restore the old wording.** This line used to say the warm-up converted cold start "from per-call cost (chrome-devtools-mcp's core problem)". That competitor claim is not supported by its own source: chrome-devtools-mcp's README says the browser starts "automatically once the MCP client uses a tool that requires a running browser instance" — lazily, **once per session**, not per call. The real difference is warming at `initialize` versus at first tool use: a one-time few-second gap, not a per-call tax. **This is therefore not a marketing claim** — see `docs/marketing/2026-09-11-keyword-research-chrome-devtools-mcp.md` §3, and the founder's decision to drop cold start from the comparison post and lead on coverage instead. Anything asserted about a competitor here must be checkable against their current docs, because a reader will check.
+
 - **Detect and reuse existing local Chromium** where present rather than always shipping a ~150-200MB copy. Decide before first release.
 
 ### Invisibility is a hard requirement, not polish

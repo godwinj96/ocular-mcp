@@ -54,12 +54,16 @@ export const ocularPreset = {
         caution: '#E8B84B',
         fault: '#EE7A66',
       },
+      // Pointed at tokens.css rather than repeating the stacks, so
+      // hand-written CSS (prose.css) and Tailwind classes cannot drift apart.
+      // Same emitted font-family either way.
       fontFamily: {
-        display: ['"Geist Sans"', '"General Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['"Geist Mono"', '"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        display: 'var(--font-display)',
+        mono: 'var(--font-mono)',
         // The wordmark's own face, extended onto controls and nothing else.
-        // Headings and all mono are deliberately NOT in this stack.
-        brand: ['Outfit', '"Geist Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Headings and all mono are deliberately NOT in this stack -- and in
+        // an article it appears nowhere at all, see prose.css.
+        brand: 'var(--font-brand)',
       },
       maxWidth: {
         // `measure: '68ch'` was here, unused, and delivered 99 characters
