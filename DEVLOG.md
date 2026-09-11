@@ -67,6 +67,94 @@ Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M
 
 ## Session log
 
+### 2026-09-11 — Session 36: two real bugs the founder found by actually using the admin sub-app
+
+Both reported directly by the founder after using the shipped feature — not caught by typecheck,
+build, or the tests written for it, which is worth sitting with: this is exactly the class of bug
+that only shows up when a human looks at the real, live, authenticated thing.
+
+**Bug 1 — the admin sidebar floated in the middle of the page with dead space to its left.**
+Founder's words: _"the sidebar just sort of floating towards the middle of the page attached to the
+page content rather than actually being at the side of the viewport. The white space to the left of
+the sidebar looks bad, poorly designed."_
+
+Root cause, confirmed by reading the actual tokens: `app/layout.tsx`'s root `<main>` applies
+`mx-auto max-w-app px-app`, where `--app-measure: 1080px` (`packages/design-tokens/tokens.css`).
+`app/admin/layout.tsx` nested the rail + content INSIDE that same centered 1080px column instead of
+breaking out of it — so on any screen wider than ~1176px (nearly everything), there's a large
+symmetric gutter on both sides, same as every other page. Every other page gets away with this
+because centered body text reads as normal; a **sidebar's entire visual grammar promises "I'm at the
+edge,"** so the identical gutter in front of it reads as broken. This was a real implementation gap
+against the `ui-design-intelligence` agent's own spec from Session 35, which explicitly called for
+"a felt change in the page's own geometry... left-anchored grid, not centered document" — the spec
+was right; the build didn't follow it.
+
+Fix: `app/admin/layout.tsx`'s outer wrapper now uses the standard CSS breakout (`relative left-1/2
+w-screen -ml-[50vw]`) to reach the true viewport width regardless of the root `<main>`'s own
+max-width, with the rail flush at the real left edge and the content column to its right keeping the
+app's existing measure/inset but left-anchored instead of centered. **Verified the CSS mechanism
+itself** with an isolated test page in a real browser before touching the real layout (confirmed
+`rail.getBoundingClientRect().left === 0` at a 1446px viewport, nested three levels inside a
+1080px-capped centered parent) — full authenticated click-through of the actual admin page still
+wasn't possible in this environment (no WorkOS credentials), so the mechanism is proven, the exact
+pixel result on the real page is not yet eyeballed by a human.
+
+**Bug 2 — turning the waitlist toggle on didn't change the live site's CTA.** Investigated rather
+than guessed, in order: confirmed both `ocular-dashboard` and `ocular-website` Vercel projects
+auto-deploy on push and were already on `8677b8a` (ruling out "not deployed yet"); curled the live
+`https://dashboard.useocular.dev/api/public/waitlist-status` directly and got back
+`{"waitlistMode":true}` — the toggle and the endpoint were both working; fetched the deployed
+website's actual JS bundle and confirmed `VITE_DASHBOARD_URL` was correctly baked in as
+`https://dashboard.useocular.dev` — ruling out a build-time config miss. That left CORS, confirmed
+directly: `useocular.dev` 308-redirects to `www.useocular.dev` (curl -L proved this), and a request
+carrying `Origin: https://www.useocular.dev` got no `Access-Control-Allow-Origin` header back, while
+the same request with `Origin: https://useocular.dev` (no www) got the header correctly. **The
+`ALLOWED_ORIGINS` allowlist in `lib/public-cors.ts` only had the bare domain — the www redirect target
+was never added.** A real browser's fetch from the actual live site was silently discarded by CORS,
+which `WaitlistCta`'s `.catch()` couldn't distinguish from an ordinary network failure, so it quietly
+fell back to showing "Choose a plan" — exactly the symptom reported, and exactly why this needed the
+step-by-step elimination above rather than a guess at the first plausible cause.
+
+Fix: added `https://www.useocular.dev` to `ALLOWED_ORIGINS`. One-line fix, but only found by
+actually testing the live deployed surface with real Origin headers rather than trusting that "the
+code looks right" — curl doesn't enforce CORS, so a plain reachability check (which is as far as the
+original build-time verification went) would never have caught this.
+
+**Both fixes are typechecked clean; neither has been re-verified against the live, redeployed site
+yet** — that happens automatically on push (both Vercel projects auto-deploy from `main`), but
+confirming the actual pixels/behavior after that deploy lands is still a human-eyeball step, not
+something this session did.
+
+### 2026-09-07 — Session 35 close-out: a `/handoff` skill, and where this session actually left things
+
+Added `.claude/skills/handoff/SKILL.md` — a repo-native alternative to the global `/save-session`
+command. That command writes a generic session summary to `~/.claude/session-data/`, outside the
+repo; `/handoff` instead writes into _this_ file, in the format this file already has, because this
+file is what every session here already reads first. Callable any time, not just at session end.
+**Note for whoever reads this next: `.claude/` is entirely gitignored in this repo, so the skill file
+itself is local to this machine only — it will not appear if the repo is cloned elsewhere.** Worth a
+narrow `.gitignore` exception if that matters; not done without asking, since it's a repo-policy
+change and not something this session was asked to decide.
+
+**Where things actually stand, for a resuming session:** tree is clean, `HEAD` (`8677b8a`) is pushed
+— `git log origin/main..HEAD` is empty. Five entries below (all dated today, all "Session 35
+continued") cover a long single-session arc: quota/usage/audit ownership moved to the dashboard, the
+dashboard favicon plus a real test for the a11y viewport-split invariant, the navigation-speed fix,
+`og-image.png`, and the full admin sub-app. Read them in place rather than re-summarized here — each
+already states what shipped, what was verified and how, and what's still open in its own scope.
+
+**The one item still open from the entire Session 34 brief** (the brief that kicked off this whole
+session): cloud a11y extractor parity for `packages/worker` plus a `get_tree` tool for the cloud
+`mcp-server` path. Not started. It's a genuinely separate, sizable feature — porting the
+`scopeToViewport` `.toString()`-splice technique to however Patchright's `page.evaluate` differs from
+local-worker's raw CDP `evaluate`, plus new tool registration and queue/job wiring in `mcp-server` —
+not a quick add-on to whatever comes next. See the a11y-pruning-invariant entry below for the
+technique it would need to reuse.
+
+**No open question is waiting on a human decision right now.** The two the founder was asked this
+session (ban + billing, ban + key revocation) are both answered and shipped. Nothing else in this
+session's work surfaced a decision the next session needs before it can proceed.
+
 ### 2026-09-07 — Session 35 continued: the admin sub-app — §2 of the Session 34 brief, built out
 
 The largest single item from the Session 34 brief: the admin area was a search bar, and the founder
