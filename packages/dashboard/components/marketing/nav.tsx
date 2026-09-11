@@ -49,6 +49,20 @@ export function Nav() {
     const onScroll = () => {
       setScrolled(window.scrollY > 8);
 
+      // The section scan is home-page-only. Every id in LINKS is a section of
+      // the homepage, so anywhere else this loop does five getElementById
+      // lookups per scroll event for elements that cannot exist, and always
+      // sets null. Already wasted work on /setup; a blog post is the longest
+      // scrolling document on the site and would have made it the worst case.
+      //
+      // The listener itself is NOT skipped off the home page -- it also
+      // drives `scrolled`, which is the bar's background and hairline
+      // treatment, and that has to keep working on every route.
+      if (!onHome) {
+        setActive(null);
+        return;
+      }
+
       // The section that owns the line just below the fixed bar.
       const line = 96 + 1;
       let current: string | null = null;
@@ -61,7 +75,7 @@ export function Nav() {
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+  }, [onHome]);
 
   return (
     // Measured off linear.app: transparent background with backdrop-blur,
