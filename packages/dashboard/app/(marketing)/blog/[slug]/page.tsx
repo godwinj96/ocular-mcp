@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ArticleHeader } from '../../../../components/marketing/blog/article-header';
-import { Disclosure } from '../../../../components/marketing/blog/disclosure';
 import { PostJsonLd } from '../../../../components/marketing/blog/json-ld';
 import { Verdict } from '../../../../components/marketing/blog/verdict';
 import { BleedRule } from '../../../../components/marketing/section-header';
@@ -60,7 +59,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 // components are wired here instead. Disclosure and Verdict differ per post
 // in their CONTENT, not their availability, so they are registered once
 // rather than per-post.
-const MDX_COMPONENTS = { Disclosure, Verdict };
+const MDX_COMPONENTS = { Verdict };
 
 export default async function PostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -178,6 +177,24 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
             <p className="mt-stack-3 max-w-answer text-[14px] leading-[1.6] text-text-tertiary [text-wrap:pretty]">
               {post.closingNote}
             </p>
+          ) : null}
+
+          {/* The disclosure, last on the page. It used to open the article,
+              which meant the piece began by telling the reader to discount it
+              before it had argued anything. A sourcing note earns trust when it
+              follows the claims it covers; ahead of them it just reads
+              defensive. */}
+          {post.disclosure ? (
+            <div className="mt-group border-t border-rule-divider pt-stack-3">
+              {post.comparedAgainst ? (
+                <p className="font-mono text-[12px] leading-[1.5] tracking-[0.02em] text-text-quaternary">
+                  Compared against {post.comparedAgainst}.
+                </p>
+              ) : null}
+              <p className="mt-stack-2 max-w-answer text-[14px] leading-[1.6] text-text-tertiary [text-wrap:pretty]">
+                {post.disclosure}
+              </p>
+            </div>
           ) : null}
 
           <p className="mt-group font-mono text-[12px] leading-none tracking-[0.02em] text-text-quaternary">

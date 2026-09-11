@@ -57,6 +57,15 @@ const frontmatterSchema = z.object({
   // full "you probably don't need this" section in exactly that slot. Below
   // the CTA it does its credibility job without costing the conversion.
   closingNote: z.string().min(1).optional(),
+  // The conflict-of-interest and sourcing note. Rendered at the very BOTTOM of
+  // the page, below the CTA, and that position is the point: this opened the
+  // first shipped version, which meant the page led with a defensive caveat
+  // before making a single argument. Nobody had accused it of anything. Make
+  // the case first; qualify it after.
+  disclosure: z.string().min(1).optional(),
+  // What the comparison was checked against, and when. A moving target needs a
+  // date or the whole piece silently rots.
+  comparedAgainst: z.string().min(1).optional(),
 });
 
 export type PostFrontmatter = z.infer<typeof frontmatterSchema>;
