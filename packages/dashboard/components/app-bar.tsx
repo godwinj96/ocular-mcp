@@ -28,8 +28,14 @@ import { Wordmark } from './brand/wordmark';
 // that surface has depth under it. Two different navs, two different jobs;
 // neither comment's argument contradicts the other once the job is named.
 
+// Status lives at /dashboard, not /. The marketing site and blog moved into
+// this app and the homepage is theirs now -- two pages cannot resolve to one
+// path, and route groups do not change URLs, so the authenticated root had to
+// take a path segment of its own. Anything else that sends a signed-in user
+// "home" points here too: callback/route.ts's returnPathname, the logo below,
+// and admin-rail's back link.
 const LINKS = [
-  { href: '/', label: 'Status' },
+  { href: '/dashboard', label: 'Status' },
   { href: '/usage', label: 'Usage' },
   { href: '/activity', label: 'Activity' },
   { href: '/billing', label: 'Billing' },
@@ -37,7 +43,7 @@ const LINKS = [
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
-  return href === '/' ? pathname === '/' : pathname.startsWith(href);
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export function AppBar({ email, isAdmin }: { email: string | null; isAdmin: boolean }) {
@@ -49,7 +55,7 @@ export function AppBar({ email, isAdmin }: { email: string | null; isAdmin: bool
       <div className="rule-hairline border-b border-rule-structural">
         <div className="mx-auto flex h-bar w-full max-w-app items-center justify-between px-app">
           <Link
-            href="/"
+            href="/dashboard"
             className="text-accent transition-colors duration-fast ease-base hover:text-accent-hover"
           >
             <Wordmark className="h-7" title="Ocular" />

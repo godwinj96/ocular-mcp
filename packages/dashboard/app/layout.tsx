@@ -1,9 +1,4 @@
 import type { ReactNode } from 'react';
-import { AuthKitProvider } from '@workos-inc/authkit-nextjs/components';
-import { withAuth } from '@workos-inc/authkit-nextjs';
-import { AppBar } from '../components/app-bar';
-import { QueryProvider } from '../components/query-provider';
-import { ensureAccount } from '../lib/accounts';
 
 // THE FONTS. This package shipped zero font files: layout.tsx asked for
 // `font-display`, which resolves to "Geist Sans", which was never fetched
@@ -21,46 +16,60 @@ import { ensureAccount } from '../lib/accounts';
 // rounds before anyone noticed every one of them was rendering at 400.
 // Everything titled in this dashboard is 500.
 //
-// 700 and Outfit 400 are deliberately NOT loaded. Nothing here is bold, and
-// Outfit's only job on this surface is button labels at 600.
+// 700 is deliberately NOT loaded. Nothing here is bold.
+//
+// Outfit 400 IS loaded, unlike before the marketing site moved in. The
+// dashboard alone only ever needed Outfit at 600 for button labels, and this
+// file said so. The marketing surface uses `font-brand` at 400 for body-voice
+// copy (hero deck, SectionHeader decks), and per the same CSS font-matching
+// rule quoted above, a requested 400 with only a 600 face loaded does not
+// fail loudly -- it silently renders the wrong weight. That is exactly the
+// four-round bug described above, so it gets the fix rather than a repeat.
 import '@fontsource/geist-sans/latin-400.css';
 import '@fontsource/geist-sans/latin-500.css';
 import '@fontsource/geist-sans/latin-600.css';
 import '@fontsource/geist-mono/latin-400.css';
 import '@fontsource/geist-mono/latin-500.css';
+import '@fontsource/outfit/latin-400.css';
 import '@fontsource/outfit/latin-600.css';
 import '@ocular/design-tokens/tokens.css';
 import './globals.css';
 
-export const metadata = {
-  title: 'Ocular',
-  description: 'Your Ocular account.',
-  // Matches --surface-base. The old value was inherited from a palette that no
-  // longer exists anywhere in the product.
+// THE ROOT LAYOUT OWNS NO AUTH, DELIBERATELY, AND THIS IS LOAD-BEARING.
+//
+// It used to call withAuth() + ensureAccount() here, which was correct when
+// every route in this app was an authenticated one. It no longer is: the
+// marketing site and the blog live in (marketing), and a session read in a
+// layout that wraps them would opt every one of those routes into dynamic
+// rendering. Statically-rendered HTML is the entire reason those pages moved
+// into this app -- crawlers that do not execute JavaScript (GPTBot,
+// ClaudeBot, PerplexityBot among them) see only what the server sent.
+//
+// So auth lives in (app)/layout.tsx now, wrapping exactly the routes that
+// need it and none of the ones that must stay static. If you are adding a
+// session read, a cookie read, or an uncached fetch to THIS file, it belongs
+// one level down instead -- check the build output afterwards either way:
+// any (marketing) route printing `f` rather than `o`/`*` means it leaked.
+//
+// Metadata is per-group rather than global for the same reason it always
+// should have been: the old value here was `title: 'Ocular'` /
+// `description: 'Your Ocular account.'`, which is true of the dashboard and
+// false of every marketing page. themeColor is the one genuinely app-wide
+// value, so it is the one that stays.
+// themeColor lives in `viewport`, not `metadata`. Next 15 moved it and warns
+// once per route otherwise -- it was warning on all of them, since every route
+// inherits this layout.
+//
+// Matches --surface-base. The old value was inherited from a palette that no
+// longer exists anywhere in the product.
+export const viewport = {
   themeColor: '#09090b',
 };
 
-export default async function RootLayout({ children }: { children: ReactNode }) {
-  // The bar needs an identity to render. Every route except the handful listed
-  // in middleware.ts is already behind middlewareAuth, so this is a read of a
-  // session that is guaranteed to exist -- not a second auth check.
-  // withAuth() WITHOUT ensureSignedIn on purpose: this layout also wraps the
-  // unauthenticated paths (/login, /callback), and a redirecting read here
-  // would loop them. ensureAccount is the same idempotent first-login
-  // provisioning every protected page already performs.
-  const { user } = await withAuth();
-  const account = user ? await ensureAccount(user.id, user.email) : null;
-
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className="font-display">
-      <body>
-        <AuthKitProvider>
-          <QueryProvider>
-            {user && <AppBar email={user.email ?? null} isAdmin={account?.role === 'admin'} />}
-            <main className="mx-auto w-full max-w-app px-app pb-24 pt-10">{children}</main>
-          </QueryProvider>
-        </AuthKitProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

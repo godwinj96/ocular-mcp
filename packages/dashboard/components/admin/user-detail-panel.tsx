@@ -12,7 +12,7 @@ import {
   unbanAccountAction,
   changePlanAction,
   changeRoleAction,
-} from '../../app/admin/actions';
+} from '../../app/(app)/admin/actions';
 import type { AdminAccountRow } from '../../lib/accounts';
 
 // List -> detail, not inline row actions (see DEVLOG's Session 35 admin

@@ -31,7 +31,25 @@ export default authkitMiddleware({
     // /api/public/* is called by the website — a different origin, never a
     // signed-in dashboard session — see lib/public-cors.ts for the CORS
     // allowlist these two routes apply themselves.
+    //
+    // The (marketing) group below is the public site -- homepage, /setup, and
+    // the blog -- which moved into this app so it could be server-rendered for
+    // crawlers. These MUST stay listed: middlewareAuth is secure-by-default,
+    // so an unlisted marketing path does not merely get a slow session check,
+    // it bounces the visitor (and every indexing bot) to AuthKit. Adding a
+    // public page without adding it here is the failure mode to watch for.
+    //
+    // `/blog/:path*` uses the same glob syntax as the Next.js matcher, per
+    // authkit-nextjs's README -- it covers post pages and their generated
+    // opengraph-image routes. /sitemap.xml and /robots.txt are listed
+    // explicitly because they share no prefix with anything else here.
     unauthenticatedPaths: [
+      '/',
+      '/setup',
+      '/blog',
+      '/blog/:path*',
+      '/sitemap.xml',
+      '/robots.txt',
       '/login',
       '/callback',
       '/webhooks/bachs',

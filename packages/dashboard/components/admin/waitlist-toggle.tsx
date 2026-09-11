@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Toggle } from '../ui/toggle';
 import { Lamp } from '../ui/lamp';
-import { toggleWaitlistModeAction } from '../../app/admin/actions';
+import { toggleWaitlistModeAction } from '../../app/(app)/admin/actions';
 
 export function WaitlistToggle({ initialEnabled }: { initialEnabled: boolean }) {
   const [enabled, setEnabled] = useState(initialEnabled);

@@ -39,7 +39,7 @@ export function AdminRail() {
       </nav>
 
       <div className="mt-auto border-t border-rule-divider p-3">
-        <ButtonLink href="/" variant="quiet">
+        <ButtonLink href="/dashboard" variant="quiet">
           ← Dashboard
         </ButtonLink>
       </div>
