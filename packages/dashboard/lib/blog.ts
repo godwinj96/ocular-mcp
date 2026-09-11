@@ -4,18 +4,20 @@ import path from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
 
-// Blog post metadata, read straight off disk at build time.
+// Blog post metadata AND body, read straight off disk.
 //
-// WHY METADATA AND RENDERING TAKE DIFFERENT PATHS. The post body is an .mdx
-// module compiled by the bundler and imported by blog/[slug]/page.tsx; the
-// metadata is this YAML block, parsed here with gray-matter without compiling
-// anything. They could have been unified -- remark-mdx-frontmatter would turn
-// the same block into a module export -- and that was rejected on purpose:
-// the blog index, the sitemap and generateStaticParams all need every post's
-// metadata and none of their bodies. Going through the MDX pipeline for that
-// means compiling every post to answer "what posts exist", on every build.
-// remark-frontmatter (see next.config.mjs) is therefore doing exactly one
-// job: stopping the YAML rendering as a paragraph of text.
+// Both come from ONE parse of the same file (gray-matter's `matter()`
+// separates the YAML frontmatter from the Markdown body in a single pass) --
+// there is no second, MDX-specific read. blog/[slug]/page.tsx compiles the
+// body string this module returns via next-mdx-remote/rsc's `compileMDX` at
+// render time; see next.config.mjs for why that replaced a webpack-level
+// `import()` of the .mdx file (it crashed every single .mdx page under React
+// Server Components, unrelated to anything in this file).
+//
+// getAllPosts() and the sitemap only need the metadata half, so readPost
+// still returns the body separately as `content` rather than folding
+// compilation in here -- compiling a post nobody asked to read, just to
+// answer "what posts exist", is exactly the wasted work this split avoids.
 //
 // Server-only by construction. node:fs cannot be bundled into a client
 // component, so importing this file from one is a build error rather than a
@@ -24,9 +26,8 @@ import { z } from 'zod';
 const CONTENT_DIR = path.join(process.cwd(), 'content', 'blog');
 
 // A slug is a filename, so it has to survive being one, and it ends up in a
-// URL and in a dynamic import specifier. Constraining it here means
-// getPostBySlug cannot be walked out of CONTENT_DIR by a crafted param even
-// if dynamicParams is ever turned back on.
+// URL. Constraining it here means getPostBySlug cannot be walked out of
+// CONTENT_DIR by a crafted param even if dynamicParams is ever turned back on.
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 // ISO calendar dates, not timestamps. A post is published on a day; giving it
@@ -55,9 +56,27 @@ export type PostFrontmatter = z.infer<typeof frontmatterSchema>;
 export type Post = PostFrontmatter & {
   /** Derived from the filename, never from frontmatter -- see readPost. */
   slug: string;
+  /** Whole minutes at 220wpm, computed from the body. See readingMinutes. */
+  readingMinutes: number;
 };
 
-function readPost(fileName: string): Post {
+export type PostWithContent = Post & {
+  /** The raw Markdown/MDX body, frontmatter already stripped by gray-matter. */
+  content: string;
+};
+
+// 220 words per minute. A measurement, not a hook -- which is the only reason
+// it earns a place in the byline of a site with this voice. It is also the
+// cheapest honest signal of cost-before-commitment a long comparison post can
+// give a reader who is deciding whether to start.
+const WORDS_PER_MINUTE = 220;
+
+function readingMinutes(body: string): number {
+  const words = body.trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / WORDS_PER_MINUTE));
+}
+
+function readPost(fileName: string): PostWithContent {
   const slug = fileName.replace(/\.mdx$/, '');
 
   // The slug is the filename and nothing else. The original plan had it as a
@@ -71,7 +90,8 @@ function readPost(fileName: string): Post {
   }
 
   const raw = fs.readFileSync(path.join(CONTENT_DIR, fileName), 'utf8');
-  const parsed = frontmatterSchema.safeParse(matter(raw).data);
+  const file = matter(raw);
+  const parsed = frontmatterSchema.safeParse(file.data);
 
   // Thrown, not swallowed to a placeholder. This runs at build time, so a
   // malformed post fails the deploy instead of shipping a page with an empty
@@ -84,12 +104,18 @@ function readPost(fileName: string): Post {
     );
   }
 
-  return { ...parsed.data, slug };
+  return {
+    ...parsed.data,
+    slug,
+    readingMinutes: readingMinutes(file.content),
+    content: file.content,
+  };
 }
 
 /**
  * Every post, newest first. Used by the blog index, the sitemap and
- * generateStaticParams.
+ * generateStaticParams. Metadata only -- callers that need to render a post's
+ * body should use getPostWithContent instead.
  */
 export function getAllPosts(): Post[] {
   // An absent directory is not an error -- it is the state of a blog with no
@@ -105,9 +131,21 @@ export function getAllPosts(): Post[] {
 
 /**
  * One post's metadata, or null if no such file exists. The caller is expected
- * to turn null into a 404.
+ * to turn null into a 404. Metadata only -- see getPostWithContent to render
+ * the body.
  */
 export function getPostBySlug(slug: string): Post | null {
+  return getPostWithContent(slug);
+}
+
+/**
+ * One post's metadata AND its raw body, or null if no such file exists.
+ * Callers that render the post pass `.content` to next-mdx-remote/rsc's
+ * `compileMDX`; callers that only need metadata (the index, the sitemap) can
+ * keep using getPostBySlug/getAllPosts, which are the same read minus the
+ * body already sitting unused in memory.
+ */
+export function getPostWithContent(slug: string): PostWithContent | null {
   if (!SLUG_PATTERN.test(slug)) return null;
 
   const fileName = `${slug}.mdx`;

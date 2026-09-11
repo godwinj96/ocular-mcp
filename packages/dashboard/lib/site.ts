@@ -20,4 +20,9 @@ export const SITE_URL = 'https://www.useocular.dev';
 // one of them is a silent failure: this list, middleware.ts's
 // unauthenticatedPaths (or the page bounces every visitor and every bot to
 // AuthKit), and the page's own metadata.
-export const PUBLIC_PATHS = ['/', '/setup'] as const;
+export const PUBLIC_PATHS = ['/', '/setup', '/blog'] as const;
+
+// Individual /blog/<slug> entries are NOT listed here -- they come from
+// lib/blog.ts's getAllPosts() at sitemap-build time, each carrying its own
+// real publishedAt/updatedAt date rather than a build timestamp. See
+// app/sitemap.ts.

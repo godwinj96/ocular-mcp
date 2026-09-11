@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 
+import { getAllPosts } from '../lib/blog';
 import { PUBLIC_PATHS, SITE_URL } from '../lib/site';
 
 // The sitemap the old robots.txt has been pointing at since it was written,
@@ -18,7 +19,18 @@ import { PUBLIC_PATHS, SITE_URL } from '../lib/site';
 // unauthenticatedPaths -- an unlisted one 307s to AuthKit and Search Console
 // reports "couldn't fetch".
 export default function sitemap(): MetadataRoute.Sitemap {
-  return PUBLIC_PATHS.map((path) => ({
+  const staticEntries = PUBLIC_PATHS.map((path) => ({
     url: new URL(path, SITE_URL).toString(),
   }));
+
+  // Posts DO get a real lastModified, unlike the static paths above -- the
+  // comment on this file explains why a build timestamp is worse than none;
+  // a post's frontmatter date is a real edit, not an artifact of when `next
+  // build` happened to run.
+  const postEntries = getAllPosts().map((post) => ({
+    url: new URL(`/blog/${post.slug}`, SITE_URL).toString(),
+    lastModified: post.updatedAt ?? post.publishedAt,
+  }));
+
+  return [...staticEntries, ...postEntries];
 }
