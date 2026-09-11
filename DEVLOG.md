@@ -67,6 +67,120 @@ Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M
 
 ## Session log
 
+### 2026-09-11 — Session 37: copy pass, then the marketing site moved into the Next app
+
+Two separate pieces of work. The first is done and live; the second is done, verified locally,
+pushed to a branch, and **not** cut over.
+
+**1. The reading-level copy pass — shipped to `main` (`b4f3f79`), live.**
+
+This is Session 33 brief item 1, untouched since. Researched with both design agents first per the
+standing rule, plus julian.com/guide/startup/landing-pages at the founder's instruction. Product
+scored the existing copy against Julian's checklist; design audited parse-load rather than
+vocabulary, which turned out to be the more useful lens — most of what made the page hard work was
+clause-stacking, not hard words.
+
+Nine jargon phrases swapped ("the canvas ever painted", "no cold start", "loopback only",
+"below the fold", "network round trip", "your agent's context" among them), stacked sentences split.
+Every rewrite re-run through CLAUDE.md's scope test; two of them (demo-reach-meter, FAQ 1) state the
+open-web half _more_ explicitly than what they replaced. Deliberately untouched: DemoBoundary's
+deck, the UseCases rows, HowItWorks, CtaFooter, nav, FAQ 3/7/8 — already at the target register.
+
+Two real defects fixed on the way, neither about reading level:
+
+- demo-reach-meter's _"the allowance isn't spent on nothing"_ was a double negative that parses
+  backwards. Checked against `docs/rules/11-billing-and-quota.md` §0 instead of guessing the intent:
+  an exhausted-ladder failure is a HALF charge, so the line says that outright now.
+- use-cases row 1 elided a verb across a coordinated clause, making the reader rebuild the missing
+  half.
+
+**What Julian's framework did NOT get applied to, and why** — two deliberate deviations, both
+flagged to the founder at the time: the hero H1 still doesn't state the value prop as an action
+statement (Julian wants it in the header; this site keeps it in the subhead, a call already fought
+over across two rejected rounds), and there is still no social-proof section (his structure calls
+for one; `06-brand-identity.md` §5 forbids fabricating it and there is nothing real yet).
+
+**2. `packages/website` moved into `packages/dashboard` — branch `marketing-migration`, NOT cut over.**
+
+The founder asked for a blog for SEO/GEO. Research established the blocker is architectural, not
+content: the Vite site is client-rendered with no SSR/SSG, so every route ships as an empty
+`<div id="root">`. Google renders JS unreliably; GPTBot, ClaudeBot and PerplexityBot do not execute
+it at all. A blog there would have been invisible to precisely the readers it was for.
+
+Founder's call — and he was right to push back on the first objection, which was overstated: route
+groups and the RSC boundary make public-and-authenticated-in-one-app normal, not a compromise. The
+real constraint was narrower and verifiable: `app/layout.tsx` called `withAuth()` on every request,
+so anything nested under it renders dynamically. Auth moved to `(app)/layout.tsx`; the root keeps
+`<html>`/`<body>`, fonts and tokens.
+
+Three commits: `8573c5b` (route-group split), `9d07072` (the port). Verified locally —
+
+- `next build` prints `/` and `/setup` as **Static**; every `(app)` route still Dynamic.
+- `curl` with no JS returns the real copy ("Two readings of the same page", "Give your agent eyes",
+  the FAQ answers). This is the mechanical proof the move did what it exists to do.
+- `/dashboard`, `/billing`, `/admin`, `/access`, `/usage` still 307 to WorkOS. Browser console clean.
+
+**Collisions and silent breakage this surfaced** (all fixed, all worth knowing about):
+
+- `app/page.tsx` WAS the authenticated root at `/`. The marketing homepage needs that path, so
+  Status moved to `/dashboard`, and with it `callback`'s `returnPathname`, the app-bar logo and
+  Status link, and admin-rail's back link. Missing any one of these would have landed every
+  signed-in user on the marketing page.
+- **Every static asset was 307-ing to AuthKit** — favicon, `/og-image.png`, `/llms.txt`. The Vite
+  deploy had no middleware in front of static files. A social card resolving to a sign-in screen and
+  an llms.txt no crawler can read are both invisible failures. Matcher now skips asset extensions,
+  listed explicitly so `/admin/waitlist/export.csv` stays behind middleware auth.
+- `marketing.css` still carried `@tailwind` directives (would have emitted Tailwind twice) and
+  unscoped `html` / `section[id]` rules. **Next does not route-scope CSS** — importing from a group
+  layout does not contain global selectors — so both would have reached the dashboard. Keyed off
+  `.marketing-shell` now; `scroll-behavior` needs `html:has()` since it only works on the scroller.
+- Vite hands back a URL string for an image import, webpack hands back `StaticImageData`. The
+  contact sheet's `src={contactSheet}` typechecked and built clean while rendering nothing. Now
+  `.src`.
+
+**One plan item deliberately reversed during implementation.** The approved plan said convert
+`useWaitlistMode` to a server-side read. That is wrong: a DB/Redis read in the marketing layout
+makes every page rendering a CTA dynamic, destroying the static rendering the whole migration
+exists for. It stays a client fetch, now on a relative URL (so it no longer depends on the CORS
+allowlist), and the comment says why it is a choice rather than a leftover.
+
+### 2026-09-11 — Session 36 close-out
+
+Tree is clean, `HEAD` (`755c304`) is pushed — `git log origin/main..HEAD` is empty. Both Vercel
+projects auto-deploy on push, so all three fixes below are live or will be within minutes.
+
+**Three real bugs this session, all founder-reported from actually using the shipped Session 35
+work, none caught by typecheck/build/tests:**
+
+1. Admin sidebar nested inside the root layout's centered 1080px column instead of breaking out of
+   it — fixed with a CSS breakout in `app/admin/layout.tsx`. Verified the CSS mechanism in an
+   isolated browser test; **not yet eyeballed on the real, authenticated page** (no WorkOS
+   credentials in this environment).
+2. Waitlist toggle: `lib/public-cors.ts`'s `ALLOWED_ORIGINS` only had the bare `useocular.dev`, not
+   the `www.useocular.dev` the site actually redirects to and serves from — a real browser's fetch
+   was silently CORS-blocked. Fixed, confirmed via matched curl requests with each Origin header.
+3. Deeper problem underneath #2: only 1 of the site's 4 "start using Ocular" CTAs (`pricing.tsx`'s)
+   ever checked the waitlist flag at all. `hero.tsx`, `nav.tsx`, `cta-footer.tsx` each had their own
+   independent "Connect your agent" link straight to `/setup`, wired to nothing waitlist-related.
+   Session 35's own claim that only `pricing.tsx` has a real CTA was wrong — never grepped for the
+   actual button text. Fixed: extracted `useWaitlistMode()` (`hooks/use-waitlist-mode.ts`) shared
+   across all four; `hero.tsx`/`cta-footer.tsx` share a new `ConnectCta` component, `nav.tsx` kept
+   its own version (TanStack Router `<Link>` + its existing onHome-aware anchor pattern). All four
+   now converge on the one real waitlist form (`pricing.tsx`'s `WaitlistCta`, backend unchanged)
+   instead of each growing a duplicate. Verified past "it builds" by grepping the compiled bundle
+   directly for both CTA strings — the CORS fix built clean too and still didn't work end to end, so
+   a clean build stopped being trusted as sufficient evidence on its own this session.
+
+**No open question waiting on the founder right now.** The next useful step, per the founder's own
+"what's next?" — a human click-through of the live site and the admin area, since this session found
+three bugs of the exact shape that only surfaces when someone actually uses the thing, and nothing
+else shipped this session (Users list, Audit log, Analytics, Overview) has had that check yet either.
+
+**Remaining work, unchanged from earlier entries:** cloud a11y extractor parity + `get_tree` for the
+cloud path (the one item left from the whole Session 34 brief); website copy overhaul and cache-TTL
+research (queued since Session 33, untouched); Prev pagination on Users/Audit log, a small shared
+`Input`/`Select` component, and waitlist rate limiting (all minor, all named in Session 35's entry).
+
 ### 2026-09-11 — Session 36 continued: the CORS fix was correct and still wasn't enough
 
 The founder turned the toggle on again after the CORS fix deployed and the CTAs still said "Connect
@@ -797,6 +911,181 @@ question is still unresolved and worth reading this entry before re-deriving it.
 ---
 
 ## Pending / Next Up
+
+### Session 38 brief — READ THIS FIRST. The blog, and the cutover that gates it.
+
+Written 2026-09-11 at the founder's request. Nothing in this section is started. The full approved
+plan lives at `~/.claude/plans/now-i-want-you-abstract-koala.md` — read it alongside this, it has
+the file-by-file detail this brief summarises.
+
+**State: branch `marketing-migration` is pushed and has a Vercel preview. `main` is unchanged
+except for the copy pass. No DNS has moved. The old Vite site is still serving `useocular.dev`.**
+
+#### 0. Decisions the founder has now made — stop re-deriving these
+
+| Question                   | Answer                                                                                                                                                                      |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Blog post author           | **Godwin James**, by name. Not "Ocular" as an Organization. Drives JSON-LD `author`, and a named human author is worth more for E-E-A-T than a faceless org.                |
+| Canonical host             | **`https://www.useocular.dev`** — and this is settled by evidence, not preference: `lib/public-cors.ts` records that the apex already 308-redirects to www, confirmed live. |
+| Redundant waitlist fetches | **Fix them.** See §2.                                                                                                                                                       |
+
+**The canonical decision has two consequences nobody has actioned yet.** A canonical tag must point
+at the URL that actually serves, never at one that redirects — so:
+
+- `packages/website/index.html`'s `<link rel="canonical" href="https://useocular.dev/">` has been
+  pointing at a redirecting URL this whole time. Pre-existing defect, not introduced by the
+  migration. Dies with the Vite site if the cutover happens first; fix it there if it doesn't.
+- **`app/layout.tsx`'s `metadataBase` is `new URL('https://useocular.dev')` and is wrong the same
+  way.** It must become `https://www.useocular.dev`, along with the `alternates.canonical` values
+  in `(marketing)/page.tsx` and `(marketing)/setup/page.tsx`. Do this before anything is indexed —
+  it is one line each now and a re-indexing problem later.
+
+#### 1. The cutover — founder-side, and it gates everything below
+
+Not attempted in-session: pointing production DNS at unverified code is exactly the move the plan
+forbids, and the founder should eyeball the preview first.
+
+1. Look at the Vercel preview for `marketing-migration` beside the live site. Check `/` and
+   `/setup` at 1280 and 390 wide, the nav scroll-spy, the waitlist-mode CTA switch, `/setup`'s copy
+   button, the five section anchors, and that the demo animations fire on scroll.
+2. Add `useocular.dev` + `www.useocular.dev` to the **dashboard** Vercel project.
+   `dashboard.useocular.dev` stays exactly as-is; `NEXT_PUBLIC_WORKOS_REDIRECT_URI` does not change.
+3. Leave the `@ocular/website` Vercel project intact as the rollback path. Rollback = point the
+   domain back at it.
+4. Re-run the crawler check against the live domain afterwards, not just the preview:
+   `curl -s https://www.useocular.dev/ | grep -c "Two readings of the same page"` must be non-zero.
+
+**Do not delete `packages/website` yet.** It is the rollback, and `scripts/capture-motion-specimen.mjs`
+still points at its dev server for regenerating the motion contact sheet.
+
+#### 2. Fix the redundant waitlist fetches — approved, small, do it first
+
+`hooks/marketing/use-waitlist-mode.ts` fires **four** identical `/api/public/waitlist-status`
+requests per page load — nav, hero's ConnectCta, pricing's WaitlistCta, cta-footer's ConnectCta —
+because each consumer owns its own `useState`/`useEffect`. Observed in the network panel, four
+entries. The hook's own comment claims the opposite ("fetched once per page load, not once per CTA
+instance — four independent fetches on mount would be wasteful"), so the comment is currently a lie
+about its own behaviour. Pre-existing; the Vite site did this too.
+
+Fix with a module-level promise cache (one in-flight request shared by all consumers), not a
+context provider — a provider would mean wrapping the marketing layout in a client component and
+that is a worse trade for a single boolean. Correct the comment in the same change.
+
+#### 3. Blog foundation — the actual ask, still entirely unbuilt
+
+Phases 2-4 of the plan. Nothing exists: no MDX tooling anywhere in the monorepo, no `content/`
+directory, no prose typography, no sitemap, no robots, no JSON-LD.
+
+- **`@next/mdx`**, one `.mdx` per post under `content/blog/`, compiled at build time. Justified in
+  the plan against `next-mdx-remote` (no runtime content source to warrant it) and a CMS (git is
+  the review process at this size).
+- **`lib/blog.ts`** — `getAllPosts()` / `getPostBySlug()`, filesystem read at build time. Posts are
+  content _imported by_ `[slug]/page.tsx`, not route files, so metadata/JSON-LD/OG generation stays
+  in one place rather than duplicated per post.
+- **Prose typography is real design work and must go through both design agents first** — there is
+  no long-form typography anywhere on this site, only short marketing copy. Body text, in-article
+  H2/H3, lists, blockquotes, inline code and fenced code are all net-new. Live question for them:
+  the preset defines `max-w-measure` (68ch) and _nothing uses it_, while `faq.tsx` and
+  `use-cases.tsx` use 62ch. Decide whether blog prose takes 68ch and whether that unifies the 62ch
+  spots. Do not skip this to ship a post faster.
+- **`app/sitemap.ts` + `app/robots.ts`** (true root — file-convention routes ignore route groups).
+  The sitemap fixes a reference that has been broken the whole time: `robots.txt` has always
+  advertised a `sitemap.xml` that never existed. `robots.ts` **must disallow** `/access`,
+  `/activity`, `/admin`, `/billing`, `/usage`, `/api/`, `/callback`, `/connect`, `/webhooks/` —
+  a new risk created by the merged domain, since the standalone site never had authenticated routes
+  to exclude. Without it Google indexes `/billing`.
+- **Per-post OG images** via `next/og` `ImageResponse` at `blog/[slug]/opengraph-image.tsx`. The
+  existing `scripts/gen-og-image.mjs` is text-free specifically because `sharp` could not load the
+  self-hosted font; `ImageResponse` can, so posts can have real title text.
+- **`llms.txt`** already exists and is already good. _Extend_ it with a `## Blog` section once posts
+  exist; do not rewrite it. It supplements the server-rendered HTML, it is not the GEO mechanism.
+
+#### 4. Keyword research — a blocking gate, not a formality
+
+**No keyword data exists and none was invented.** Run this as its own step, with real `WebSearch`,
+_before_ drafting — deliberately separate from the writing session so findings don't get
+rationalised to fit a pre-written outline.
+
+Fetch chrome-devtools-mcp's actual README/docs/npm so its claims are quoted, not remembered. Mine
+real PAA and top-10 for `chrome devtools mcp alternative`, `mcp browser screenshot tool`,
+`ai agent browser vision`, `mcp server for ui testing`. Cross-check any volume figures against
+GitHub/Reddit/HN discussion — mainstream tools under-report young developer-ecosystem terms.
+Expect `ocular vs chrome devtools mcp` to have near-zero volume today; the realistic primary target
+is probably `chrome devtools mcp alternative`. Record "no reliable volume data" where that is the
+honest finding.
+
+#### 5. First post, and the ones that should never be written
+
+Outline for "Ocular vs Chrome DevTools MCP" is in the plan §Phase 4. The load-bearing constraints,
+because getting these wrong has cost this project two rejected rounds already:
+
+- **Never compare on mechanism.** No Patchright, no stealth rungs, no warm pools, no caching or
+  diffing claims — CLAUDE.md's rejected-list calls all of it "already public practice". Compare
+  outcomes: cold-start wait, coverage of both sides of the line, maintenance burden, price.
+- **Scope-test every heading.** A post framed only on "checking the UI your agent just wrote" fails.
+  Give the open web equal billing.
+- **Concede honestly at the close**, mirroring the shipped FAQ's _"if what you have does all of that
+  and you haven't touched it in six months, you don't need this."_ The concession is what makes the
+  rest credible.
+- **Be honest that Ocular cannot act.** Against an action-capable tool that is a capability
+  tradeoff, stated plainly. Never imply "safe with sensitive data".
+
+Follow-ons, in order: hand-rolled Puppeteer/Playwright script (highest value — product-marketing
+names the developer's own script as _the real competitor_), "screenshot MCP wrapper" tools as a
+category, Playwright MCP only if research confirms it is comparable, DiffLens only if it has real
+search demand.
+
+**No post for** Percy/Chromatic (anti-persona; an honest comparison loses on their home turf) or
+Browserbase / cloud-only screenshot APIs (apples-to-oranges on localhost — mention in passing
+inside the others).
+
+#### 6. Still open from before, now relocated
+
+The **Session 37 waitlist-prominence brief below is still unbuilt, and its file paths are now
+stale.** `WaitlistCta` lives at `packages/dashboard/components/marketing/waitlist-cta.tsx`, and
+`pricing.tsx` beside it. The design question it poses is unchanged and still worth doing.
+
+Also unchanged and untouched: cloud a11y extractor parity + `get_tree` for the cloud path, cache-TTL
+research, Prev pagination on Users/Audit log, a shared `Input`/`Select` component, waitlist rate
+limiting.
+
+### Session 37 brief — superseded in priority by Session 38 above; file paths below are now stale (see §6). Not started.
+
+Written 2026-09-11 at the founder's request, right after he did a real click-through of everything
+Session 36 shipped. Handed off without attempting it in-session because context was already past 85%
+at request time — better to log it precisely for a fresh session than half-build it and get cut off
+by autocompact mid-change.
+
+**The ask, in his words:** _"Can you make the waitlist input more prominent? Like give it its own
+section since it is the highlight of the prelaunch site rather than make it look like an afterthought
+appended to the pricing section."_
+
+**Current state, for context:** `WaitlistCta` (`packages/website/src/components/waitlist-cta.tsx`)
+lives inside `pricing.tsx`'s existing layout — when waitlist mode is on, it replaces the "Choose a
+plan" button in place, sitting under the pricing cards at the same visual weight a button had. Every
+other CTA on the site (`hero.tsx`, `nav.tsx`, `cta-footer.tsx`, via the shared `ConnectCta` +
+`useWaitlistMode()` built in Session 36) already redirects to `#pricing` when waitlist mode is on,
+so the anchor target is correct — the problem the founder is naming is purely that the destination
+itself under-sells the moment: a pre-launch site's ENTIRE point right now is collecting that email,
+and it currently reads as a swapped-out button, not a section.
+
+**What this needs, per standing practice (do not skip):** both `ui-design-intelligence` and
+`product-intelligence` agents, per the project's own "always use both design agents for UI work,
+never design from memory" rule — this is exactly the kind of emphasis/hierarchy call that rule
+exists for, not a CSS tweak. Likely shape (not prescriptive — let the agents actually design it):
+a real full-width or otherwise visually distinct section of its own, probably positioned higher on
+the page than pricing currently sits (if the waitlist really is the prelaunch highlight, burying it
+below pricing cards may itself be wrong), with the pricing section either demoted, deferred, or
+reframed as "what it'll cost once this ships" underneath the actual ask. Whether pricing.tsx and the
+new waitlist section coexist or the pricing cards temporarily step back while waitlist mode is on is
+itself a real design decision, not a given — don't assume the current pricing-cards-always-visible
+structure survives untouched.
+
+**Also worth deciding explicitly, not silently inheriting:** should this new section only render
+when waitlist mode is ON (matching every other CTA's conditional behavior), or does it always exist
+with pricing.tsx's cards conditionally hidden behind it? The current per-CTA-swap pattern (from
+Session 36) assumed the SAME section serves both states; a genuinely prominent standalone waitlist
+section might not want to.
 
 ### Session 34 addendum — the next session's brief. READ THIS FIRST.
 
