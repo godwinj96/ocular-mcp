@@ -67,6 +67,70 @@ Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M
 
 ## Session log
 
+### 2026-09-11 — Session 38: the two fixes the cutover needed, and the robots.txt nobody had written
+
+Both pushed to `marketing-migration` (`a4eb8c7`, `58b6087`). **DNS still has not moved** — the Vite
+site still serves `useocular.dev` and `@ocular/website` is still the rollback. §1 of the Session 38
+brief below is unchanged and still founder-side.
+
+**1. The four waitlist fetches are one (`a4eb8c7`).** Brief §2, as approved. Module-level promise,
+not a context provider — a provider would have meant making the marketing layout a client component
+for one boolean. Added beyond the brief: a resolved-value cache beside the in-flight promise, so a
+CTA mounting _after_ the fetch settles (anything on a later client-side navigation) reads it
+synchronously rather than flashing `null` again. It is `null` through the initial hydration pass,
+when all four consumers mount together, so the first client render still matches the server HTML.
+Failures are deliberately _not_ cached — the catch clears the slot so a later navigation retries
+instead of pinning the whole session to one lost packet. Verified in a real browser network panel:
+**one** `/api/public/waitlist-status` request, down from four. The hook's comment, which had been
+claiming the fixed behaviour while the broken behaviour shipped, now describes what it does.
+
+**2. Canonical host, and two files that had to exist (`58b6087`).**
+
+- `metadataBase` is `https://www.useocular.dev`. Because the per-page `alternates.canonical` values
+  are _relative_, that single line fixed the homepage and `/setup` at once — the brief expected three
+  separate edits. Verified in built HTML: `<link rel="canonical" href="https://www.useocular.dev">`
+  and `/setup`, with every absolute OG/Twitter image URL following.
+- `packages/website/index.html`'s hand-written canonical **and** `og:url` were fixed too, not left to
+  die with the Vite site. It is still the live site until the cutover; leaving a known-wrong
+  canonical on a live page for an unscheduled migration was the worse trade.
+- **`app/robots.ts` is new, and it is the item that most deserved doing before the cutover.**
+  `packages/dashboard` had **no robots.txt at all** — the `Allow: /` one lives in
+  `packages/website/public/` and does not come along. The moment the domain moves, nothing stands
+  between a crawler and `/billing`, `/admin`, `/usage`, `/dashboard`. Middleware still _protects_
+  those routes; this is index hygiene, not access control — sign-in bounces indexed under the brand's
+  own domain and crawl budget burned on routes that can never return content.
+- **`app/sitemap.ts` is new** and finally makes an old reference true: `robots.txt` has advertised
+  `/sitemap.xml` since it was written and no such file has ever existed. **No `lastModified`** — the
+  idiomatic `new Date()` stamps build time on every entry, so one component's deploy would tell
+  Google the whole site changed. A signal that is wrong everywhere is worse than an absent one; blog
+  posts can set it honestly from frontmatter later.
+- `lib/site.ts` holds `SITE_URL` + `PUBLIC_PATHS`, because three files now have to agree on the host.
+
+**Verification.** `tsc --noEmit` clean; `next build` clean with `/`, `/setup`, `/robots.txt`,
+`/sitemap.xml` all prerendered static (○). Generated `robots.txt` and `sitemap.xml` bodies read back
+from `.next/server/app/` and checked line by line. GitNexus was re-indexed first — it still predated
+the migration, so `useWaitlistMode` resolved to _not found_ and `detect_changes` returned a
+false-clean `changed_count: 0` against six real changed files. **Worth remembering as a class of
+error:** a stale index does not announce itself as stale in the result, it announces itself as
+_nothing changed_. After re-indexing, `detect_changes` reported HIGH risk across seven processes —
+every `* → LoadWaitlistMode` path. That breadth is the fan-out the change exists to collapse, and it
+is covered by the browser check above, not by the count being small.
+
+**Adjacent decision the founder asked about and which is now settled:** `dashboard.useocular.dev`
+**stays alongside** the apex and www on the dashboard Vercel project — it is not replaced. Three
+things depend on that host and two of them cannot be fixed after the fact:
+`NEXT_PUBLIC_WORKOS_REDIRECT_URI` and the WorkOS app's `initiateLoginUri`, and — the one that has no
+remedy — `packages/local-worker/src/config.ts`'s `connectUrl` default, which is baked into every
+published copy of the `useocular` npm package. And a specific trap: do **not** set
+`dashboard.useocular.dev` as a Vercel domain-level redirect to the new primary. That redirect is
+unconditional and would 308 `/callback` and `/connect` along with everything else, breaking OAuth
+and worker pairing. Both hosts must serve, not redirect.
+
+**Still not started from the brief below:** §3 blog foundation (MDX tooling, `lib/blog.ts`, prose
+typography — which needs both design agents), §4 keyword research, §5 the first post. §6's items are
+unchanged. Note that §3's sitemap/robots bullet is now **done** and the blog only needs to extend
+`PUBLIC_PATHS`/`sitemap.ts` rather than create them.
+
 ### 2026-09-11 — Session 37: copy pass, then the marketing site moved into the Next app
 
 Two separate pieces of work. The first is done and live; the second is done, verified locally,
@@ -929,16 +993,17 @@ except for the copy pass. No DNS has moved. The old Vite site is still serving `
 | Canonical host             | **`https://www.useocular.dev`** — and this is settled by evidence, not preference: `lib/public-cors.ts` records that the apex already 308-redirects to www, confirmed live. |
 | Redundant waitlist fetches | **Fix them.** See §2.                                                                                                                                                       |
 
-**The canonical decision has two consequences nobody has actioned yet.** A canonical tag must point
-at the URL that actually serves, never at one that redirects — so:
+**The canonical decision had two consequences — both now actioned in Session 38 (`58b6087`).** A
+canonical tag must point at the URL that actually serves, never at one that redirects — so:
 
-- `packages/website/index.html`'s `<link rel="canonical" href="https://useocular.dev/">` has been
-  pointing at a redirecting URL this whole time. Pre-existing defect, not introduced by the
-  migration. Dies with the Vite site if the cutover happens first; fix it there if it doesn't.
-- **`app/layout.tsx`'s `metadataBase` is `new URL('https://useocular.dev')` and is wrong the same
-  way.** It must become `https://www.useocular.dev`, along with the `alternates.canonical` values
-  in `(marketing)/page.tsx` and `(marketing)/setup/page.tsx`. Do this before anything is indexed —
-  it is one line each now and a re-indexing problem later.
+- ~~`packages/website/index.html`'s `<link rel="canonical" href="https://useocular.dev/">` has been
+  pointing at a redirecting URL this whole time.~~ **Done** — fixed there rather than left to die
+  with the Vite site, since that site is still the live one until the cutover. `og:url` had the same
+  defect and was fixed with it.
+- ~~**`app/layout.tsx`'s `metadataBase` is `new URL('https://useocular.dev')` and is wrong the same
+  way.**~~ **Done** — and it turned out to be one line total, not three: the per-page
+  `alternates.canonical` values are relative, so they resolve against `metadataBase`. The host now
+  lives once in `lib/site.ts` as `SITE_URL`.
 
 #### 1. The cutover — founder-side, and it gates everything below
 
@@ -958,7 +1023,7 @@ forbids, and the founder should eyeball the preview first.
 **Do not delete `packages/website` yet.** It is the rollback, and `scripts/capture-motion-specimen.mjs`
 still points at its dev server for regenerating the motion contact sheet.
 
-#### 2. Fix the redundant waitlist fetches — approved, small, do it first
+#### 2. ~~Fix the redundant waitlist fetches~~ — DONE, Session 38 (`a4eb8c7`). Left below for the rationale.
 
 `hooks/marketing/use-waitlist-mode.ts` fires **four** identical `/api/public/waitlist-status`
 requests per page load — nav, hero's ConnectCta, pricing's WaitlistCta, cta-footer's ConnectCta —
@@ -988,7 +1053,9 @@ directory, no prose typography, no sitemap, no robots, no JSON-LD.
   the preset defines `max-w-measure` (68ch) and _nothing uses it_, while `faq.tsx` and
   `use-cases.tsx` use 62ch. Decide whether blog prose takes 68ch and whether that unifies the 62ch
   spots. Do not skip this to ship a post faster.
-- **`app/sitemap.ts` + `app/robots.ts`** (true root — file-convention routes ignore route groups).
+- ~~**`app/sitemap.ts` + `app/robots.ts`**~~ **DONE, Session 38 (`58b6087`)** — the blog now only has
+  to extend `PUBLIC_PATHS` in `lib/site.ts`, not create these. Original rationale kept below.
+  (true root — file-convention routes ignore route groups).
   The sitemap fixes a reference that has been broken the whole time: `robots.txt` has always
   advertised a `sitemap.xml` that never existed. `robots.ts` **must disallow** `/access`,
   `/activity`, `/admin`, `/billing`, `/usage`, `/api/`, `/callback`, `/connect`, `/webhooks/` —
