@@ -1,3 +1,6 @@
+import createMDX from '@next/mdx';
+import remarkFrontmatter from 'remark-frontmatter';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -45,4 +48,24 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// MDX, for blog posts only. `pageExtensions` is deliberately NOT extended
+// with 'mdx': posts are content IMPORTED by app/(marketing)/blog/[slug]/
+// page.tsx, not route files of their own. That keeps metadata, JSON-LD and OG
+// generation in one place instead of duplicating it into every post -- and it
+// means a .mdx file dropped into content/ cannot accidentally become a live
+// URL. The loader still applies to imported .mdx either way.
+//
+// remark-frontmatter is what stops the YAML block at the top of each post
+// rendering as a paragraph of text. It only parses the block out of the
+// document; it does not hand the values to anything. lib/blog.ts reads them
+// from disk separately, which is deliberate -- see its header for why the
+// metadata path and the rendering path are kept apart.
+const withMDX = createMDX({
+  extension: /\.mdx$/,
+  options: {
+    remarkPlugins: [remarkFrontmatter],
+    rehypePlugins: [],
+  },
+});
+
+export default withMDX(nextConfig);
