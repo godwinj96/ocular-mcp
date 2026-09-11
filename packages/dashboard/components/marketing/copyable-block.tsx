@@ -26,7 +26,26 @@ export function CopyableBlock({ code, label }: { code: string; label: string }) 
 
   return (
     <div className="relative">
-      <pre className="overflow-x-auto rounded border border-rule-divider bg-surface-elevated p-5 font-mono text-[13px] leading-[1.7] text-text-primary">
+      {/* tabIndex + role="region" are not decoration: `overflow-x-auto`
+          creates a scrollable region, and a scrollable region that is only
+          reachable by pointer cannot be scrolled by a keyboard user at all.
+          That is WCAG 2.1.1, and it has been failing on /setup since this
+          block shipped — the config snippet is wider than the column on a
+          phone. A focusable scroll container is the standard fix and costs
+          one tab stop.
+
+          NOT applied to components/ui/code-block.tsx, which looks like it
+          has the same bug and does not: its <code> carries
+          `whitespace-pre-wrap break-all`, so the content wraps and the
+          container never actually scrolls. Adding a tab stop to an element
+          with nothing to scroll would be its own small accessibility
+          regression. */}
+      <pre
+        tabIndex={0}
+        role="region"
+        aria-label={`${label}, scrollable`}
+        className="overflow-x-auto rounded border border-rule-divider bg-surface-elevated p-5 font-mono text-[13px] leading-[1.7] text-text-primary"
+      >
         <code>{code}</code>
       </pre>
       <button

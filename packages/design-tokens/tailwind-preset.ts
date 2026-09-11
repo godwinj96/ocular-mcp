@@ -62,7 +62,12 @@ export const ocularPreset = {
         brand: ['Outfit', '"Geist Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       maxWidth: {
-        measure: '68ch',
+        // `measure: '68ch'` was here, unused, and delivered 99 characters
+        // rather than 68 -- see tokens.css for the measurement. Replaced by
+        // two named px measures with documented jobs.
+        prose: 'var(--measure-prose)',
+        answer: 'var(--measure-answer)',
+        'prose-bleed': 'var(--prose-bleed)',
         deck: '40ch',
         demo: '1400px',
         app: 'var(--app-measure)',

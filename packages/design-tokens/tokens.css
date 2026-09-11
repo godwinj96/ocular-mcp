@@ -196,6 +196,62 @@
   --app-measure: 1080px;
   --app-bar-h: 56px;
 
+  /* READING MEASURES. Two of them, deliberately far apart, because they
+     serve opposite reading modes -- and both in px, not ch.
+
+     `1ch` is the advance width of the `0` glyph, which is not the average
+     width of running text. MEASURED against the real build at 400 17px
+     Geist Sans (not computed -- see the --sec-gap comment above for why
+     this file distinguishes the two): `0` advances 11.425px (0.672em) while
+     average prose advances 7.886px (0.464em). The ratio is 1.449.
+
+     So the preset's old `measure: 68ch` was not 68 characters. It was
+     NINETY-NINE -- twenty-four past the outer edge of every published
+     comfortable range, under a token that named itself `measure`. It was
+     also never used by anything, which is the only reason it never shipped
+     a 99-character column. Deleted rather than corrected: a unit that
+     asserts one number and delivers another is the same failure mode as the
+     `font-medium`-rendering-at-400 bug this codebase already ate four
+     rounds on.
+
+     px, not ch, for the same reason: `ch` silently re-anchors to whichever
+     face actually resolves. If Geist ever fails to load, a ch-based measure
+     changes width AND character count in the same instant, in opposite
+     directions. A px measure computed for Geist degrades to wrong-but-stable
+     instead of invisible-and-drifting.
+
+     --measure-prose   68 real characters of Geist at 17px (68 x 7.886).
+                       Sustained reading. The MIDDLE of the 45-75 band, not
+                       the top: light glyphs on near-black irradiate, strokes
+                       optically thicken, and the interline channel the eye
+                       navigates by on the return sweep narrows. Long lines
+                       cost more on dark than on light at equal character
+                       count.
+     --measure-answer  The FAQ / use-cases body width, unchanged in pixels
+                       from the `62ch` it replaces (62 x 10.753 at 16px).
+                       Wider than prose ON PURPOSE: a four-line answer
+                       amortises the return-sweep cost over ~4 sweeps rather
+                       than ~280, and a wider answer is a shorter block --
+                       blocks-per-viewport is what matters on a page being
+                       scanned for the one question that worries you. It
+                       also clamps the 872px right column of both
+                       components' lg:grid-cols-[320px_1fr] layout; narrowing
+                       it to prose width opens ~330px of dead air at 1240.
+                       NOTE: measured, it is 90 characters. That is wide even
+                       for scanned short-form. Left at its shipped value here
+                       because these sections have been through founder
+                       review at this width and narrowing them is a visible
+                       design change, not a rename -- raised separately.
+     --prose-bleed     The one escape from the prose measure, for code blocks
+                       and most figures. 720px is 85 columns of Geist Mono at
+                       14px (measured: 8.4px advance); 80 is the historical
+                       floor and a horizontal scrollbar mid-article is a
+                       reading failure. Wide figures use the existing 1240px
+                       container instead. Two escapes, no third. */
+  --measure-prose: 536px;
+  --measure-answer: 667px;
+  --prose-bleed: 720px;
+
   /* The allowance rail's slot geometry, as FIXED dimensions rather than the
      site's flex-1.
 

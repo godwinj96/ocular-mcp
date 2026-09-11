@@ -82,7 +82,7 @@ export function Faq() {
               <dt className="text-[19px] font-medium leading-[1.35] tracking-[-0.014em] text-text-primary [text-wrap:balance]">
                 {item.q}
               </dt>
-              <dd className="max-w-[62ch] text-[16px] leading-[1.6] text-text-secondary [text-wrap:pretty]">
+              <dd className="max-w-answer text-[16px] leading-[1.6] text-text-secondary [text-wrap:pretty]">
                 {item.a}
               </dd>
             </div>
