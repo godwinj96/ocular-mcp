@@ -67,6 +67,81 @@ Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M
 
 ## Session log
 
+### 2026-09-11 — Session 38 (part 4): the blog is live, and the MDX pipeline fought back
+
+Pushed to `marketing-migration` (`c95db79`, `a441847`, and this entry). `/blog` and the first post,
+`/blog/ocular-vs-chrome-devtools-mcp`, are real, built, and verified against the actual prerendered
+HTML -- not just a green build.
+
+**Both documented ways to render MDX under React Server Components crashed, in this exact repo.**
+`@next/mdx` (both the default `@mdx-js/loader` pipeline and Next's own Rust `mdxRs` compiler) failed
+every single `.mdx` page with `TypeError: Cannot read properties of undefined (reading
+'ReactCurrentOwner')` -- reproduced on a frontmatter-only file with two plain paragraphs, which ruled
+out the post content before it was even written. Disassembling the failing chunk traced it to
+`react/cjs/react-jsx-runtime.development.js`: the compiled MDX module resolves `react/jsx-runtime`
+from inside its own webpack-loader-generated code rather than from a plain top-level import, and that
+resolution got the wrong build for the RSC layer. Switched to `next-mdx-remote/rsc` (v5, then v6):
+same root cause in a different shape -- its `compileMDX` does `require('react/jsx-runtime')` inside a
+shipped `.cjs` shim -- and it failed with a clearer message from a newer React ("A React Element from
+an older version of React was rendered... a compiler tries to inline JSX instead of using the
+runtime"). Neither wrapper library lets the caller supply its own runtime.
+
+**Fix: `lib/compile-mdx.tsx`**, calling `@mdx-js/mdx`'s `evaluate()` directly with
+`import * as runtime from 'react/jsx-runtime'` written at the top of that file. A plain import in a
+file Next's own compiler processes normally gets tagged for the correct layer, which neither
+wrapper's own internal `require`/import did. This is now the pattern for any future MDX rendering in
+this repo -- do not reach for `@next/mdx` or `next-mdx-remote` again without re-reading
+`next.config.mjs`'s account of why.
+
+**Net dependency change:** `@next/mdx`, `@mdx-js/loader`, `@mdx-js/react`, `remark-frontmatter`,
+`next-mdx-remote` all removed. `@mdx-js/mdx` (direct), `remark-gfm`, `@types/mdx` added.
+`lib/blog.ts` now exposes a post's raw body (`getPostWithContent`) alongside metadata, from the same
+`gray-matter` parse -- one file read, not two.
+
+**What shipped, verified past the build succeeding** (the actual point, per the plan's own
+verification section -- a green build proves nothing about what a non-JS crawler sees):
+
+- `/blog` -- a divided list, not a card grid, per the anti-template rule and the product-intelligence
+  review run before any of this was drafted. Reuses `faq.tsx`'s own `[320px_1fr]` divided-list
+  structure.
+- The first post, **"Ocular vs Chrome DevTools MCP"**, built on the research in
+  `docs/marketing/2026-09-11-keyword-research-chrome-devtools-mcp.md` and the founder's decisions
+  from that doc (drop the cold-start claim, lead on coverage; correct `CLAUDE.md` to match -- done
+  earlier this session). Structure follows the product review: eyebrow → H1 → standfirst → byline →
+  a combined disclosure+definition+pre-launch-status block (`Disclosure`) → an answer-first
+  verdict (`Verdict`) → body → a plain factual comparison table (no self-scoring) → `WaitlistCta`
+  rendered directly, not linked to `#pricing`.
+- Confirmed in the prerendered HTML on disk, not assumed from the build log: real `<h1>`, the
+  disclosure paragraph, both verdict items, the `<table>`, valid parseable JSON-LD
+  (`BlogPosting` + `BreadcrumbList`, author as a `Person` — Godwin James by name, founder's call for
+  E-E-A-T), and 2,561 words of body text. `sitemap.xml` carries `/blog` and the post with its real
+  frontmatter date as `lastModified`, not a build timestamp.
+- Per-post OG image via `next/og`'s `ImageResponse`, reading a colocated `.woff` (Satori/resvg accept
+  TTF/OTF/WOFF, not the `.woff2` the rest of the app loads) rather than reaching into the hoisted
+  `@fontsource` install by relative path. Verified as a real, valid 1200×630 PNG on disk, not just a
+  200 status.
+
+**One nav bug found and fixed while visually verifying the post (`c95db79`):** `nav.tsx`'s five
+homepage section links rendered on `/blog` routes too, permanently inactive, above a 2,500-word
+article -- exactly what the product review's §4 warned against. Replaced with a single "Writing" link
+back to `/blog` on blog routes only; `/setup`'s nav is untouched, since its own `/#id` behaviour has
+already been through founder review and changing it wasn't asked for.
+
+**Design-token groundwork also landed this session, ahead of the post (already pushed as `efb18d2`,
+noted here for completeness):** the `68ch` measure token was actually 99 characters, not 68 --
+measured against the real build, not estimated -- and was replaced with named px measures
+(`--measure-prose`, `--measure-answer`, `--prose-bleed`). `CLAUDE.md`'s cold-start claim about
+chrome-devtools-mcp was corrected to match what that project's own README actually says.
+
+**Verification run:** `tsc --noEmit` clean, `next build` clean (`/blog` and `/blog/[slug]` both
+prerendered), then `next start` against the real production build with a real browser at 1280px and
+390px -- nav, disclosure, verdict, table, and `WaitlistCta` all checked visually, not just in markup.
+
+**Still not started:** follow-on posts (Puppeteer/Playwright script comparison is next in priority
+per the plan), and the founder's own review of the shipped post's tone/claims before it's linked from
+anywhere public. §1's cutover is done (see the part-3 entry above); DNS and code are now in sync on
+`main`.
+
 ### 2026-09-11 — Session 38 (part 3): THE CUTOVER HAPPENED. `useocular.dev` now serves the Next app.
 
 **Status: live and verified.** `main` fast-forwarded to `marketing-migration` (`ddb5558`) and pushed;
