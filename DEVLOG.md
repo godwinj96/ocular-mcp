@@ -67,6 +67,91 @@ Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M
 
 ## Session log
 
+### 2026-09-11 — Session 38 (part 2): blog foundation, and three things the research found wrong
+
+Pushed to `marketing-migration` (`3f425bc`, `e250c64`, `efb18d2`). Still no blog routes and no posts
+— both are gated below.
+
+**Plumbing.** `@next/mdx` + `remark-frontmatter`; `lib/blog.ts` reads frontmatter off disk with
+gray-matter and validates with zod. `pageExtensions` is deliberately not extended with `mdx`: posts
+are content imported by the post route, so metadata/JSON-LD/OG stay in one place and a stray `.mdx`
+cannot become a live URL. Metadata deliberately does NOT go through the MDX pipeline — the index,
+the sitemap and `generateStaticParams` need every post's metadata and none of their bodies, and
+routing that through MDX means compiling every post to answer "what posts exist" on every build.
+
+**Two latent bugs, found by the product review and verified (`3f425bc`).** `ConnectCta` hardcoded
+`href="#pricing"` — off the home page that anchor matches nothing and the click silently does
+nothing; `nav.tsx` already documents the correct `onHome` pattern and this component simply missed
+it. And `nav.tsx`'s scroll handler ran its five-`getElementById` section scan on every route. The
+scan is now skipped off home, **not** the listener — the same handler drives `scrolled`, which is
+the bar's background and hairline, and that has to keep working everywhere. (The review said
+early-return the whole effect; that would have broken the bar.)
+
+**The measure token was lying, by a wide margin (`efb18d2`).** `maxWidth.measure: '68ch'` delivered
+**99 characters**, not 68. Measured, not computed: at 400 17px Geist Sans the `0` glyph advances
+11.425px while average running prose advances 7.886px — ratio **1.449**. The design pass estimated
+1.24 and 84 characters; the real build is worse than the estimate, which is precisely why this file
+keeps insisting on observed over computed. The token was never used by anything, which is the only
+reason a 99-character column never shipped. Deleted and replaced with `--measure-prose` (536px),
+`--measure-answer` (667px) and `--prose-bleed` (720px), all px and all documented. `--measure-answer`
+is pixel-identical to the `62ch` it replaces, so faq/use-cases do not move.
+
+**Open, and deliberately not decided in-session:** `--measure-answer` measures **90 characters**,
+which is wide even for scanned short-form. The design pass wanted it narrowed to ~600px. That is a
+visible change to two sections the founder has reviewed at their current width across several
+rounds, so it is a design decision to take on its own, not a side effect of a blog task.
+
+**A live WCAG 2.1.1 failure fixed on the way past:** `copyable-block.tsx`'s `overflow-x-auto` makes
+a scrollable region that keyboard users cannot scroll at all. Failing on `/setup` since it shipped —
+the config snippet is wider than the column on a phone. Not applied to `components/ui/code-block.tsx`,
+which looks like the same bug and is not: its `<code>` wraps (`whitespace-pre-wrap break-all`) so it
+never scrolls, and a tab stop on an element with nothing to scroll is its own small regression.
+
+#### Blocked on the founder — do not guess these
+
+1. **The cold-start claim in `CLAUDE.md` is not supported by its own source.** Full write-up in
+   `docs/marketing/2026-09-11-keyword-research-chrome-devtools-mcp.md` §3. Their README describes a
+   lazy browser start **once per session**, not per call. Recommendation: drop cold start from the
+   post and lead on coverage. `CLAUDE.md` needs correcting either way — it currently asserts a
+   competitor fact as settled that a reader can disprove from the competitor's README in thirty
+   seconds.
+2. **No italic face exists.** Confirmed against `node_modules`: `@fontsource/geist-sans@5.2.5` ships
+   18 files, every one `-normal`, zero italic. `<em>` in a post renders as a synthesised oblique that
+   shears Geist's counters — invisible in marketing copy, which has no `<em>`, and unavoidable in
+   long-form. Options: bar `<em>` and route all emphasis through `<strong>` (500 + `--text-primary`),
+   which is already this site's named hierarchy mechanism; or pair in an italic face, which the
+   two-sans warning in `section-header.tsx` argues against.
+3. **`--measure-answer` at 90 characters** — narrow it or leave it (above).
+4. **No X/Twitter handle exists in the repo**, so `twitter:site`/`twitter:creator` are absent. The OG
+   card itself is fine: the full wordmark, centred at 1200x630, clears X's crop with hundreds of px
+   to spare.
+
+#### Research findings that reshape the first post
+
+`docs/marketing/2026-09-11-keyword-research-chrome-devtools-mcp.md`, run against primary sources.
+
+- **Google's own launch sentence is the narrow framing this project has rejected twice** — "they are
+  not able to see what the code they generate actually does when it runs in the browser", backed by
+  51.6k stars and 1.43M weekly npm installs. The incumbent owns that claim. Opening a post there is
+  not merely too narrow, it is competing on their claim from behind. **The scope test is therefore
+  the competitive wedge, not a style rule**, and the post's spine should be coverage — they are
+  local-only by their own documentation.
+- `mcp server for ui testing` is the wrong SERP to target: owned by Applitools / LambdaTest / Maestro,
+  i.e. the anti-persona. `chrome devtools mcp alternative` is the realistic primary.
+- No keyword-volume tool was available; none was invented, and the doc says so where a number would
+  normally sit.
+
+#### Next, in order
+
+Design spec for blog prose typography is complete and sitting in this session's record — the
+implementation order it specifies is: resolve the italic question, then write `.prose` (scale,
+rhythm with four adjacency overrides, links, code, lists/figures/blockquote), extend
+`copyable-block.tsx` with `size`/`lang`/`bleed` rather than writing a third code block, build
+`ArticleHeader` as a stack (explicitly NOT `SectionHeader`'s split — there is no width to split in a
+536px column), then the `/blog` index as a divided list rather than a card grid, then the post route
+with JSON-LD and per-post `ImageResponse` OG. `Blog` goes in the **footer**, not the nav: the nav's
+links are a scroll-spy contract over homepage sections and a route link can never be active in it.
+
 ### 2026-09-11 — Session 38: the two fixes the cutover needed, and the robots.txt nobody had written
 
 Both pushed to `marketing-migration` (`a4eb8c7`, `58b6087`). **DNS still has not moved** — the Vite
