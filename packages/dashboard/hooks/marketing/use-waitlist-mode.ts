@@ -7,6 +7,14 @@ import { useEffect, useState } from 'react';
 // independent fetches on mount would be wasteful and could race to
 // different answers if the toggle flips mid-load.
 //
+// That sharing is what the module-level cache below actually provides. It did
+// not before: this comment described the intent while every consumer owned its
+// own useState/useEffect, so a page load fired four identical requests (nav,
+// hero's ConnectCta, pricing's WaitlistCta, cta-footer's ConnectCta --
+// observed in the network panel). A module-level promise is the right shape
+// rather than a context provider, which would mean making the marketing
+// layout a client component for the sake of one boolean.
+//
 // See app/(app)/api/public/waitlist-status/route.ts for the endpoint and
 // lib/feature-flags.ts for what sets it.
 //
@@ -26,6 +34,41 @@ import { useEffect, useState } from 'react';
 // routes cross-origin -- don't delete it on account of this file.
 const WAITLIST_STATUS_PATH = '/api/public/waitlist-status';
 
+// The one in-flight request, shared by every consumer that mounts while it is
+// pending. Module scope, so its lifetime is the page load -- a client-side
+// navigation within the app reuses the answer rather than re-asking.
+let inFlight: Promise<boolean> | null = null;
+
+// The resolved answer, so a CTA mounting AFTER the fetch settles (anything
+// rendered on a later client-side navigation) gets it synchronously instead
+// of flashing the null state again. Null during the initial hydration pass,
+// when every consumer mounts together and the fetch has not resolved yet --
+// so the first client render still matches the server HTML.
+let resolved: boolean | null = null;
+
+function loadWaitlistMode(): Promise<boolean> {
+  inFlight ??= fetch(WAITLIST_STATUS_PATH)
+    .then((res) => (res.ok ? res.json() : { waitlistMode: false }))
+    .then((data: { waitlistMode?: boolean }) => {
+      resolved = Boolean(data.waitlistMode);
+      return resolved;
+    })
+    // A failed flag check must never block a CTA -- fail open to the
+    // normal checkout path, same "advisory, not load-bearing" posture
+    // the local worker's own heartbeat takes on a failed request.
+    //
+    // The failure is not cached: clearing inFlight lets a later navigation
+    // ask again rather than pinning the whole session to one lost packet.
+    // Consumers already awaiting this promise still get false, which is the
+    // fail-open answer they would have got anyway.
+    .catch(() => {
+      inFlight = null;
+      return false;
+    });
+
+  return inFlight;
+}
+
 // null = not resolved yet. Consumers that can't show a stable-sized loading
 // placeholder (a compact nav pill, an inline hero link) can just treat null
 // the same as false -- the normal CTA renders first and swaps to "Join
@@ -33,21 +76,17 @@ const WAITLIST_STATUS_PATH = '/api/public/waitlist-status';
 // at most, not a jarring wait. Pricing's own CTA (the one with an inline
 // form to size for) reserves its footprint during null instead.
 export function useWaitlistMode(): boolean | null {
-  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [enabled, setEnabled] = useState<boolean | null>(resolved);
 
   useEffect(() => {
+    if (resolved !== null) return;
+
     let cancelled = false;
-    fetch(WAITLIST_STATUS_PATH)
-      .then((res) => (res.ok ? res.json() : { waitlistMode: false }))
-      .then((data: { waitlistMode?: boolean }) => {
-        if (!cancelled) setEnabled(Boolean(data.waitlistMode));
-      })
-      // A failed flag check must never block a CTA -- fail open to the
-      // normal checkout path, same "advisory, not load-bearing" posture
-      // the local worker's own heartbeat takes on a failed request.
-      .catch(() => {
-        if (!cancelled) setEnabled(false);
-      });
+    // loadWaitlistMode never rejects -- it resolves false on failure -- so
+    // there is no catch to add here.
+    void loadWaitlistMode().then((value) => {
+      if (!cancelled) setEnabled(value);
+    });
     return () => {
       cancelled = true;
     };
