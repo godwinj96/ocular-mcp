@@ -66,6 +66,14 @@ export const viewport = {
   themeColor: '#09090b',
 };
 
+// metadataBase is the one metadata field that genuinely belongs to the whole
+// host: it is what lets per-page `openGraph.images: '/og-image.png'` resolve
+// to an absolute URL, which OG and Twitter cards require. Without it Next
+// warns and emits a relative path that no crawler can fetch.
+export const metadata = {
+  metadataBase: new URL('https://useocular.dev'),
+};
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className="font-display">

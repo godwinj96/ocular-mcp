@@ -61,6 +61,21 @@ export default authkitMiddleware({
   },
 });
 
+// The extension exclusion is not cosmetic -- without it every static asset on
+// the public site gets a 307 to AuthKit. Found by loading the ported homepage
+// and watching the favicon, /og-image.png and /llms.txt all bounce: on the old
+// Vite deployment these were plain files with no middleware in front of them,
+// and nothing in the move makes that obvious until something tries to fetch
+// one. A social card that resolves to a login page and an llms.txt no crawler
+// can read are both silent failures -- they break nothing on screen.
+//
+// Extensions are listed rather than using a catch-all `\.[^.]+$`, deliberately:
+// /admin/waitlist/export.csv is a real authenticated route, and a blanket
+// any-extension rule would drop it out of middleware auth. It does check the
+// session itself, but this file is secure-by-default and should stay that way
+// rather than quietly delegating that to one route handler.
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|avif|txt|xml|json|woff|woff2|ttf|otf|webmanifest)$).*)',
+  ],
 };

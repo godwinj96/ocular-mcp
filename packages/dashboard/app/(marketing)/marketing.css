@@ -1,0 +1,346 @@
+/*
+ * Marketing-only CSS. The design tokens themselves -- the :root ladder, the
+ * focus ring, the hairline rule and the reduced-motion block -- live in
+ * @ocular/design-tokens/tokens.css, imported by the root layout. See that
+ * package for the reasoning behind every value.
+ *
+ * What remains below is behaviour that belongs to the public site and to no
+ * other surface: the demo-loop pause gate, anchor scroll offsets, and the
+ * instrument keyframes.
+ *
+ * NO @tailwind DIRECTIVES HERE. They were at the top of this file when it was
+ * the Vite site's only stylesheet; app/globals.css now carries them, and a
+ * second set would emit the whole framework twice.
+ *
+ * The two rules below used to be unscoped `html` and `section[id]`. Next does
+ * not route-scope CSS -- importing a stylesheet from a layout still puts its
+ * global selectors in the document for every route sharing that build -- so
+ * unscoped they would have reached the authenticated app too. They are keyed
+ * off the marketing layout's own wrapper class instead. `:has()` is doing real
+ * work in the first one: scroll-behavior only has an effect on the scrolling
+ * element, so it has to land on `html`, conditioned on what is inside it.
+ * Where :has() is unsupported the anchor jump is simply instant, which is the
+ * pre-2020 behaviour and not a defect.
+ */
+
+html:has(.marketing-shell) {
+  scroll-behavior: smooth;
+}
+
+/* Demo loops idle until scrolled into view — offscreen animation is battery
+   cost with no viewer, on a page selling a low-footprint product. One
+   IntersectionObserver (see hooks/use-in-view.ts) adds .is-live. */
+.demo-loop *,
+.demo-loop *::before,
+.demo-loop *::after {
+  animation-play-state: paused;
+}
+.demo-loop.is-live *,
+.demo-loop.is-live *::before,
+.demo-loop.is-live *::after {
+  animation-play-state: running;
+}
+
+/* Anchor targets clear the 72px fixed bar plus a little air, so a jumped-to
+   section lands under the rule rather than behind it. (The scroll-behavior
+   half of this moved to the top of the file, where the scoping note explains
+   why it had to be keyed off html.) */
+.marketing-shell section[id] {
+  scroll-margin-top: 96px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Demo loops.
+ *
+ * Every loop below shares one shape: a short acquire, a LONG hold, a release,
+ * and a rest. The hold is not padding — it is the whole effect. Motion that
+ * runs continuously reads as churn; motion that performs a discrete operation
+ * and then waits reads as an instrument doing its job, which is the
+ * "understated elegance" note this round is answering.
+ *
+ * Staggering is done with per-child `animation-delay`. A delay offsets the
+ * first iteration and every iteration after it, so one keyframe rule plus an
+ * index-derived delay gives a permanently phase-shifted cascade with zero JS
+ * and zero React re-render.
+ *
+ * Each rule's 100% frame is its RESTING state, never its empty one: the
+ * prefers-reduced-motion block above forces animation-iteration-count to 1,
+ * so the last frame is what a reduced-motion visitor is left looking at. It
+ * must be complete and legible.
+ * ------------------------------------------------------------------------- */
+
+/* S1 · tree rows land one at a time, hold 3.4s, dim back. */
+@keyframes row-cycle {
+  0% {
+    opacity: 0.08;
+  }
+  3.2% {
+    opacity: 1;
+  }
+  79.5% {
+    opacity: 1;
+  }
+  85.6%,
+  100% {
+    opacity: 0.08;
+  }
+}
+
+/* S1 · the box in the frame lifts as its row lands, then settles back. */
+@keyframes box-pulse {
+  0%,
+  1.5% {
+    opacity: 0.9;
+  }
+  4.5% {
+    opacity: 1;
+  }
+  11% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0.9;
+  }
+}
+
+/* S2 · contact-sheet cells populate in reading order. The grid plate itself
+   never animates, so there is no layout shift and the empty plate reads as an
+   instrument waiting rather than as a skeleton loading. */
+@keyframes cell-cycle {
+  0% {
+    opacity: 0.08;
+  }
+  2.4% {
+    opacity: 1;
+  }
+  83.4% {
+    opacity: 1;
+  }
+  88.9%,
+  100% {
+    opacity: 0.08;
+  }
+}
+
+/* S3 row A · localhost ticks accumulate and never resolve to a limit. */
+@keyframes tick-in {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.4);
+  }
+  5% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  90% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+/* S3 row B · the metered track fills to 12 of 40, holds, then clears. */
+@keyframes slot-fill {
+  0% {
+    background-color: var(--text-inactive);
+  }
+  2.5% {
+    background-color: var(--accent);
+  }
+  93.75% {
+    background-color: var(--accent);
+  }
+  100% {
+    background-color: var(--accent);
+  }
+}
+
+/* S4 · the read cursor steps down the available operations and STOPS DEAD on
+   the rule. The animation's own inability to cross the line is the claim —
+   there is no easing out of the halt and no overshoot, because a bounce would
+   imply it tried. */
+@keyframes boundary-cursor {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  3% {
+    opacity: 0.5;
+  }
+  13.36% {
+    transform: translateY(0);
+  }
+  17.94%,
+  26.72% {
+    transform: translateY(var(--row-h));
+  }
+  31.3%,
+  40.08% {
+    transform: translateY(calc(var(--row-h) * 2));
+  }
+  44.66%,
+  71.37% {
+    transform: translateY(calc(var(--row-h) * 3));
+    opacity: 0.5;
+  }
+  75.95%,
+  100% {
+    transform: translateY(calc(var(--row-h) * 3));
+    opacity: 0;
+  }
+}
+
+/* S4 · the row under the cursor lifts; everything else sits back. */
+@keyframes boundary-row {
+  0%,
+  10% {
+    color: var(--text-secondary);
+  }
+  13% {
+    color: var(--text-primary);
+  }
+  22% {
+    color: var(--text-secondary);
+  }
+  100% {
+    color: var(--text-secondary);
+  }
+}
+
+/* Hero readout · the scan line, at constant velocity. A scanner that eases is
+   decoration; one that runs linearly is a mechanism. */
+@keyframes readout-sweep {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  1% {
+    opacity: 1;
+  }
+  14.86% {
+    transform: translateY(var(--sweep-travel));
+    opacity: 1;
+  }
+  15.68%,
+  100% {
+    transform: translateY(var(--sweep-travel));
+    opacity: 0;
+  }
+}
+
+/* Hero readout · a box acquires its target, holds, and lets go.
+   Percentages are of the 7400ms cycle, written for the FIRST box (which
+   acquires at 218ms, when the scan line crosses its bottom edge); the other
+   two ride the same keyframe on an animation-delay, so the cascade is
+   permanently phase-shifted from one rule.
+
+   The gesture is a fade-in oversized followed by a scale down onto the
+   element. 1.12 and not more: past roughly 1.2 the box leaves its element's
+   neighbourhood and the viewer loses the connection between start and end
+   state; below about 1.08 the gesture isn't legible at this frame size.
+   No overshoot and no spring — scale monotonically to 1 and stop. A bounce
+   reads as a UI toy and would contradict the boundary demo's own rule about
+   halting without easing out, i.e. the page would be arguing with itself.
+
+   Release dilates to only 1.06, because a smaller dilation reads as letting
+   go where replaying the acquire in reverse would read as a rewind.
+
+   The 100% frame here is deliberately the empty state, unlike the other
+   loops: this loop's rest phase genuinely has no boxes in it. Reduced motion
+   is handled in capture-readout.tsx, which drops the animation entirely and
+   renders the boxes at rest — see the reduceMotion branch there. */
+@keyframes readout-acquire {
+  0%,
+  2.95% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+  4.84% {
+    opacity: 1;
+  }
+  7%,
+  72.97% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  75.95%,
+  100% {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+}
+
+/* Hero readout · the label lands after its box finishes drawing and leaves
+   before the box retracts, so the two never move at the same instant. */
+@keyframes readout-label {
+  0%,
+  7% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  9.2%,
+  72.97% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  75.4%,
+  100% {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * How it works · the numbered rule.
+ *
+ * One-shot, not a loop: a process that runs on repeat would contradict the
+ * section's own claim that setup happens once. `animation-fill-mode: both`
+ * plus a single iteration, and every 100% frame IS the complete resting
+ * state — so the global prefers-reduced-motion block (which collapses
+ * duration and forces iteration-count: 1) lands a reduced-motion visitor on
+ * a fully drawn rule, a closed bracket and five legible steps rather than on
+ * an empty column. Do not write a retract here.
+ */
+.hiw-rule {
+  transform-origin: top;
+  animation: hiw-extend 900ms var(--ease) both;
+}
+
+/* The bracket closes after the rule has passed all three of its rows, so the
+   loop reads as a conclusion drawn about the steps rather than as decoration
+   arriving alongside them. */
+.hiw-bracket {
+  transform-origin: top;
+  animation: hiw-extend 520ms var(--ease) 760ms both;
+}
+
+.hiw-step {
+  animation: hiw-step-in 420ms var(--ease) calc(120ms * var(--i)) both;
+}
+
+.hiw-loop-note {
+  animation: hiw-step-in 420ms var(--ease) 1180ms both;
+}
+
+@keyframes hiw-extend {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes hiw-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
