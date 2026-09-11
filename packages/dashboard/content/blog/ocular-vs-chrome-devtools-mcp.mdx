@@ -1,12 +1,17 @@
 ---
-title: "Ocular vs Chrome DevTools MCP"
-description: "Chrome DevTools MCP drives a browser your agent can already reach. Ocular sees pages it can't — your dev server and the open web — without a driving seat. Here's the actual difference, sourced to their own docs."
-publishedAt: "2026-09-11"
-targetKeyword: "chrome devtools mcp alternative"
+title: 'Ocular vs Chrome DevTools MCP'
+description: 'chrome-devtools-mcp drives a browser your agent can already reach. Ocular shows it the pages it can’t: a competitor’s site, a staging link, documentation you’re implementing against, and your own dev server, from one connection.'
+publishedAt: '2026-09-11'
+targetKeyword: 'chrome devtools mcp alternative'
+closingNote: 'If what you have does all of that and you haven’t touched it in six months, you don’t need this.'
 ---
 
 <Disclosure comparedAgainst="chrome-devtools-mcp as of September 2026">
-  Written by the person who builds Ocular, so weigh the conclusion accordingly. Every claim below about chrome-devtools-mcp is sourced to its own repository and documentation, linked where it's made. Ocular is read-only visual perception for AI coding agents over MCP — your dev server and pages on the open web, from one connection. It isn't open yet; there's a waitlist at the bottom of this page.
+  I build Ocular, so this is not a neutral review. What it is: every claim about chrome-devtools-mcp
+  below is sourced to that project’s own documentation and repository, linked where it’s made. Check
+  them rather than take my word for any of it. Ocular is read-only visual perception for AI coding
+  agents over MCP: your dev server and pages on the open web, from one connection. It isn’t open
+  yet; there’s a waitlist at the bottom of this page.
 </Disclosure>
 
 <Verdict
@@ -14,64 +19,107 @@ targetKeyword: "chrome devtools mcp alternative"
     {
       label: 'Use chrome-devtools-mcp if',
       children:
-        "you're debugging a page you can already reach in your own browser and want your agent driving it — clicking, filling forms, reading network requests, running a performance trace.",
+        'you’re debugging a page you can already reach in your own browser and you want your agent driving it: clicking, filling forms, reading the network panel, running a performance trace.',
     },
     {
       label: 'Use Ocular if',
       children:
-        "you want your agent to see a page — your dev server or somewhere on the open web — without needing to act on it, and without a full browser-automation surface sitting open the whole session.",
-    },
-    {
-      label: 'Use neither if',
-      children:
-        "what you have today already covers this and you haven't reached for more in six months. You don't need this.",
+        'your agent needs to look at a page it can’t drive to. A competitor’s pricing page, a staging link a teammate sent, documentation you’re implementing against, and your own dev server, from one connection.',
     },
   ]}
 />
 
-## What chrome-devtools-mcp actually is
+## The default, and the one case it can’t cover
 
-[chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) is Google's own MCP server for Chrome. It's free, it's official, and it is not a niche tool: 51.6k GitHub stars and **1.43 million npm installs a week** at the time of writing. If your agent has touched a browser recently, there's a good chance this is what it was using.
+[chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) is Google’s own MCP
+server for Chrome. Free, official, 51.6k GitHub stars, 1.43 million npm installs a week. If your
+agent has touched a browser recently there’s a good chance this is what it reached for, and there’s
+a good reason for that. It is the default, and the default is usually right.
 
-It gives an agent close to sixty tools — clicking, typing, filling forms, navigating, running Lighthouse audits, recording performance traces, reading the console and the network panel, even installing and driving Chrome extensions. [Google's own launch post](https://developer.chrome.com/blog/chrome-devtools-mcp) frames the problem it solves plainly: agents "are not able to see what the code they generate actually does when it runs in the browser."
+This is about the one case where it structurally isn’t.
 
-That's true, and it's also only half the problem. The other half is that most of the web isn't code your agent generated.
+[Google’s launch post](https://developer.chrome.com/blog/chrome-devtools-mcp) frames the problem it
+solves plainly: agents “are not able to see what the code they generate actually does when it runs
+in the browser.” That’s true. It is also half the problem. Most of the web isn’t code your agent
+generated.
 
 ## Where the two actually differ
 
-chrome-devtools-mcp's own documentation is direct about its shape: it "will start the browser automatically once the MCP client uses a tool that requires a running browser instance," and it drives **your own local Chrome** — "designed to run on the same machine as the browser." That's not a limitation the project is trying to hide; it's what a debugging tool for the browser you already have open is supposed to do.
+chrome-devtools-mcp’s own documentation is direct about its shape. It drives **your own local
+Chrome**, “designed to run on the same machine as the browser.” Remote Chrome appears in its docs as
+a possible future direction, not a feature. That isn’t a limitation the project is hiding. It is
+what a debugging tool for the browser you already have open is supposed to be.
 
-It also means the boundary is real. Point it at a page on the open web that isn't logged into your machine, protected by a login wall, or simply not running locally, and you're back to describing the page to your agent instead of showing it.
+It does mean the boundary is real. Point it at a page that isn’t running on your machine and you are
+back to describing that page to your agent instead of showing it.
 
-Ocular's second half is that boundary. Same MCP connection, same read-only posture, but it also renders pages on the open web that your local browser was never going to reach — competitor sites, staging environments behind a shared link, documentation you're implementing against. Not "any site guaranteed," but base-tier coverage clears most of what a working developer runs into, sold honestly as that rather than as universal.
+That boundary is where Ocular starts. Same MCP connection, same read-only posture, rendering pages
+your local browser was never going to reach, alongside your dev server. Base tier clears most of the
+open web. Most, not all.
 
-| | chrome-devtools-mcp | Ocular |
-| --- | --- | --- |
-| Made by | Google | One developer |
-| Price | Free | From $2.50/mo |
-| Weekly npm installs | 1.4M+ | Pre-launch |
-| Tools | ~58 | 4 |
-| Can act on the page (click, type, fill forms) | Yes | No |
-| Coverage | Local Chrome only | Localhost + the open web |
+|                  | chrome-devtools-mcp             | Ocular                   |
+| ---------------- | ------------------------------- | ------------------------ |
+| Coverage         | Local Chrome only               | Localhost + the open web |
+| Acts on the page | Yes: clicks, types, fills forms | No, by design            |
+| Tools            | ~58                             | 4, all read-only         |
+| Made by          | Google                          | One developer            |
+| Price            | Free                            | From $2.50/mo            |
 
-## What it can do that Ocular can't
+## Two jobs, not two tiers
 
-This is the part a vendor comparison usually buries, so it goes near the top instead: chrome-devtools-mcp can act, and Ocular structurally cannot. Ten of its tools are dedicated to input alone — click, drag, fill, hover, type, upload, press keys, handle dialogs. It can navigate, wait for state changes, and drive a real interaction end to end.
+These are different tools for different jobs, and the comparison only makes sense once that is on
+the table.
 
-Ocular has four tools and none of them touch the page. It renders what's there and hands back the pixels and the accessibility tree, annotated. If the job is "make the agent click through this checkout flow," this isn't that tool, and it was never trying to be — read-only is a design boundary here, not a version-one gap waiting to be filled in.
+chrome-devtools-mcp gives an agent a driving seat. Ten of its tools handle input alone, plus
+navigation, waiting, Lighthouse, traces, and the console and network panels. It can run an
+interaction end to end.
 
-That capability comes with a cost the project's own docs state plainly: a tool that can act on a live page can also read and modify anything on it, which is the tradeoff of giving an agent a driving seat rather than a viewport. That's a property of what the tool is for, worth knowing before you decide which one you need — not a claim about which is safer to point at any given page.
+Ocular gives it a viewport. Four tools, none of which touch the page. It renders what is there and
+hands back the pixels and the element tree, annotated with what is in view and what sits below the
+fold. If the job is “click through this checkout flow,” this is the wrong tool and never tried to be
+the right one.
 
-## Setup and what it costs to keep running
+Read-only isn’t fifty-four tools short. It is built for the moment your agent needs eyes on
+something rather than hands on it, and a driving seat left open on a page you were never going to
+operate is not a feature you asked for.
 
-Both are a few lines in an MCP client config and nothing else to install. chrome-devtools-mcp launches via `npx`; Ocular's local worker does the same, then asks for a one-time sign-in the first time it needs your account, the same way any CLI tool authenticates once and remembers it.
+There is a real tradeoff underneath that, running both directions. A tool that can act on a live
+page can also modify one, which is a property of what a driving seat is for and worth knowing when
+you pick. That is not a claim about which tool is safer to point at any given page. Whatever either
+one renders still lands in your agent’s context.
 
-Where they part ways is price. chrome-devtools-mcp is free — Google isn't billing you for it, and there's no ceiling to run into. Ocular starts at $2.50/mo for unmetered local rendering and a capped daily allowance on the open web (currently 40 renders a day on the base tier), because the open-web half of the job runs through infrastructure that isn't free to operate. If your work never leaves localhost, that's a real cost with no matching benefit — which is exactly the case in the concession below.
+## Setup, and what it costs to keep running
 
-## If what you have already does this
+Both are a few lines in an MCP client config with nothing else to install. chrome-devtools-mcp
+launches via `npx`. Ocular’s local worker does the same, then asks for a one-time sign-in, the way
+any CLI tool authenticates once and remembers.
 
-If your agent only ever needs to see pages it's running on your own machine, and driving the browser directly is useful to you, chrome-devtools-mcp already does that, for free, with a much larger surface than Ocular offers. There's no reason to add a second tool and a subscription on top of one that already works and costs nothing.
+Price is where they part. chrome-devtools-mcp is free, with no ceiling to run into. Ocular is $2.50
+a month: unmetered on localhost, because that is your own machine doing the work, and 40 renders a
+day on the open web, because that half runs through infrastructure that isn’t free.
 
-The reason to reach for Ocular is narrower and specific: the moment "see this page" means a page your agent can't drive to on its own — because it's not local, not yours, or simply somewhere your agent needs a look rather than a login. That's the actual gap between these two, and it's worth checking whether you have it before adding anything.
+So the question was never which one is better. It is whether you hit the second half of the job
+often enough to care.
 
-Read-only visual perception for AI coding agents, over MCP — your dev server and pages on the open web, from one connection. It isn't open yet.
+## Where this earns its keep
+
+Three ordinary moments, all of which end the same way today. Your agent asks you to go look, or it
+works from your description of what it can’t see.
+
+**A competitor built something and you want to know how.** Their page runs on their machine, not
+yours. Nothing local opens it for your agent.
+
+**A teammate drops a staging link in Slack.** It sits behind a URL your local Chrome profile has
+never seen.
+
+**Your agent needs the current documentation**, not the version that was in its training data the
+day it shipped.
+
+None of these are exotic. They are the ordinary shape of a working week, and every one of them is a
+point where a localhost-bound tool runs out of road.
+
+## Which one you want
+
+chrome-devtools-mcp is still the right tool for driving a page you can already reach. Ocular is for
+the page your agent can’t drive to, and for your dev server, from one connection. Four tools that
+only look.

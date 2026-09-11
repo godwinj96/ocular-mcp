@@ -2,6 +2,7 @@ import { evaluate } from '@mdx-js/mdx';
 import type { MDXComponents } from 'mdx/types';
 import type { ComponentType } from 'react';
 import * as runtime from 'react/jsx-runtime';
+import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
 
 // Compiles a post body string to a React component, at render time, inside a
@@ -32,9 +33,14 @@ export async function compileMdx(
   source: string,
   components: MDXComponents,
 ): Promise<ComponentType> {
+  // rehype-slug gives every heading an id. Two things depend on it and both
+  // were inert before it was added: prose.css's `.prose :is(h2, h3)[id]`
+  // scroll-margin rule, and the article rail's "In this piece" outline, whose
+  // anchors have to match ids generated from the same heading text.
   const { default: Content } = await evaluate(source, {
     ...runtime,
     remarkPlugins: [remarkGfm],
+    rehypePlugins: [rehypeSlug],
   });
 
   return () => Content({ components });

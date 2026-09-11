@@ -49,6 +49,14 @@ const frontmatterSchema = z.object({
   // alongside the post and reviewable in the same diff, rather than living in
   // someone's memory of a research session.
   targetKeyword: z.string().min(1),
+  // Rendered BELOW the call to action, never above it, and that position is
+  // the whole point. A comparison post has to name the case where the reader
+  // shouldn't buy -- the concession is what makes every other claim credible.
+  // But whatever sits immediately before the ask is what's still in working
+  // memory at the decision point, and the first version of this post put a
+  // full "you probably don't need this" section in exactly that slot. Below
+  // the CTA it does its credibility job without costing the conversion.
+  closingNote: z.string().min(1).optional(),
 });
 
 export type PostFrontmatter = z.infer<typeof frontmatterSchema>;
@@ -60,10 +68,64 @@ export type Post = PostFrontmatter & {
   readingMinutes: number;
 };
 
+export type OutlineEntry = {
+  /** The heading's own text. */
+  text: string;
+  /** The id rehype-slug will generate for it -- see slugifyHeading. */
+  id: string;
+};
+
 export type PostWithContent = Post & {
   /** The raw Markdown/MDX body, frontmatter already stripped by gray-matter. */
   content: string;
+  /** Top-level (##) headings, in document order, for the article rail. */
+  outline: OutlineEntry[];
 };
+
+// Must produce the same ids rehype-slug does, because the rail's anchors have
+// to match the headings it generated. rehype-slug uses github-slugger:
+// lowercase, strip anything that isn't a word character/space/hyphen, spaces
+// to hyphens. The curly apostrophes this site's copy uses are stripped
+// entirely (so "can’t" becomes "cant"), which is exactly what github-slugger
+// does and is the reason this cannot be a naive toLowerCase().replace().
+function slugifyHeading(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N} -]/gu, '')
+    .trim()
+    .replace(/\s+/g, '-');
+}
+
+// Only `##`. An article rail listing every h3 as well stops being a wayfinding
+// aid and becomes a second copy of the article.
+function extractOutline(body: string): OutlineEntry[] {
+  const entries: OutlineEntry[] = [];
+
+  for (const line of body.split('\n')) {
+    const match = /^##\s+(.+?)\s*$/.exec(line);
+    if (!match) continue;
+
+    // Strip inline markdown emphasis/code marks so the rail shows the words,
+    // not the syntax.
+    const text = (match[1] ?? '').replace(/[*_`]/g, '').trim();
+    if (text) entries.push({ text, id: slugifyHeading(text) });
+  }
+
+  return entries;
+}
+
+// Day-month-year with a spelled month, so 09/11 can never be read two ways.
+// UTC because the input is a calendar date with no timezone, and parsing it as
+// local would shift it a day west of Greenwich. Lives here rather than in
+// article-header.tsx because the article rail renders the same date.
+export function formatPostDate(iso: string): string {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
 
 // 220 words per minute. A measurement, not a hook -- which is the only reason
 // it earns a place in the byline of a site with this voice. It is also the
@@ -109,6 +171,7 @@ function readPost(fileName: string): PostWithContent {
     slug,
     readingMinutes: readingMinutes(file.content),
     content: file.content,
+    outline: extractOutline(file.content),
   };
 }
 

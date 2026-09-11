@@ -1,5 +1,5 @@
 import { BleedRule } from '../section-header';
-import type { Post } from '../../../lib/blog';
+import { formatPostDate, type Post } from '../../../lib/blog';
 
 // The block above every post.
 //
@@ -29,18 +29,6 @@ import type { Post } from '../../../lib/blog';
 // geometric, lower x-height, wide round counters, and no italic at any weight.
 // Outfit appears NOWHERE in an article.
 
-function formatDate(iso: string): string {
-  // Day-month-year, spelled month, so 09/11 can never be read two ways. UTC
-  // because the input is a calendar date with no timezone and parsing it as
-  // local would shift it a day west of Greenwich.
-  return new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
 export function ArticleHeader({ post, kind }: { post: Post; kind: string }) {
   return (
     <header>
@@ -68,13 +56,13 @@ export function ArticleHeader({ post, kind }: { post: Post; kind: string }) {
         <span>Godwin James</span>
         <span aria-hidden="true">·</span>
         <span>
-          <time dateTime={post.publishedAt}>{formatDate(post.publishedAt)}</time>
+          <time dateTime={post.publishedAt}>{formatPostDate(post.publishedAt)}</time>
         </span>
         {post.updatedAt ? (
           <>
             <span aria-hidden="true">·</span>
             <span>
-              Updated <time dateTime={post.updatedAt}>{formatDate(post.updatedAt)}</time>
+              Updated <time dateTime={post.updatedAt}>{formatPostDate(post.updatedAt)}</time>
             </span>
           </>
         ) : null}

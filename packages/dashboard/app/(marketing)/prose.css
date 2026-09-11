@@ -78,6 +78,15 @@
   margin-top: var(--stack-2); /* 20px */
 }
 
+/* Structural blocks authored as components inside the MDX body (Verdict is a
+   <dl>) were not in the ladder above, so they fell back to the UA default
+   margin -- which contradicts this file's own rule that every gap is
+   traceable to exactly one declaration. --stack-3 because these are a rank
+   change from body copy, not another paragraph. */
+.prose > dl {
+  margin-top: var(--stack-3); /* 32px */
+}
+
 /* 20px between paragraphs, not 24 or 32. Baseline-to-baseline inside a
    paragraph is 28px; between paragraphs it becomes 48px, a 1.71x step that
    reads as clearly distinct. A paragraph gap LARGER than the leading stops
