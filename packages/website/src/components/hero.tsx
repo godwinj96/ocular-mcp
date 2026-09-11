@@ -1,5 +1,6 @@
 import { CaptureReadout } from './capture-readout.js';
 import { BrandName } from './brand-name.js';
+import { ConnectCta } from './connect-cta.js';
 
 // Round 4. Built from the moodboard's "Instrument" concept plus live
 // measurements taken off linear.app and vercel.com at 1440x900 — not from
@@ -98,12 +99,7 @@ export function Hero() {
           </div>
 
           <div className="mt-9 flex flex-wrap items-center gap-6">
-            <a
-              href="/setup"
-              className="inline-flex h-[42px] items-center rounded-full bg-accent px-[22px] font-brand text-[13.5px] font-semibold tracking-normal text-surface-base transition-[background-color,transform] duration-fast hover:-translate-y-px hover:bg-accent-hover active:translate-y-0 active:bg-accent-active"
-            >
-              Connect your agent
-            </a>
+            <ConnectCta />
             {/* NOTE: describes the planned one-time browser sign-in, not
                 today's paste-an-API-key setup. Do not ship to production
                 before that auth rework lands. */}

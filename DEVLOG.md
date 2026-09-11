@@ -67,6 +67,41 @@ Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M
 
 ## Session log
 
+### 2026-09-11 — Session 36 continued: the CORS fix was correct and still wasn't enough
+
+The founder turned the toggle on again after the CORS fix deployed and the CTAs still said "Connect
+your agent." Right question back: _"Is there even a waitlist page or component for users to input
+their data? And is it connected to the backend/db?"_
+
+Checked rather than assumed, and found the real gap: **there are four CTAs on the site, and Session
+35 only ever wired up one of them.** `pricing.tsx`'s "Choose a plan" button (via `WaitlistCta`) was
+the only one that ever checked the flag. `hero.tsx`, `nav.tsx`, and `cta-footer.tsx` all carry their
+own independent "Connect your agent" link straight to `/setup` — a static onboarding page with no
+dashboard link of its own — and none of them ever imported anything waitlist-related. The earlier
+"only `pricing.tsx` has a real CTA" claim from Session 35's own investigation was wrong; it never
+grepped for "Connect your agent" specifically, only for the strings visible in the one file already
+being read.
+
+So: yes, there was a real waitlist component with a real form (`WaitlistCta` in `pricing.tsx`) wired
+to the real backend the whole time (`POST /api/public/waitlist` → `lib/waitlist.ts` →
+`insert into waitlist`, unchanged since Session 35) — the founder just could never reach it, because
+the CTA he was actually clicking (almost certainly the hero or nav one — the most prominent by far)
+never pointed there.
+
+**Fix:** extracted `useWaitlistMode()` (`hooks/use-waitlist-mode.ts`) so the flag is fetched once
+and shared, instead of `pricing.tsx` alone owning the check. `hero.tsx` and `cta-footer.tsx` (byte-
+identical CTA markup in both) now share a `ConnectCta` component; `nav.tsx` keeps its own version
+since it's built on TanStack Router's `<Link>` plus the nav's existing `onHome`-aware anchor/intercept
+pattern for its other links, not a plain `<a>`. All three now point at `#pricing` and say "Join the
+waitlist" when the flag is on, rather than each growing its own independent signup form — one real
+form on the page, four doors into it.
+
+Verified: full `tsc --noEmit` + `vite build` clean, and grepped the compiled bundle directly to
+confirm both "Join the waitlist" and "Connect your agent" strings are actually present (not just
+that the source compiled — the earlier CORS bug shipped clean too and still didn't work end to end,
+so "it built" stopped being sufficient evidence on its own this session). Not yet re-confirmed
+against the live redeployed site with a human click-through.
+
 ### 2026-09-11 — Session 36: two real bugs the founder found by actually using the admin sub-app
 
 Both reported directly by the founder after using the shipped feature — not caught by typecheck,

@@ -1,5 +1,6 @@
 import { Mark } from './mark.js';
 import { BleedRule } from './section-header.js';
+import { ConnectCta } from './connect-cta.js';
 
 // S7 · The closer.
 //
@@ -30,12 +31,7 @@ export function CtaFooter() {
             none to leak.
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-6">
-            <a
-              href="/setup"
-              className="inline-flex h-[42px] items-center rounded-full bg-accent px-[22px] font-brand text-[13.5px] font-semibold tracking-normal text-surface-base transition-[background-color,transform] duration-fast hover:-translate-y-px hover:bg-accent-hover active:translate-y-0 active:bg-accent-active"
-            >
-              Connect your agent
-            </a>
+            <ConnectCta />
             <p className="font-mono text-[11.5px] leading-none tracking-[0.02em] text-text-quaternary">
               from $2.50/mo · unmetered on localhost · cancel any time
             </p>

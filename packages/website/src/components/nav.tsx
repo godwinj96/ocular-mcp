@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { Wordmark } from './wordmark.js';
+import { useWaitlistMode } from '../hooks/use-waitlist-mode.js';
 
 // Round 4 stripped the nav to logo + CTA. That was defensible on a short
 // page and wrong on this one: the founder's note was "there should be nav
@@ -33,6 +34,7 @@ export function Nav() {
   const [active, setActive] = useState<string | null>(null);
   const navigate = useNavigate();
   const onHome = useRouterState({ select: (s) => s.location.pathname === '/' });
+  const waitlistMode = useWaitlistMode();
 
   useEffect(() => {
     // One scroll listener drives both the bar treatment and the active link.
@@ -143,12 +145,29 @@ export function Nav() {
           })}
         </nav>
 
-        <Link
-          to="/setup"
-          className="inline-flex h-9 shrink-0 items-center rounded-full bg-accent px-4 font-brand text-[13px] font-semibold tracking-normal text-surface-base transition-[background-color,transform] duration-150 ease-base hover:-translate-y-px hover:bg-accent-hover active:translate-y-0 active:bg-accent-active"
-        >
-          Connect your agent
-        </Link>
+        {waitlistMode ? (
+          // Same onHome-aware anchor + intercept pattern as the section
+          // links above — #pricing is where the site's one real signup
+          // form lives (waitlist-cta.tsx), not a second form here.
+          <a
+            href={onHome ? '#pricing' : '/#pricing'}
+            onClick={(e) => {
+              if (onHome) return;
+              e.preventDefault();
+              void navigate({ to: '/', hash: 'pricing' });
+            }}
+            className="inline-flex h-9 shrink-0 items-center rounded-full bg-accent px-4 font-brand text-[13px] font-semibold tracking-normal text-surface-base transition-[background-color,transform] duration-150 ease-base hover:-translate-y-px hover:bg-accent-hover active:translate-y-0 active:bg-accent-active"
+          >
+            Join the waitlist
+          </a>
+        ) : (
+          <Link
+            to="/setup"
+            className="inline-flex h-9 shrink-0 items-center rounded-full bg-accent px-4 font-brand text-[13px] font-semibold tracking-normal text-surface-base transition-[background-color,transform] duration-150 ease-base hover:-translate-y-px hover:bg-accent-hover active:translate-y-0 active:bg-accent-active"
+          >
+            Connect your agent
+          </Link>
+        )}
       </div>
     </header>
   );

@@ -1,48 +1,33 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useWaitlistMode, DASHBOARD_URL } from '../hooks/use-waitlist-mode.js';
 
-// Swaps the pricing section's "Choose a plan" link for a waitlist signup
-// form when an admin has waitlist mode on — see
-// packages/dashboard/app/admin/waitlist for the toggle and
-// docs/rules (Session 34 brief §2) for why: the cloud worker has no hosting
-// yet, so sending someone into checkout for a plan that can't render
-// anything on the open web yet would be selling something that doesn't work.
-//
-// THIS IS A RUNTIME CHECK, NOT A BUILD-TIME ONE, on purpose. The website is
-// a static Vite SPA with no server of its own to bake a flag into at deploy
-// time, and the whole point of an admin toggle is that flipping it doesn't
-// require a rebuild+redeploy of a different package. So this fetches the
-// dashboard's public flag endpoint on mount instead.
-const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL ?? 'http://localhost:3001';
-
+// The pricing section's own CTA: the one place on the site with room for an
+// actual inline signup form, so it's the canonical waitlist entry point —
+// see hero.tsx, nav.tsx, cta-footer.tsx, which link HERE (#pricing) instead
+// of duplicating this form when waitlist mode is on.
 type Phase = 'loading' | 'checkout' | 'waitlist-form' | 'waitlist-submitting' | 'waitlist-done';
 
 export function WaitlistCta() {
-  const [phase, setPhase] = useState<Phase>('loading');
+  const waitlistMode = useWaitlistMode();
+  const [submitted, setSubmitted] = useState(false);
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`${DASHBOARD_URL}/api/public/waitlist-status`)
-      .then((res) => (res.ok ? res.json() : { waitlistMode: false }))
-      .then((data: { waitlistMode?: boolean }) => {
-        if (!cancelled) setPhase(data.waitlistMode ? 'waitlist-form' : 'checkout');
-      })
-      // A failed flag check should never block the primary CTA — fail open
-      // to the normal checkout path, same "advisory, not load-bearing"
-      // posture the local worker's own heartbeat takes on a failed request.
-      .catch(() => {
-        if (!cancelled) setPhase('checkout');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const phase: Phase = submitted
+    ? 'waitlist-done'
+    : submitting
+      ? 'waitlist-submitting'
+      : waitlistMode === null
+        ? 'loading'
+        : waitlistMode
+          ? 'waitlist-form'
+          : 'checkout';
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setPhase('waitlist-submitting');
+    setSubmitting(true);
     try {
       const res = await fetch(`${DASHBOARD_URL}/api/public/waitlist`, {
         method: 'POST',
@@ -50,18 +35,20 @@ export function WaitlistCta() {
         body: JSON.stringify({ email }),
       });
       if (!res.ok) throw new Error('request failed');
-      setPhase('waitlist-done');
+      setSubmitted(true);
     } catch {
       setError("Couldn't join the waitlist — try again in a moment.");
-      setPhase('waitlist-form');
+    } finally {
+      setSubmitting(false);
     }
   }
 
   const ctaClass =
     'inline-flex h-[42px] items-center rounded-full bg-accent px-[22px] font-brand text-[13.5px] font-semibold tracking-normal text-surface-base transition-[background-color,transform] duration-fast hover:-translate-y-px hover:bg-accent-hover active:translate-y-0 active:bg-accent-active disabled:cursor-not-allowed disabled:bg-rule-mark disabled:text-text-inactive';
 
-  // Reserve the CTA's footprint during the flag check so the section doesn't
-  // visibly jump once it resolves.
+  // Reserve the CTA's footprint during the flag check so the section
+  // doesn't visibly jump once it resolves -- "Choose a plan" and the
+  // email-input-plus-button form are different widths.
   if (phase === 'loading') {
     return <div aria-hidden className="h-[42px]" />;
   }
