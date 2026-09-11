@@ -1,0 +1,501 @@
+/*
+ * Long-form article typography. Scoped entirely under `.prose`, which is set
+ * on the article body wrapper and nowhere else.
+ *
+ * Next does not route-scope CSS -- importing a stylesheet from a layout still
+ * puts its selectors in the document for every route in the build -- so every
+ * rule here is a descendant of `.prose` deliberately, the same defence
+ * marketing.css uses with `.marketing-shell`. Nothing here may be written as a
+ * bare element selector.
+ *
+ * WHY A STYLESHEET AND NOT TAILWIND CLASSES. MDX emits plain `<p>`, `<h2>`,
+ * `<ul>` with no className to hang utilities on. The alternative is an MDX
+ * component map that re-declares every element as a React component carrying a
+ * class string, which is more indirection for the same output and puts the
+ * type scale somewhere nobody looks for it. Values still come from
+ * @ocular/design-tokens; this file adds no colours, no radii and no easings of
+ * its own.
+ *
+ * THE GOVERNING RULE, from the design pass: a thing's loudness budget is
+ * inversely proportional to how often it appears. A blockquote shows up twice
+ * in an article and can afford three simultaneous signals; inline code shows up
+ * forty times and can afford one and a half. Every contested call below --
+ * inline code with no chip, blockquote with a rule, links with no colour --
+ * resolves on that rule, not on taste.
+ */
+
+.prose {
+  max-width: var(--measure-prose);
+  margin-inline: auto;
+  font-family: var(--font-display);
+  font-size: 17px;
+  line-height: 28px;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+
+/* 17px, not 16 and not 18. The FAQ's 16px is right for four sentences and a
+   squint at 2,000 words. 18px Geist -- which has a large x-height -- reads as
+   a documentation site's "comfortable" toggle, and the Instrument concept is
+   cold and precise, not cosy. 17px is also iOS's system body size, so it is
+   what a phone reader is calibrated to.
+
+   28px leading as a hard px value, not a unitless ratio, so the article has a
+   stable baseline unit for the rhythm below to be built from. 1.647 is one
+   notch looser than the site's 1.6 body, buying back the interline channel
+   that irradiation on near-black eats.
+
+   Body is --text-secondary (7.75:1, clears AAA), NOT --text-primary. Three
+   reasons: 18:1 is where irradiation is worst and is too hot for 2,000 words
+   on black; --text-secondary is already every paragraph's colour everywhere
+   else on this site; and spending --text-primary on body would leave headings
+   with no brightness step, forcing them to carry rank on size alone and
+   inflating the whole scale.
+
+   Tracking is ZERO below 18px and negative above it. Below the crossover,
+   negative tracking closes Geist's counters while irradiation has already
+   thickened the strokes -- you are fighting the ground. Do not carry the
+   marketing decks' -0.011em down into article body. */
+
+/* margin-top only, margin-bottom zero, everywhere. No collapsing to reason
+   about and every gap traceable to exactly one declaration. */
+.prose > * {
+  margin-bottom: 0;
+}
+
+.prose > :first-child {
+  margin-top: 0;
+}
+
+.prose p,
+.prose ul,
+.prose ol,
+.prose blockquote,
+.prose pre,
+.prose figure {
+  margin-top: var(--stack-2); /* 20px */
+}
+
+/* 20px between paragraphs, not 24 or 32. Baseline-to-baseline inside a
+   paragraph is 28px; between paragraphs it becomes 48px, a 1.71x step that
+   reads as clearly distinct. A paragraph gap LARGER than the leading stops
+   separating paragraphs and starts breaking the column into detached blocks --
+   which is how marketing copy reads, and exactly what an article must not. */
+
+.prose h2 {
+  margin-top: var(--group); /* clamp(56px, 4.4vw, 64px) */
+  font-size: 26px;
+  line-height: 1.25;
+  letter-spacing: -0.018em;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-wrap: balance;
+}
+
+.prose h3 {
+  margin-top: var(--stack-3); /* 32px */
+  font-size: 19px;
+  line-height: 1.35;
+  letter-spacing: -0.014em;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-wrap: balance;
+}
+
+/* h3 is not a new value: 19px / 1.35 / -0.014em / 500 is verbatim the row-label
+   rank already shipped in faq.tsx's <dt>, use-cases.tsx's <dt> and
+   how-it-works.tsx's <h3>. An in-article h3 does the same job a row label does.
+
+   h2 is deliberately NOT SectionHeader's 48px. That is a full-bleed
+   page-chapter rank; a 48px heading inside a 536px column would out-shout the
+   article's own title and break the column's optical width. */
+
+/* h4 exists defensively. MDX emits whatever the author writes, and an unstyled
+   h4 inheriting UA defaults on a dark page is a bug waiting to happen. It is
+   body size, separated by weight and colour only -- if you find you need one,
+   the article wants splitting. */
+.prose h4 {
+  margin-top: var(--stack-2);
+  font-size: 17px;
+  line-height: 1.4;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* THE RATIO THAT MATTERS: space above a heading is ~2.8x space below it, at
+   every rank. This is the single most-broken thing in default prose
+   stylesheets. With equal space above and below, a heading optically detaches
+   from its own section and joins the paragraph ABOVE it -- the eye groups it
+   backwards, and over a 2,000-word scroll the reader loses the outline
+   entirely. Do not "balance" these.
+
+   Above-values form a clean ladder: 20 / 32 / 56. Paragraph:h3 is 1.6x and
+   h3:h2 is 1.75x, so every step is a perceptible rank change and none lands in
+   the 1.2-1.35x band tokens.css already identifies as the worst place to sit. */
+.prose h2 + * {
+  margin-top: var(--stack-2); /* 20px */
+}
+
+.prose :is(h3, h4) + * {
+  margin-top: var(--stack-1); /* 12px -- as shipped in how-it-works.tsx */
+}
+
+/* Code, figures, quotes and tables bind UPWARD: 20px above, 32px below. A code
+   block is almost always the object of the sentence immediately before it. */
+.prose :is(pre, figure, blockquote, table) + * {
+  margin-top: var(--stack-3); /* 32px */
+}
+
+.prose :is(h2, h3)[id] {
+  scroll-margin-top: 96px; /* matches marketing.css's section[id] offset */
+}
+
+/* --- inline ------------------------------------------------------------- */
+
+.prose strong {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* 500, not 600 or 700. 600 is loaded and is too heavy against a 400 body at
+   17px -- it reads as shouting rather than emphasis. 700 is NOT LOADED AT ALL
+   (see app/layout.tsx), so `font-bold` anywhere in a post gets a synthesised
+   faux-bold. Lint for it; do not rely on anyone reading this comment. */
+
+/* THERE IS NO ITALIC FACE. Verified against node_modules, not assumed:
+   @fontsource/geist-sans ships eighteen files and every one of them is
+   `-normal`. A browser asked for italic Geist synthesises an oblique by
+   shearing the upright, which wrecks the round counters and reads as a
+   rendering fault -- dozens of times across a long article.
+   Marketing copy never hit this because marketing copy contains no <em>.
+
+   Founder's decision (Session 38): <em> is barred from posts and all emphasis
+   goes through <strong>, which is already this site's named hierarchy
+   mechanism (see hero.tsx on weight-mixing inside one sentence). This rule is
+   the safety net for an author who types *word* anyway -- it degrades to the
+   strong treatment, which looks deliberate, rather than to a sheared oblique,
+   which looks broken. */
+.prose em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.prose a {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--text-quaternary);
+  text-underline-offset: 0.18em;
+  text-decoration-skip-ink: auto;
+  transition: text-decoration-color var(--dur-fast) var(--ease);
+}
+
+.prose a:hover {
+  text-decoration-color: var(--accent);
+}
+
+.prose a:active {
+  text-decoration-color: var(--accent-active);
+}
+
+/* A link on this site cannot use colour, and that turns out to be the right
+   answer rather than a constraint. --signal means "the instrument is live",
+   which a link is not; --accent means "Ocular" (see brand-name.tsx), so silver
+   links would make every link read as a product mention. What remains --
+   a brightness step to --text-primary plus an underline -- satisfies WCAG
+   1.4.1 (never colour alone) by construction instead of by remembering to.
+
+   The rest state is ALREADY the top of the ladder, so there is nowhere
+   brighter to go on hover. That is deliberate: it forces the whole state
+   change into the underline, which is one quiet precise move rather than a
+   text-colour flash.
+
+   --text-quaternary for the underline, not --rule-mark: --rule-mark is 1.43:1
+   against the ground, too faint to carry the non-colour distinction 1.4.1
+   requires here, and a text decoration is part of the glyph run so it takes a
+   TEXT token, not a rule token. --text-quaternary is 3.81:1, clearing the 3:1
+   threshold for a non-text indicator.
+
+   0.18em and not 4px, because offset tracks descender depth, which is a fixed
+   fraction of the em rather than a fixed pixel count. It also scales correctly
+   for inline code inside a link.
+
+   NO :visited state, and this is a ruling rather than an omission. :visited may
+   only restyle colour-ish properties. Dimming the text to --text-secondary
+   makes a visited link identical to body copy; dimming the underline to
+   --text-inactive puts it at 1.76:1, below the 3:1 indicator threshold, so the
+   link fails 1.4.1 the moment it is clicked once. Both options fail and there
+   is no third inside a closed ladder.
+
+   NO external-link glyph either. In a technical post most links are external,
+   so an icon on nearly every link marks nothing and speckles the column --
+   the same frequency argument that kills the inline-code chip below. */
+
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  letter-spacing: 0;
+  color: var(--text-primary);
+  overflow-wrap: break-word;
+}
+
+/* No background, no border, no radius, no padding on inline code -- even
+   though a --surface-elevated chip would be a legal value shift.
+
+   Frequency kills it. A chip turns every inline token into a floating
+   micro-surface, and forty of them read as a speckled page rather than a
+   column of text. There is also a mechanical problem: this site has exactly
+   two radii, and 6px on a ~22px-tall chip is nearly a pill, so an inline chip
+   either breaks the radius ladder or reads as a lozenge.
+
+   A fenced block is a PANEL. An inline token is a WORD. The surface ladder is
+   for panels. What marks inline code instead is mono-in-sans -- a different
+   advance rhythm, different letterforms, a visibly different texture -- plus
+   one brightness step. Two signals, no third.
+
+   0.92em rather than a px value because inline code is the one element that
+   appears at several ranks: inside body, inside an h2, inside an h3, inside a
+   list, inside a quote. A fixed px size would be wrong in four of five.
+
+   Writing rule this depends on: no more than about three inline code tokens
+   per paragraph. Past that it wants to be a code block or a list. A
+   typographic decision resting on content discipline needs the discipline
+   written next to it. */
+
+.prose pre code {
+  font-size: inherit;
+  color: inherit;
+}
+
+/* --- lists -------------------------------------------------------------- */
+
+.prose ul,
+.prose ol {
+  padding-left: 0;
+  list-style: none;
+}
+
+.prose li {
+  position: relative;
+  padding-left: 24px;
+}
+
+.prose li + li {
+  margin-top: var(--stack-1); /* 12px */
+}
+
+.prose li > p + p {
+  margin-top: var(--stack-1);
+}
+
+.prose ul > li::before {
+  content: '–';
+  position: absolute;
+  left: 0;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-quaternary);
+}
+
+.prose ol {
+  counter-reset: prose-ol;
+}
+
+.prose ol > li {
+  counter-increment: prose-ol;
+}
+
+.prose ol > li::before {
+  content: counter(prose-ol) '.';
+  position: absolute;
+  left: 0;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--text-quaternary);
+}
+
+/* Markers share a face, size and colour across ol and ul so they read as
+   siblings, and the idiom is already shipped -- how-it-works.tsx sets 01 / 02
+   and its arrow in mono at --text-quaternary. No bullet glyph: a filled dot is
+   decoration, the mono dash is a mark this site already uses.
+
+   Hanging markers at >=768px, so the list text's left edge stays flush with
+   the paragraph left edge. The unbroken left edge is the reader's return-sweep
+   anchor and it matters more on dark than on light. Inset below that, because
+   hanging would push the marker into --page-inset's 24px floor. */
+@media (min-width: 768px) {
+  .prose ul,
+  .prose ol {
+    margin-left: -24px;
+  }
+
+  .prose li {
+    padding-left: 24px;
+  }
+}
+
+/* --- blockquote --------------------------------------------------------- */
+
+.prose blockquote {
+  padding-left: var(--stack-2);
+  border-left: 1px solid var(--rule-mark);
+  font-size: 19px;
+  line-height: 1.55;
+  letter-spacing: -0.008em;
+  color: var(--text-primary);
+  text-wrap: pretty;
+}
+
+.prose blockquote > p + p {
+  margin-top: var(--stack-2);
+}
+
+.prose blockquote cite {
+  display: block;
+  margin-top: var(--stack-1);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-style: normal;
+  color: var(--text-tertiary);
+}
+
+/* A vertical rule beside a quote is legitimate where a horizontal rule above
+   an h2 is not, and the distinction is the doctrine's own: the rules ARE the
+   design, so a rule that is not the EDGE of something is decoration. A 536px
+   hairline floating in a column is not the edge of anything. The left edge of
+   a block of quoted material is, and it is literally --rule-mark's documented
+   job ("panel frame"). The structural claim it makes is also true and
+   non-decorative: this text is not mine.
+
+   Three simultaneous signals here (size, brightness, rule) against inline
+   code's one and a half, by the frequency rule at the top of this file.
+
+   No large decorative quote glyph, no thick coloured bar, no tinted ground,
+   and no pull-quotes ever -- repeating text already on the page purely for
+   visual interest is decoration by definition.
+
+   At 19px the quote's own measure is ~58 characters: comfortably short, which
+   is correct for material the reader is meant to slow down on. `cite` sets
+   font-style: normal explicitly, because there is no italic face and the UA
+   default would synthesise one. */
+
+/* --- figures ------------------------------------------------------------ */
+
+.prose figure {
+  max-width: var(--prose-bleed);
+}
+
+.prose figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--rule-mark);
+  border-radius: var(--radius);
+}
+
+.prose figcaption {
+  margin-top: var(--stack-1);
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  color: var(--text-tertiary);
+  text-align: left;
+  text-wrap: balance;
+}
+
+/* --rule-mark is literally the token for "this object has an edge", and a
+   screenshot on near-black without one floats. Caption at --text-tertiary and
+   not quaternary: a caption frequently carries the only description of what is
+   in the image, which makes it essential rather than decorative metadata.
+   Left-aligned -- a centred caption under a left-aligned figure in a
+   left-aligned column is a template tell. */
+
+/* --- hr, defensively ---------------------------------------------------- */
+
+/* <hr> is banned from posts by policy: h2 already marks every division an
+   article of this length needs, and every horizontal rule on this site means
+   "full-bleed page chapter". A second, narrower horizontal rule with a
+   different meaning breaks the rule ladder's one-job-per-weight discipline.
+   Styled anyway so an author typing --- in MDX never gets a raw UA rule. */
+.prose hr {
+  margin-top: var(--stack-4);
+  border: 0;
+  border-top: 1px solid var(--rule-divider);
+}
+
+.prose hr + * {
+  margin-top: var(--stack-4);
+}
+
+/* --- tables ------------------------------------------------------------- */
+
+.prose table {
+  margin-top: var(--stack-3);
+  width: 100%;
+  max-width: var(--prose-bleed);
+  border-collapse: collapse;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.prose thead th {
+  padding: 0 12px 10px 0;
+  border-bottom: 1px solid var(--rule-structural);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--text-quaternary);
+}
+
+.prose tbody td {
+  padding: 12px 12px 12px 0;
+  border-bottom: 1px solid var(--rule-divider);
+  vertical-align: top;
+}
+
+.prose tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Header row in the site's eyebrow treatment rather than as bold body text,
+   and the two rule weights doing their documented jobs: --rule-structural for
+   the spine under the head, --rule-divider between rows of one thing. This is
+   the same construction faq.tsx uses for its divided list. */
+
+/* --- phone -------------------------------------------------------------- */
+
+@media (max-width: 639px) {
+  .prose {
+    line-height: 26px;
+    hyphens: auto;
+  }
+}
+
+/* Body STAYS 17px on phones. Shrinking body text on a phone is backwards, and
+   17px is iOS's own system body size.
+
+   Leading tightens 28 -> 26px below 640px because at ~41 characters the return
+   sweep is nearly free, so generous leading stops buying anything and starts
+   making the column read as disconnected slats. It also recovers roughly a
+   screen and a half of scroll across a 2,000-word post.
+
+   hyphens: auto ONLY below 640px. At 41 characters the unhyphenated rag is bad
+   enough to hurt; at 68 it is fine and hyphenation just breaks words for
+   nothing. */
+
+@media (prefers-reduced-motion: reduce) {
+  .prose a {
+    transition: none;
+  }
+}

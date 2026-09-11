@@ -67,6 +67,43 @@ Milestone definitions live in `03-phase1-architecture-plan.md` §10 for M0-M9; M
 
 ## Session log
 
+### 2026-09-11 — Session 38 (part 3): THE CUTOVER HAPPENED. `useocular.dev` now serves the Next app.
+
+**Status: live and verified.** `main` fast-forwarded to `marketing-migration` (`ddb5558`) and pushed;
+Vercel deployed in about 60 seconds.
+
+**How it surfaced:** the founder reported `useocular.dev` redirecting to the dashboard login. Correct
+diagnosis, and it was half a cutover rather than a fault — the domains had been added to the
+**dashboard** Vercel project (step 2 of the §1 checklist, founder-side) but that project deploys from
+`main`, and `main` still had `app/page.tsx` as the authenticated StatusPage with no `(marketing)`
+group. So the apex 308'd to www exactly as designed, and then www served the authenticated root,
+which bounced to AuthKit with `returnPathname: "/"`. Ten commits were sitting unmerged on the branch.
+
+**The lesson worth keeping: adding the domain and shipping the code are two separate steps, and doing
+the first without the second points a live domain at a login wall.** The §1 checklist listed them in
+the right order and did not say they were one action.
+
+Post-cutover verification, run against production rather than the preview:
+
+| Check                                                    | Result                                                                                                  |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `/`, `/setup`, `/robots.txt`, `/sitemap.xml`             | **200** — all four                                                                                      |
+| Crawler view (`grep -c "Two readings of the same page"`) | **1** — the check this brief specified, passing                                                         |
+| `/dashboard` `/billing` `/admin` `/usage` `/access`      | **307 → WorkOS** — auth unregressed                                                                     |
+| `robots.txt` body                                        | all 12 disallows present, correct `Sitemap:` line                                                       |
+| `sitemap.xml`                                            | valid, both public URLs, absolute www                                                                   |
+| Canonical on `/`                                         | `https://www.useocular.dev` — the metadataBase fix, live                                                |
+| `dashboard.useocular.dev/callback` / `/connect`          | **500 / 400** — missing-parameter paths, NOT 404. Routes alive, so OAuth and worker pairing are intact. |
+| Canonical on `dashboard.useocular.dev`                   | points at www — merged domain does not double-index                                                     |
+| `og-image.png`, `llms.txt`                               | 200                                                                                                     |
+| `/api/public/waitlist-status`                            | `{"waitlistMode":true}` — CTAs are in waitlist mode                                                     |
+
+**Rollback is still the `@ocular/website` Vercel project**, untouched and intact. Do not delete
+`packages/website` — and note `scripts/capture-motion-specimen.mjs` still points at its dev server.
+
+**Working rule from here: `main` auto-deploys to the live domain.** Unfinished blog routes must stay
+on a branch. This is the first time that has been true of this repo.
+
 ### 2026-09-11 — Session 38 (part 2): blog foundation, and three things the research found wrong
 
 Pushed to `marketing-migration` (`3f425bc`, `e250c64`, `efb18d2`). Still no blog routes and no posts
